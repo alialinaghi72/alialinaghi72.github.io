@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>علی علینقی — کارشناس اکتشاف معدن و تخمین ذخیره</title>
+<meta name="description" content="مشاورهٔ تخصصی اکتشاف معدن، مدل‌سازی و تخمین ذخیره در ایران و کشورهای همسایه.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0B0E10;
+  --bg-2:#111619;
+  --line:#222C31;
+  --line-soft:#1A2226;
+  --copper:#C07A45;
+  --copper-hi:#E2A96B;
+  --patina:#5E9C8B;
+  --text:#E9E5DF;
+  --muted:#98A2A6;
+  --maxw:1080px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--bg);color:var(--text);
+  font-family:"Vazirmatn","IRANSansX","IRANSans",Tahoma,"Segoe UI",sans-serif;
+  font-weight:300;line-height:1.85;font-size:16.5px;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:inherit}
+.wrap{max-width:var(--maxw);margin:0 auto;padding-inline:24px}
+section{padding-block:76px;border-top:1px solid var(--line-soft)}
+h1,h2,h3{font-weight:500;line-height:1.35;margin:0}
+h2{font-size:1.5rem;margin-bottom:6px}
+.lede{color:var(--muted);max-width:60ch;margin-top:0}
+
+/* header */
+header{
+  position:sticky;top:0;z-index:20;background:rgba(11,14,16,.86);
+  backdrop-filter:blur(10px);border-bottom:1px solid var(--line-soft)
+}
+.bar{display:flex;align-items:center;justify-content:space-between;height:62px}
+.mark{display:flex;align-items:center;gap:10px;text-decoration:none}
+.mono{
+  width:34px;height:34px;display:grid;place-items:center;border:1px solid var(--copper);
+  color:var(--copper-hi);font-size:.82rem;letter-spacing:.04em;border-radius:2px
+}
+.mark span{font-size:.92rem;color:var(--muted)}
+nav{display:flex;align-items:center;gap:22px}
+nav a{text-decoration:none;color:var(--muted);font-size:.9rem}
+nav a:hover{color:var(--text)}
+.lang{
+  border:1px solid var(--line);background:transparent;color:var(--text);
+  font-family:inherit;font-size:.82rem;padding:5px 13px;border-radius:2px;cursor:pointer
+}
+.lang:hover{border-color:var(--copper)}
+@media(max-width:760px){nav a{display:none}}
+
+/* hero */
+.hero{padding-block:92px 78px;border-top:0}
+.hero h1{font-size:clamp(2.1rem,6vw,3.3rem);font-weight:500;letter-spacing:-.01em}
+.role{color:var(--copper-hi);margin:14px 0 18px;font-size:1.02rem}
+.hero p{color:var(--muted);max-width:54ch;margin:0}
+.actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}
+.btn{
+  text-decoration:none;font-size:.92rem;padding:11px 20px;border-radius:2px;
+  border:1px solid var(--line);color:var(--text);transition:border-color .2s,color .2s
+}
+.btn:hover{border-color:var(--copper)}
+.btn.solid{background:var(--copper);border-color:var(--copper);color:#120C06;font-weight:500}
+.btn.solid:hover{background:var(--copper-hi);border-color:var(--copper-hi)}
+
+
+
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line-soft)}
+.stat{background:var(--bg);padding:26px 20px}
+.stat b{display:block;font-size:1.6rem;font-weight:500;color:var(--copper-hi)}
+.stat span{color:var(--muted);font-size:.86rem}
+@media(max-width:700px){.stats{grid-template-columns:1fr 1fr}}
+
+/* services list */
+.svc{margin-top:34px}
+.svc-row{display:grid;grid-template-columns:1fr 2fr;gap:24px;padding:22px 0;border-top:1px solid var(--line-soft)}
+.svc-row:last-child{border-bottom:1px solid var(--line-soft)}
+.svc-row h3{font-size:1.02rem}
+.svc-row p{margin:0;color:var(--muted);font-size:.95rem}
+@media(max-width:700px){.svc-row{grid-template-columns:1fr;gap:6px}}
+
+/* chips */
+.chips{display:flex;flex-wrap:wrap;gap:9px;margin-top:18px}
+.chip{border:1px solid var(--line);padding:6px 14px;border-radius:2px;font-size:.87rem;color:var(--muted)}
+.chip.tone{border-color:#3A2A1E;color:var(--copper-hi)}
+.chip.ltr{direction:ltr}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:44px;margin-top:8px}
+@media(max-width:760px){.grid2{grid-template-columns:1fr;gap:32px}}
+.grid2 h3{font-size:1rem;color:var(--text);font-weight:500}
+
+
+
+
+/* projects */
+.proj{margin-top:30px;border-top:1px solid var(--line-soft)}
+.proj-row{display:grid;grid-template-columns:1.1fr 1fr 1.2fr;gap:18px;padding:16px 0;border-bottom:1px solid var(--line-soft);align-items:baseline}
+.proj-row b{font-weight:500}
+.proj-row span{color:var(--muted);font-size:.92rem}
+.proj-row .place{color:var(--copper-hi);font-size:.92rem}
+@media(max-width:700px){.proj-row{grid-template-columns:1fr;gap:3px}}
+
+/* card */
+.cardwrap{display:grid;grid-template-columns:1fr 1fr;gap:44px;align-items:center}
+@media(max-width:760px){.cardwrap{grid-template-columns:1fr;gap:28px}}
+.vcard{
+  background:linear-gradient(150deg,#141A1E 0%,#0D1215 60%,#151013 100%);
+  border:1px solid var(--line);border-radius:4px;padding:26px;
+  display:grid;grid-template-columns:1fr auto;gap:22px;align-items:center;
+  box-shadow:0 20px 50px -30px #000
+}
+.vcard .who b{display:block;font-weight:500;font-size:1.1rem}
+.vcard .who .t{color:var(--copper-hi);font-size:.84rem;margin:4px 0 14px}
+.vcard .who div{color:var(--muted);font-size:.82rem;direction:ltr;text-align:start}
+.qr{width:104px;height:104px;background:#E9E5DF;color:#0B0E10;padding:7px;border-radius:3px}
+.qr svg{display:block;width:100%;height:100%}
+
+/* contact */
+.form{display:grid;gap:12px;margin-top:22px;max-width:520px}
+.form input,.form textarea{
+  background:var(--bg-2);border:1px solid var(--line);color:var(--text);
+  font-family:inherit;font-size:.95rem;padding:11px 13px;border-radius:2px
+}
+.form input:focus,.form textarea:focus{outline:2px solid var(--copper);outline-offset:1px}
+.form button{
+  background:var(--copper);color:#120C06;border:0;font-family:inherit;font-weight:500;
+  padding:12px 22px;border-radius:2px;cursor:pointer;justify-self:start;font-size:.95rem
+}
+.form button:hover{background:var(--copper-hi)}
+.reach{display:grid;gap:12px;margin-top:22px}
+.reach a{display:flex;gap:12px;align-items:center;text-decoration:none;color:var(--muted);font-size:.95rem}
+.reach a b{color:var(--text);font-weight:400;direction:ltr}
+.reach a:hover b{color:var(--copper-hi)}
+.dot{width:5px;height:5px;background:var(--copper);border-radius:50%;flex:none}
+
+footer{border-top:1px solid var(--line-soft);padding-block:30px;color:var(--muted);font-size:.85rem}
+.foot{display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+:focus-visible{outline:2px solid var(--copper-hi);outline-offset:2px}
+html[lang="en"] body{font-weight:300}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap bar">
+    <a class="mark" href="#top">
+      <span class="mono">A.A</span>
+      <span data-fa="علی علینقی" data-en="Ali Alinaghi">علی علینقی</span>
+    </a>
+    <nav>
+      <a href="#services" data-fa="خدمات" data-en="Services">خدمات</a>
+      <a href="#expertise" data-fa="تخصص" data-en="Expertise">تخصص</a>
+      <a href="#projects" data-fa="پروژه‌ها" data-en="Projects">پروژه‌ها</a>
+      <a href="#contact" data-fa="تماس" data-en="Contact">تماس</a>
+      <button class="lang" id="lang" type="button">English</button>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+<div class="wrap">
+  <section class="hero">
+    <div>
+      <h1 data-fa="علی علینقی" data-en="Ali Alinaghi">علی علینقی</h1>
+      <div class="role" data-fa="کارشناس ارشد اکتشاف معدن — متخصص مدل‌سازی و تخمین ذخیرهٔ معدنی"
+           data-en="MSc Mineral Exploration — resource modelling and estimation specialist">کارشناس ارشد اکتشاف معدن — متخصص مدل‌سازی و تخمین ذخیرهٔ معدنی</div>
+      <p data-fa="بیش از ده سال کار روی پروژه‌های اکتشاف و ارزیابی ذخیره در ایران، ارمنستان، ونزوئلا و مراکش؛ از هدف‌گیری اکتشافی و طراحی برنامهٔ حفاری تا مدل بلوکی، تخمین ذخیره و گزارش منطبق بر استانداردهای بین‌المللی."
+         data-en="More than ten years on exploration and resource evaluation projects across Iran, Armenia, Venezuela and Morocco — from targeting and drill programme design through to block modelling, resource estimation and reporting to international standards.">بیش از ده سال کار روی پروژه‌های اکتشاف و ارزیابی ذخیره در ایران، ارمنستان، ونزوئلا و مراکش؛ از هدف‌گیری اکتشافی و طراحی برنامهٔ حفاری تا مدل بلوکی، تخمین ذخیره و گزارش منطبق بر استانداردهای بین‌المللی.</p>
+      <div class="actions">
+        <a class="btn solid" href="https://wa.me/989135133397" data-fa="گفت‌وگو دربارهٔ پروژه" data-en="Discuss a project">گفت‌وگو دربارهٔ پروژه</a>
+        <a class="btn" href="https://www.linkedin.com/in/alialinaghi72" data-fa="سابقهٔ حرفه‌ای در لینکدین" data-en="Professional record on LinkedIn">سابقهٔ حرفه‌ای در لینکدین</a>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="wrap">
+  <div class="stats">
+    <div class="stat"><b>+۱۰</b><span data-fa="سال تجربهٔ حرفه‌ای" data-en="years of practice">سال تجربهٔ حرفه‌ای</span></div>
+    <div class="stat"><b>+۲۰</b><span data-fa="پروژهٔ مدل‌سازی و تخمین ذخیره" data-en="modelling &amp; estimation projects">پروژهٔ مدل‌سازی و تخمین ذخیره</span></div>
+    <div class="stat"><b>۴</b><span data-fa="کشور در سه قاره" data-en="countries, three continents">کشور در سه قاره</span></div>
+    <div class="stat"><b data-fa="چند میلیون تن" data-en="Multi-Mt">چند میلیون تن</b><span data-fa="منابع تخمین‌زده‌شده" data-en="resources estimated">منابع تخمین‌زده‌شده</span></div>
+  </div>
+</div>
+
+<section id="about"><div class="wrap">
+  <h2 data-fa="معرفی" data-en="Profile">معرفی</h2>
+  <p class="lede" data-fa="رساندن یک محدودهٔ اکتشافی از دادهٔ پراکندهٔ صحرایی تا عددی که بتوان روی آن تصمیم سرمایه‌گذاری گرفت، کار دشواری است؛ هر مرحله‌اش قضاوت فنی و انتخاب روش می‌خواهد. من از مرحلهٔ شناسایی و پی‌جویی وارد پروژه می‌شوم، برنامهٔ اکتشاف را طراحی می‌کنم، پایگاه دادهٔ حفاری را صحت‌سنجی می‌کنم و مدل زمین‌شناسی و تخمین ذخیره را تا گزارش نهایی پیش می‌برم. تمرکزم بر شفافیت روش، قابلیت ممیزی نتایج و انطباق با استانداردهای پذیرفته‌شدهٔ بین‌المللی است."
+     data-en="Taking a licence area from scattered field data to a number an investor can act on is demanding work; every stage calls for technical judgement and a choice of method. I join projects at reconnaissance stage, design the exploration programme, validate the drillhole database, and carry the geological model and resource estimate through to a final, auditable report — with method transparency and alignment to accepted international standards throughout.">رساندن یک محدودهٔ اکتشافی از دادهٔ پراکندهٔ صحرایی تا عددی که بتوان روی آن تصمیم سرمایه‌گذاری گرفت، کار دشواری است؛ هر مرحله‌اش قضاوت فنی و انتخاب روش می‌خواهد. من از مرحلهٔ شناسایی و پی‌جویی وارد پروژه می‌شوم، برنامهٔ اکتشاف را طراحی می‌کنم، پایگاه دادهٔ حفاری را صحت‌سنجی می‌کنم و مدل زمین‌شناسی و تخمین ذخیره را تا گزارش نهایی پیش می‌برم. تمرکزم بر شفافیت روش، قابلیت ممیزی نتایج و انطباق با استانداردهای پذیرفته‌شدهٔ بین‌المللی است.</p>
+  <div class="chips">
+    <span class="chip tone ltr">JORC</span>
+    <span class="chip tone ltr">NI 43-101</span>
+    <span class="chip tone ltr">CIM</span>
+    <span class="chip" data-fa="ایران و کشورهای همسایه" data-en="Iran and neighbouring countries">ایران و کشورهای همسایه</span>
+  </div>
+</div></section>
+
+<section id="services"><div class="wrap">
+  <h2 data-fa="خدمات" data-en="Services">خدمات</h2>
+  <p class="lede" data-fa="هر خدمت به‌صورت مستقل یا به‌عنوان بخشی از یک برنامهٔ کامل اکتشاف تا ارزیابی اقتصادی قابل ارائه است."
+     data-en="Each service stands alone, or fits into a full programme running from exploration through to economic evaluation.">هر خدمت به‌صورت مستقل یا به‌عنوان بخشی از یک برنامهٔ کامل اکتشاف تا ارزیابی اقتصادی قابل ارائه است.</p>
+  <div class="svc">
+    <div class="svc-row">
+      <h3 data-fa="طراحی و مدیریت برنامهٔ اکتشاف" data-en="Exploration programme design">طراحی و مدیریت برنامهٔ اکتشاف</h3>
+      <p data-fa="از شناسایی و پی‌جویی تا طراحی شبکهٔ ترانشه و گمانه، برنامهٔ نمونه‌برداری، برآورد هزینه و زمان‌بندی مرحله‌ای." data-en="From reconnaissance to trench and drillhole layout, sampling plans, cost estimates and staged scheduling.">از شناسایی و پی‌جویی تا طراحی شبکهٔ ترانشه و گمانه، برنامهٔ نمونه‌برداری، برآورد هزینه و زمان‌بندی مرحله‌ای.</p>
+    </div>
+    <div class="svc-row">
+      <h3 data-fa="اکتشاف و هدف‌گیری کانسار" data-en="Exploration and target generation">اکتشاف و هدف‌گیری کانسار</h3>
+      <p data-fa="تفسیر یکپارچهٔ داده‌های زمین‌شناسی، ژئوشیمی، ژئوفیزیک و سنجش از دور برای تعیین تیپ کانسار و اولویت‌بندی محدوده‌های امیدبخش." data-en="Integrated interpretation of geological, geochemical, geophysical and remote sensing data to define deposit type and rank targets.">تفسیر یکپارچهٔ داده‌های زمین‌شناسی، ژئوشیمی، ژئوفیزیک و سنجش از دور برای تعیین تیپ کانسار و اولویت‌بندی محدوده‌های امیدبخش.</p>
+    </div>
+    <div class="svc-row">
+      <h3 data-fa="مدل‌سازی و تخمین ذخیره" data-en="Modelling and resource estimation">مدل‌سازی و تخمین ذخیره</h3>
+      <p data-fa="ساخت مدل زمین‌شناسی سه‌بعدی، تحلیل ساختار فضایی و واریوگرافی، کریجینگ و شبیه‌سازی، ساخت مدل بلوکی و رده‌بندی منابع و ذخایر." data-en="3D geological modelling, spatial continuity and variography, kriging and simulation, block model construction, resource and reserve classification.">ساخت مدل زمین‌شناسی سه‌بعدی، تحلیل ساختار فضایی و واریوگرافی، کریجینگ و شبیه‌سازی، ساخت مدل بلوکی و رده‌بندی منابع و ذخایر.</p>
+    </div>
+    <div class="svc-row">
+      <h3 data-fa="صحت‌سنجی داده و کنترل کیفیت" data-en="Data validation and QA/QC">صحت‌سنجی داده و کنترل کیفیت</h3>
+      <p data-fa="بازبینی پایگاه دادهٔ حفاری، بررسی نتایج کنترل کیفیت آزمایشگاهی، شناسایی ناسازگاری‌های نمونه‌برداری و اختلاف تیپ‌های حفاری پیش از ورود داده به مدل." data-en="Drillhole database review, laboratory QA/QC assessment, and detection of sampling inconsistencies and drill-type bias before data enters the model.">بازبینی پایگاه دادهٔ حفاری، بررسی نتایج کنترل کیفیت آزمایشگاهی، شناسایی ناسازگاری‌های نمونه‌برداری و اختلاف تیپ‌های حفاری پیش از ورود داده به مدل.</p>
+    </div>
+    <div class="svc-row">
+      <h3 data-fa="بازبینی فنی و ممیزی گزارش" data-en="Technical review and audit">بازبینی فنی و ممیزی گزارش</h3>
+      <p data-fa="ارزیابی مستقل گزارش‌های اکتشاف و تخمین ذخیره، شناسایی ریسک‌های فنی و ارائهٔ نظر کارشناسی برای مدیران و سرمایه‌گذاران." data-en="Independent review of exploration and resource reports, identification of technical risk, and expert opinion for managers and investors.">ارزیابی مستقل گزارش‌های اکتشاف و تخمین ذخیره، شناسایی ریسک‌های فنی و ارائهٔ نظر کارشناسی برای مدیران و سرمایه‌گذاران.</p>
+    </div>
+    <div class="svc-row">
+      <h3 data-fa="ارزیابی فنی‑اقتصادی" data-en="Techno-economic assessment">ارزیابی فنی‑اقتصادی</h3>
+      <p data-fa="مطالعات مقدماتی و امکان‌سنجی، تحلیل حساسیت پارامترهای اقتصادی، تعیین عیار حد و ارزش‌گذاری پروژه برای تصمیم سرمایه‌گذاری." data-en="Scoping and feasibility studies, sensitivity analysis, cut-off grade determination and project valuation to support the investment decision.">مطالعات مقدماتی و امکان‌سنجی، تحلیل حساسیت پارامترهای اقتصادی، تعیین عیار حد و ارزش‌گذاری پروژه برای تصمیم سرمایه‌گذاری.</p>
+    </div>
+    <div class="svc-row">
+      <h3 data-fa="آموزش و انتقال دانش" data-en="Training and knowledge transfer">آموزش و انتقال دانش</h3>
+      <p data-fa="آموزش کارگاهی تیم‌های فنی در زمینهٔ لاگ‌برداری، ساختار پایگاه داده، زمین‌آمار کاربردی و کار با نرم‌افزارهای تخصصی مدل‌سازی." data-en="Workshop training for technical teams in logging, database structure, applied geostatistics and specialist modelling software.">آموزش کارگاهی تیم‌های فنی در زمینهٔ لاگ‌برداری، ساختار پایگاه داده، زمین‌آمار کاربردی و کار با نرم‌افزارهای تخصصی مدل‌سازی.</p>
+    </div>
+  </div>
+</div></section>
+
+<section id="expertise"><div class="wrap">
+  <h2 data-fa="حوزهٔ تخصص" data-en="Expertise">حوزهٔ تخصص</h2>
+  <div class="grid2">
+    <div>
+      <h3 data-fa="مواد معدنی" data-en="Commodities">مواد معدنی</h3>
+      <div class="chips">
+        <span class="chip" data-fa="طلا" data-en="Gold">طلا</span>
+        <span class="chip" data-fa="مس" data-en="Copper">مس</span>
+        <span class="chip" data-fa="مولیبدن" data-en="Molybdenum">مولیبدن</span>
+        <span class="chip" data-fa="سرب و روی" data-en="Lead–zinc">سرب و روی</span>
+        <span class="chip" data-fa="آهن" data-en="Iron">آهن</span>
+        <span class="chip" data-fa="زغال‌سنگ" data-en="Coal">زغال‌سنگ</span>
+        <span class="chip" data-fa="تالک" data-en="Talc">تالک</span>
+      </div>
+    </div>
+    <div>
+      <h3 data-fa="نرم‌افزارها" data-en="Software">نرم‌افزارها</h3>
+      <div class="chips">
+        <span class="chip ltr">Isatis.neo</span>
+        <span class="chip ltr">Leapfrog Geo</span>
+        <span class="chip ltr">Surpac</span>
+        <span class="chip ltr">Vulcan</span>
+        <span class="chip ltr">Datamine</span>
+        <span class="chip ltr">ArcGIS</span>
+        <span class="chip ltr">Python</span>
+      </div>
+    </div>
+  </div>
+</div></section>
+
+<section id="projects"><div class="wrap">
+  <h2 data-fa="پروژه‌ها" data-en="Projects">پروژه‌ها</h2>
+  <p class="lede" data-fa="گزیده‌ای از پروژه‌های بین‌المللی و داخلی. جزئیات فنی هر پروژه در چارچوب توافق محرمانگی با کارفرما قابل ارائه است."
+     data-en="A selection of international and domestic projects. Technical detail is available within the confidentiality terms agreed with each client.">گزیده‌ای از پروژه‌های بین‌المللی و داخلی. جزئیات فنی هر پروژه در چارچوب توافق محرمانگی با کارفرما قابل ارائه است.</p>
+  <div class="proj">
+    <div class="proj-row">
+      <b data-fa="پروژهٔ مس و مولیبدن" data-en="Copper–molybdenum project">پروژهٔ مس و مولیبدن</b>
+      <span class="place" data-fa="ارمنستان" data-en="Armenia">ارمنستان</span>
+      <span data-fa="مس و مولیبدن — ارزیابی و تخمین ذخیره" data-en="Copper–molybdenum — evaluation and resource estimation">مس و مولیبدن — ارزیابی و تخمین ذخیره</span>
+    </div>
+    <div class="proj-row">
+      <b data-fa="پروژهٔ آهن" data-en="Iron project">پروژهٔ آهن</b>
+      <span class="place" data-fa="ارمنستان" data-en="Armenia">ارمنستان</span>
+      <span data-fa="آهن — مدل‌سازی زمین‌شناسی و برآورد منابع" data-en="Iron — geological modelling and resource estimation">آهن — مدل‌سازی زمین‌شناسی و برآورد منابع</span>
+    </div>
+    <div class="proj-row">
+      <b data-fa="پروژهٔ طلا" data-en="Gold project">پروژهٔ طلا</b>
+      <span class="place" data-fa="ونزوئلا" data-en="Venezuela">ونزوئلا</span>
+      <span data-fa="طلا — ارزیابی اکتشافی و تخمین ذخیره" data-en="Gold — exploration assessment and resource estimation">طلا — ارزیابی اکتشافی و تخمین ذخیره</span>
+    </div>
+    <div class="proj-row">
+      <b data-fa="پروژهٔ تالک و آهن" data-en="Talc and iron project">پروژهٔ تالک و آهن</b>
+      <span class="place" data-fa="مراکش" data-en="Morocco">مراکش</span>
+      <span data-fa="تالک و آهن — ارزیابی محدوده و برنامهٔ اکتشاف" data-en="Talc and iron — area assessment and exploration programme">تالک و آهن — ارزیابی محدوده و برنامهٔ اکتشاف</span>
+    </div>
+    <div class="proj-row">
+      <b data-fa="پروژه‌های مس" data-en="Copper projects">پروژه‌های مس</b>
+      <span class="place" data-fa="ایران — استان یزد" data-en="Iran — Yazd province">ایران — استان یزد</span>
+      <span data-fa="مس — بازبینی گزارش پایانی اکتشاف و تخمین ذخیره" data-en="Copper — final exploration report review and resource estimation">مس — بازبینی گزارش پایانی اکتشاف و تخمین ذخیره</span>
+    </div>
+    <div class="proj-row">
+      <b data-fa="پروژهٔ آهن" data-en="Iron project">پروژهٔ آهن</b>
+      <span class="place" data-fa="ایران — خراسان جنوبی" data-en="Iran — South Khorasan">ایران — خراسان جنوبی</span>
+      <span data-fa="آهن و طلا — تحلیل داده‌های اکتشافی و گزارش پایانی" data-en="Iron and gold — exploration data analysis and final report">آهن و طلا — تحلیل داده‌های اکتشافی و گزارش پایانی</span>
+    </div>
+    <div class="proj-row">
+      <b data-fa="پروژهٔ پلی‌متال" data-en="Polymetallic project">پروژهٔ پلی‌متال</b>
+      <span class="place" data-fa="ایران — استان اردبیل" data-en="Iran — Ardabil province">ایران — استان اردبیل</span>
+      <span data-fa="سرب، روی و طلا — ارزیابی محدوده و طراحی برنامهٔ اکتشاف" data-en="Lead, zinc and gold — area assessment and exploration design">سرب، روی و طلا — ارزیابی محدوده و طراحی برنامهٔ اکتشاف</span>
+    </div>
+    <div class="proj-row">
+      <b data-fa="پروژهٔ رگه‌ای طلا و مس" data-en="Vein-hosted gold and copper">پروژهٔ رگه‌ای طلا و مس</b>
+      <span class="place" data-fa="ایران — استان اصفهان" data-en="Iran — Isfahan province">ایران — استان اصفهان</span>
+      <span data-fa="کانسار هیدروترمال رگه‌ای — طراحی گمانه، لاگ‌برداری و تخمین ذخیره" data-en="Vein-hosted hydrothermal deposits — drill design, logging and estimation">کانسار هیدروترمال رگه‌ای — طراحی گمانه، لاگ‌برداری و تخمین ذخیره</span>
+    </div>
+  </div>
+</div></section>
+
+<section id="notes"><div class="wrap">
+  <h2 data-fa="یادداشت‌های فنی" data-en="Technical notes">یادداشت‌های فنی</h2>
+  <p class="lede" data-fa="به‌طور منظم دربارهٔ اکتشاف، زمین‌آمار و تخمین ذخیره در لینکدین می‌نویسم؛ از تجربه‌های میدانی تا نکات روش‌شناختی در مدل‌سازی."
+     data-en="I write regularly on exploration, geostatistics and resource estimation on LinkedIn — field experience alongside methodological notes on modelling.">به‌طور منظم دربارهٔ اکتشاف، زمین‌آمار و تخمین ذخیره در لینکدین می‌نویسم؛ از تجربه‌های میدانی تا نکات روش‌شناختی در مدل‌سازی.</p>
+  <div class="actions">
+    <a class="btn" href="https://www.linkedin.com/in/alialinaghi72" data-fa="خواندن یادداشت‌ها در لینکدین" data-en="Read the notes on LinkedIn">خواندن یادداشت‌ها در لینکدین</a>
+  </div>
+</div></section>
+
+<section id="card"><div class="wrap">
+  <h2 data-fa="کارت ویزیت" data-en="Business card">کارت ویزیت</h2>
+  <div class="cardwrap">
+    <p class="lede" data-fa="برای ذخیرهٔ اطلاعات تماس، کد را با دوربین گوشی اسکن کنید."
+       data-en="Scan the code with a phone camera to save the contact details.">برای ذخیرهٔ اطلاعات تماس، کد را با دوربین گوشی اسکن کنید.</p>
+    <div class="vcard">
+      <div class="who">
+        <b data-fa="علی علینقی" data-en="Ali Alinaghi">علی علینقی</b>
+        <div class="t" data-fa="کارشناس ارشد اکتشاف معدن — تخمین ذخیره" data-en="Mineral exploration — resource estimation">کارشناس ارشد اکتشاف معدن — تخمین ذخیره</div>
+        <div>+98 913 513 3397</div>
+        <div>alialinaghi72@gmail.com</div>
+        <div>linkedin.com/in/alialinaghi72</div>
+      </div>
+      <div class="qr" aria-label="QR"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 31 31" shape-rendering="crispEdges"><path fill="currentColor" d="M1 1h7v1h-7zM9 1h1v1h-1zM12 1h8v1h-8zM23 1h7v1h-7zM1 2h1v1h-1zM7 2h1v1h-1zM10 2h1v1h-1zM17 2h2v1h-2zM20 2h1v1h-1zM23 2h1v1h-1zM29 2h1v1h-1zM1 3h1v1h-1zM3 3h3v1h-3zM7 3h1v1h-1zM10 3h4v1h-4zM15 3h6v1h-6zM23 3h1v1h-1zM25 3h3v1h-3zM29 3h1v1h-1zM1 4h1v1h-1zM3 4h3v1h-3zM7 4h1v1h-1zM9 4h1v1h-1zM11 4h1v1h-1zM14 4h4v1h-4zM19 4h1v1h-1zM23 4h1v1h-1zM25 4h3v1h-3zM29 4h1v1h-1zM1 5h1v1h-1zM3 5h3v1h-3zM7 5h1v1h-1zM9 5h4v1h-4zM15 5h5v1h-5zM23 5h1v1h-1zM25 5h3v1h-3zM29 5h1v1h-1zM1 6h1v1h-1zM7 6h1v1h-1zM9 6h1v1h-1zM12 6h1v1h-1zM14 6h2v1h-2zM20 6h2v1h-2zM23 6h1v1h-1zM29 6h1v1h-1zM1 7h7v1h-7zM9 7h1v1h-1zM11 7h1v1h-1zM13 7h1v1h-1zM15 7h1v1h-1zM17 7h1v1h-1zM19 7h1v1h-1zM21 7h1v1h-1zM23 7h7v1h-7zM9 8h2v1h-2zM12 8h2v1h-2zM18 8h4v1h-4zM1 9h1v1h-1zM5 9h1v1h-1zM7 9h4v1h-4zM12 9h2v1h-2zM16 9h1v1h-1zM18 9h2v1h-2zM21 9h6v1h-6zM29 9h1v1h-1zM1 10h2v1h-2zM4 10h2v1h-2zM10 10h2v1h-2zM15 10h5v1h-5zM21 10h1v1h-1zM23 10h7v1h-7zM1 11h1v1h-1zM3 11h3v1h-3zM7 11h5v1h-5zM16 11h1v1h-1zM19 11h1v1h-1zM24 11h2v1h-2zM29 11h1v1h-1zM1 12h6v1h-6zM8 12h2v1h-2zM11 12h2v1h-2zM15 12h9v1h-9zM25 12h2v1h-2zM28 12h2v1h-2zM1 13h1v1h-1zM6 13h2v1h-2zM9 13h1v1h-1zM12 13h1v1h-1zM15 13h2v1h-2zM18 13h1v1h-1zM21 13h2v1h-2zM28 13h1v1h-1zM1 14h5v1h-5zM9 14h3v1h-3zM14 14h1v1h-1zM16 14h4v1h-4zM23 14h1v1h-1zM25 14h5v1h-5zM2 15h4v1h-4zM7 15h1v1h-1zM10 15h2v1h-2zM14 15h5v1h-5zM21 15h2v1h-2zM25 15h3v1h-3zM29 15h1v1h-1zM1 16h1v1h-1zM5 16h2v1h-2zM8 16h1v1h-1zM11 16h1v1h-1zM15 16h2v1h-2zM18 16h2v1h-2zM23 16h1v1h-1zM28 16h2v1h-2zM3 17h2v1h-2zM7 17h1v1h-1zM11 17h1v1h-1zM15 17h2v1h-2zM18 17h1v1h-1zM21 17h2v1h-2zM24 17h1v1h-1zM28 17h1v1h-1zM1 18h1v1h-1zM3 18h3v1h-3zM8 18h5v1h-5zM14 18h1v1h-1zM16 18h4v1h-4zM23 18h4v1h-4zM28 18h2v1h-2zM6 19h2v1h-2zM9 19h1v1h-1zM11 19h4v1h-4zM16 19h1v1h-1zM19 19h1v1h-1zM25 19h1v1h-1zM27 19h1v1h-1zM29 19h1v1h-1zM3 20h4v1h-4zM9 20h3v1h-3zM16 20h3v1h-3zM21 20h2v1h-2zM28 20h2v1h-2zM1 21h2v1h-2zM6 21h2v1h-2zM9 21h7v1h-7zM18 21h9v1h-9zM29 21h1v1h-1zM9 22h1v1h-1zM12 22h2v1h-2zM15 22h7v1h-7zM25 22h1v1h-1zM29 22h1v1h-1zM1 23h7v1h-7zM9 23h1v1h-1zM13 23h4v1h-4zM19 23h3v1h-3zM23 23h1v1h-1zM25 23h3v1h-3zM29 23h1v1h-1zM1 24h1v1h-1zM7 24h1v1h-1zM11 24h1v1h-1zM13 24h2v1h-2zM16 24h6v1h-6zM25 24h1v1h-1zM29 24h1v1h-1zM1 25h1v1h-1zM3 25h3v1h-3zM7 25h1v1h-1zM9 25h2v1h-2zM12 25h3v1h-3zM16 25h1v1h-1zM18 25h1v1h-1zM20 25h7v1h-7zM29 25h1v1h-1zM1 26h1v1h-1zM3 26h3v1h-3zM7 26h1v1h-1zM11 26h1v1h-1zM15 26h3v1h-3zM19 26h1v1h-1zM21 26h2v1h-2zM24 26h1v1h-1zM29 26h1v1h-1zM1 27h1v1h-1zM3 27h3v1h-3zM7 27h1v1h-1zM10 27h1v1h-1zM12 27h7v1h-7zM20 27h1v1h-1zM22 27h1v1h-1zM26 27h4v1h-4zM1 28h1v1h-1zM7 28h1v1h-1zM11 28h1v1h-1zM15 28h2v1h-2zM18 28h2v1h-2zM21 28h2v1h-2zM25 28h2v1h-2zM28 28h2v1h-2zM1 29h7v1h-7zM9 29h2v1h-2zM12 29h2v1h-2zM15 29h2v1h-2zM18 29h1v1h-1zM21 29h5v1h-5zM28 29h1v1h-1z"/></svg></div>
+    </div>
+  </div>
+</div></section>
+
+<section id="contact"><div class="wrap">
+  <h2 data-fa="تماس" data-en="Contact">تماس</h2>
+  <div class="grid2">
+    <div>
+      <p class="lede" data-fa="برای بررسی یک محدوده، بازبینی گزارش یا شروع یک پروژهٔ تخمین ذخیره، پیام بدهید. معمولاً ظرف یک روز کاری پاسخ می‌دهم."
+         data-en="Send a message about assessing an area, reviewing a report, or starting a resource estimation project. I usually reply within one working day.">برای بررسی یک محدوده، بازبینی گزارش یا شروع یک پروژهٔ تخمین ذخیره، پیام بدهید. معمولاً ظرف یک روز کاری پاسخ می‌دهم.</p>
+      <div class="reach">
+        <a href="tel:+989135133397"><span class="dot"></span><b>+98 913 513 3397</b></a>
+        <a href="https://wa.me/989135133397"><span class="dot"></span><b>WhatsApp</b></a>
+        <a href="mailto:alialinaghi72@gmail.com"><span class="dot"></span><b>alialinaghi72@gmail.com</b></a>
+        <a href="https://www.linkedin.com/in/alialinaghi72"><span class="dot"></span><b>linkedin.com/in/alialinaghi72</b></a>
+      </div>
+    </div>
+    <div>
+      <form class="form" id="form">
+        <input id="f-name" type="text" placeholder="نام" data-fa-ph="نام" data-en-ph="Name" required>
+        <input id="f-mail" type="email" placeholder="ایمیل" data-fa-ph="ایمیل" data-en-ph="Email">
+        <textarea id="f-msg" rows="5" placeholder="شرح کوتاه پروژه" data-fa-ph="شرح کوتاه پروژه" data-en-ph="Brief project description" required></textarea>
+        <button type="submit" data-fa="ارسال پیام" data-en="Send message">ارسال پیام</button>
+      </form>
+    </div>
+  </div>
+</div></section>
+
+</main>
+
+<footer><div class="wrap foot">
+  <span data-fa="علی علینقی — مشاورهٔ اکتشاف و تخمین ذخیره" data-en="Ali Alinaghi — exploration and resource estimation consulting">علی علینقی — مشاورهٔ اکتشاف و تخمین ذخیره</span>
+  <span>© 2026</span>
+</div></footer>
+
+<script>
+(function(){
+  var lang='fa', btn=document.getElementById('lang');
+  function apply(){
+    document.documentElement.lang=lang;
+    document.documentElement.dir = lang==='fa' ? 'rtl' : 'ltr';
+    document.querySelectorAll('[data-fa]').forEach(function(el){
+      var v=el.getAttribute('data-'+lang); if(v!==null) el.textContent=v;
+    });
+    document.querySelectorAll('[data-fa-ph]').forEach(function(el){
+      el.placeholder=el.getAttribute('data-'+lang+'-ph');
+    });
+    btn.textContent = lang==='fa' ? 'English' : 'فارسی';
+    document.title = lang==='fa'
+      ? 'علی علینقی — کارشناس اکتشاف معدن و تخمین ذخیره'
+      : 'Ali Alinaghi — Mineral exploration and resource estimation specialist';
+  }
+  btn.addEventListener('click',function(){ lang = lang==='fa' ? 'en' : 'fa'; apply(); });
+
+  document.getElementById('form').addEventListener('submit',function(e){
+    e.preventDefault();
+    var n=document.getElementById('f-name').value,
+        m=document.getElementById('f-mail').value,
+        t=document.getElementById('f-msg').value;
+    var subject = encodeURIComponent((lang==='fa'?'درخواست مشاوره از ':'Consulting enquiry from ')+n);
+    var body = encodeURIComponent(t+'\n\n'+n+(m?' — '+m:''));
+    window.location.href='mailto:alialinaghi72@gmail.com?subject='+subject+'&body='+body;
+  });
+})();
+</script>
+</body>
+</html>
