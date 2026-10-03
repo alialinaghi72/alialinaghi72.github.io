@@ -16,6 +16,10 @@ SITE = 'https://alialinaghi72.github.io'
 PHONE, PHONE_TXT, EMAIL = '+989135133397', '+98 913 513 3397', 'alialinaghi72@gmail.com'
 LINKEDIN, WA = 'https://www.linkedin.com/in/alialinaghi72', 'https://wa.me/989135133397'
 TODAY = date.today().isoformat()
+def _ver(rel):
+    import hashlib
+    return hashlib.sha1(open(os.path.join(ROOT, rel), 'rb').read()).hexdigest()[:8]
+CSS_V, JS_V = _ver('assets/site.css'), _ver('assets/site.js')
 
 L = {
  'fa': dict(dir='rtl', locale='fa_IR', alt_locale='en_US', name='علی علینقی', home='/', svc='/services/',
@@ -100,7 +104,7 @@ def head(lang, title, desc, slug=None, ld=None):
 <meta name="twitter:description" content="{esc(desc)}">
 <meta name="twitter:image" content="{SITE}/og.png">
 <link rel="preload" href="/fonts/Vazirmatn.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="/assets/site.css">
+<link rel="stylesheet" href="/assets/site.css?v={CSS_V}">
 <script>document.documentElement.classList.add('js')</script>
 {ld_tag}
 </head>
@@ -145,7 +149,7 @@ def footer(lang, is_home=False):
   </div>
 </div></footer>
 
-<script src="/assets/site.js" defer></script>
+<script src="/assets/site.js?v={JS_V}" defer></script>
 </body>
 </html>
 '''

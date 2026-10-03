@@ -128,7 +128,7 @@ html[dir="ltr"] .hero::before{background-position:82% 30%,0 0,0 0}
   cursor:pointer;transition:border-color .2s,color .2s,background .2s,transform .2s
 }
 .btn:hover{border-color:var(--copper);transform:translateY(-1px)}
-.btn svg{width:17px;height:17px;flex:none}
+.btn svg{width:15px;height:15px;flex:none}
 .btn.solid{background:var(--copper);border-color:var(--copper);color:#120C06;font-weight:550}
 .btn.solid:hover{background:var(--copper-hi);border-color:var(--copper-hi)}
 .hero-art{position:relative;justify-self:center;width:100%}
@@ -171,8 +171,9 @@ html[dir="rtl"] .legend .ramp{background:linear-gradient(270deg,#2E3A3E,#C07A45,
 .svc-card::before{content:"";position:absolute;top:0;inset-inline-start:0;width:0;height:2px;background:var(--copper);transition:width .35s}
 .svc-card:hover{background:var(--bg-2)}
 .svc-card:hover::before{width:100%}
-.svc-card .ico{width:40px;height:40px;display:grid;place-items:center;border:1px solid var(--copper-dim);border-radius:2px;color:var(--copper-hi);margin-bottom:18px}
-.svc-card .ico svg{width:20px;height:20px}
+.svc-card .ico{width:32px;height:32px;display:grid;place-items:center;border-radius:6px;background:rgba(192,122,69,.08);color:#B9A58F;margin-bottom:16px;transition:color .3s,background .3s}
+.svc-card .ico svg{width:16px;height:16px;stroke-width:1.6}
+.svc-card:hover .ico{color:var(--copper-hi);background:rgba(192,122,69,.14)}
 .svc-card h3{font-size:1.04rem;margin-bottom:8px}
 .svc-card p{margin:0;color:var(--muted);font-size:.94rem}
 .svc-card .num{position:absolute;top:24px;inset-inline-end:24px;font-size:.78rem;color:#4A565B;font-variant-numeric:tabular-nums;direction:ltr}
@@ -268,7 +269,7 @@ html[dir="rtl"] .vcard .who .ltr{text-align:right}
   display:flex;gap:14px;align-items:center;text-decoration:none;color:var(--muted);font-size:.95rem;
   padding:12px 0;border-bottom:1px solid var(--line-soft);transition:color .2s
 }
-.reach a svg{width:18px;height:18px;color:var(--copper);flex:none}
+.reach a svg{width:16px;height:16px;color:#8E7A66;flex:none}
 .reach a b{color:var(--text);font-weight:450;direction:ltr;unicode-bidi:isolate}
 .reach a small{margin-inline-start:auto;font-size:.8rem;color:#6F7A7E}
 .reach a:hover b{color:var(--copper-hi)}
@@ -370,7 +371,7 @@ html[dir="rtl"] .svc-card .more:hover svg{transform:scaleX(-1) translateX(3px)}
 .stage[data-step="4"] .s-grade,.stage[data-step="5"] .s-grade{opacity:1}
 .stage[data-step="5"] .s-grade{opacity:.55}
 .stage[data-step="6"] .s-class{opacity:1}
-.chart{position:absolute;top:14px;inset-inline-end:14px;width:min(46%,240px);background:rgba(11,14,16,.88);border:1px solid var(--line);border-radius:6px;padding:8px 10px 4px;opacity:0;transform:translateY(10px);pointer-events:none}
+.chart{position:absolute;top:14px;inset-inline-end:14px;width:min(52%,280px);background:rgba(11,14,16,.88);border:1px solid var(--line);border-radius:6px;padding:8px 10px 4px;opacity:0;transform:translateY(10px);pointer-events:none}
 .chart span{display:block;font-size:.72rem;color:var(--muted);margin-bottom:2px}
 .chart svg{display:block;width:100%;height:auto}
 .chart .ax{fill:none;stroke:#3A464C;stroke-width:1}
@@ -379,7 +380,10 @@ html[dir="rtl"] .svc-card .more:hover svg{transform:scaleX(-1) translateX(3px)}
 .chart .pts circle{fill:var(--patina)}
 .chart .comp{fill:none;stroke:var(--patina);stroke-width:1.6}
 .chart .est{fill:none;stroke:var(--copper-hi);stroke-width:1.8;stroke-dasharray:5 3}
-.chart text{fill:var(--muted);font-size:10px;font-family:inherit}
+.chart text{fill:var(--muted);font-size:9px;font-family:"Vazirmatn",sans-serif}
+.chart .ann{stroke:#4A565B;stroke-width:.8;stroke-dasharray:2 2;fill:none}
+.chart .ann-t{fill:#8E989C}
+.chart .lg-c{fill:var(--patina)}.chart .lg-e{fill:var(--copper-hi)}
 .stage[data-step="3"] .vario,.stage[data-step="5"] .swath{opacity:1;transform:none}
 .stage-legend{position:absolute;bottom:12px;inset-inline:0;display:flex;justify-content:center;align-items:center;gap:8px;font-size:.74rem;color:var(--muted);opacity:0;flex-wrap:wrap;padding-inline:12px}
 .stage-legend em{font-style:normal}
@@ -413,8 +417,9 @@ html[dir="rtl"] .stage-legend .ramp{background:linear-gradient(270deg,#2E3A3E,#C
 html[dir="rtl"] .area::after{inset:auto auto -60% -40%}
 .area:hover{border-color:var(--copper-dim);transform:translateY(-4px);box-shadow:0 24px 40px -28px #000}
 .area:hover::after{opacity:1}
-.area .ico{width:42px;height:42px;display:grid;place-items:center;border:1px solid var(--copper-dim);border-radius:6px;color:var(--copper-hi);margin-bottom:8px}
-.area .ico svg{width:21px;height:21px}
+.area .ico{width:32px;height:32px;display:grid;place-items:center;border-radius:6px;background:rgba(192,122,69,.08);color:#B9A58F;margin-bottom:6px;transition:color .3s,background .3s}
+.area .ico svg{width:16px;height:16px;stroke-width:1.6}
+.area:hover .ico{color:var(--copper-hi);background:rgba(192,122,69,.14)}
 .area b{font-weight:600;font-size:1.02rem}
 .area>span:not(.ico){color:var(--muted);font-size:.88rem;line-height:1.75}
 .area .go{margin-top:auto;padding-top:8px;font-style:normal;font-size:.84rem;color:var(--copper-hi);display:inline-flex;align-items:center;gap:6px}
@@ -436,8 +441,8 @@ html[dir="rtl"] .page-hero::before{background-position:15% 0,0 0,0 0}
 .page-hero .wrap{position:relative}
 .crumbs{display:flex;flex-wrap:wrap;gap:8px;font-size:.82rem;color:#6F7A7E;margin-bottom:28px}
 .crumbs a{color:var(--muted);text-decoration:none}.crumbs a:hover{color:var(--copper-hi)}
-.page-ico{width:54px;height:54px;display:grid;place-items:center;border:1px solid var(--copper);border-radius:10px;color:var(--copper-hi);margin-bottom:22px;animation:rise .9s var(--ease) both}
-.page-ico svg{width:26px;height:26px}
+.page-ico{width:40px;height:40px;display:grid;place-items:center;border-radius:8px;background:rgba(192,122,69,.1);color:var(--copper-hi);margin-bottom:20px;animation:rise .9s var(--ease) both}
+.page-ico svg{width:19px;height:19px;stroke-width:1.6}
 .page-hero h1{font-size:clamp(2.1rem,5.6vw,3.6rem);font-weight:650;letter-spacing:-.015em;animation:rise .9s var(--ease) .06s both;view-transition-name:page-title}
 .lede-lg{font-size:clamp(1.02rem,2vw,1.2rem);color:var(--muted);max-width:60ch;margin:18px 0 0;animation:rise .9s var(--ease) .14s both}
 .page-hero .actions{animation:rise .9s var(--ease) .22s both}
