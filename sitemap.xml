@@ -6,7 +6,6 @@
     <xhtml:link rel="alternate" hreflang="en" href="https://alialinaghi72.github.io/en/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://alialinaghi72.github.io/"/>
     <lastmod>2026-10-03</lastmod>
-    <changefreq>monthly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
@@ -15,7 +14,134 @@
     <xhtml:link rel="alternate" hreflang="en" href="https://alialinaghi72.github.io/en/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://alialinaghi72.github.io/"/>
     <lastmod>2026-10-03</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.9</priority>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://alialinaghi72.github.io/services/resource-estimation/</loc>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://alialinaghi72.github.io/services/resource-estimation/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://alialinaghi72.github.io/en/services/resource-estimation/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://alialinaghi72.github.io/services/resource-estimation/"/>
+    <lastmod>2026-10-03</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://alialinaghi72.github.io/en/services/resource-estimation/</loc>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://alialinaghi72.github.io/services/resource-estimation/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://alialinaghi72.github.io/en/services/resource-estimation/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://alialinaghi72.github.io/services/resource-estimation/"/>
+    <lastmod>2026-10-03</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://alialinaghi72.github.io/services/3d-geological-modelling/</loc>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://alialinaghi72.github.io/services/3d-geological-modelling/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://alialinaghi72.github.io/en/services/3d-geological-modelling/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://alialinaghi72.github.io/services/3d-geological-modelling/"/>
+    <lastmod>2026-10-03</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://alialinaghi72.github.io/en/services/3d-geological-modelling/</loc>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://alialinaghi72.github.io/services/3d-geological-modelling/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://alialinaghi72.github.io/en/services/3d-geological-modelling/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://alialinaghi72.github.io/services/3d-geological-modelling/"/>
+    <lastmod>2026-10-03</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://alialinaghi72.github.io/services/mineral-exploration/</loc>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://alialinaghi72.github.io/services/mineral-exploration/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://alialinaghi72.github.io/en/services/mineral-exploration/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://alialinaghi72.github.io/services/mineral-exploration/"/>
+    <lastmod>2026-10-03</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://alialinaghi72.github.io/en/services/mineral-exploration/</loc>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://alialinaghi72.github.io/services/mineral-exploration/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://alialinaghi72.github.io/en/services/mineral-exploration/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://alialinaghi72.github.io/services/mineral-exploration/"/>
+    <lastmod>2026-10-03</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://alialinaghi72.github.io/services/exploration-geophysics/</loc>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://alialinaghi72.github.io/services/exploration-geophysics/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://alialinaghi72.github.io/en/services/exploration-geophysics/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://alialinaghi72.github.io/services/exploration-geophysics/"/>
+    <lastmod>2026-10-03</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://alialinaghi72.github.io/en/services/exploration-geophysics/</loc>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://alialinaghi72.github.io/services/exploration-geophysics/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://alialinaghi72.github.io/en/services/exploration-geophysics/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://alialinaghi72.github.io/services/exploration-geophysics/"/>
+    <lastmod>2026-10-03</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://alialinaghi72.github.io/services/exploration-geochemistry/</loc>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://alialinaghi72.github.io/services/exploration-geochemistry/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://alialinaghi72.github.io/en/services/exploration-geochemistry/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://alialinaghi72.github.io/services/exploration-geochemistry/"/>
+    <lastmod>2026-10-03</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://alialinaghi72.github.io/en/services/exploration-geochemistry/</loc>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://alialinaghi72.github.io/services/exploration-geochemistry/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://alialinaghi72.github.io/en/services/exploration-geochemistry/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://alialinaghi72.github.io/services/exploration-geochemistry/"/>
+    <lastmod>2026-10-03</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://alialinaghi72.github.io/services/remote-sensing/</loc>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://alialinaghi72.github.io/services/remote-sensing/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://alialinaghi72.github.io/en/services/remote-sensing/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://alialinaghi72.github.io/services/remote-sensing/"/>
+    <lastmod>2026-10-03</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://alialinaghi72.github.io/en/services/remote-sensing/</loc>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://alialinaghi72.github.io/services/remote-sensing/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://alialinaghi72.github.io/en/services/remote-sensing/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://alialinaghi72.github.io/services/remote-sensing/"/>
+    <lastmod>2026-10-03</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://alialinaghi72.github.io/services/project-management/</loc>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://alialinaghi72.github.io/services/project-management/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://alialinaghi72.github.io/en/services/project-management/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://alialinaghi72.github.io/services/project-management/"/>
+    <lastmod>2026-10-03</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://alialinaghi72.github.io/en/services/project-management/</loc>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://alialinaghi72.github.io/services/project-management/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://alialinaghi72.github.io/en/services/project-management/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://alialinaghi72.github.io/services/project-management/"/>
+    <lastmod>2026-10-03</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://alialinaghi72.github.io/services/commodities/</loc>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://alialinaghi72.github.io/services/commodities/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://alialinaghi72.github.io/en/services/commodities/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://alialinaghi72.github.io/services/commodities/"/>
+    <lastmod>2026-10-03</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://alialinaghi72.github.io/en/services/commodities/</loc>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://alialinaghi72.github.io/services/commodities/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://alialinaghi72.github.io/en/services/commodities/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://alialinaghi72.github.io/services/commodities/"/>
+    <lastmod>2026-10-03</lastmod>
+    <priority>0.8</priority>
   </url>
 </urlset>
