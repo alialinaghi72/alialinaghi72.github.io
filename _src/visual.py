@@ -83,27 +83,41 @@ def story_svg():
             f'<g class="s-dh">{dh}</g><g class="s-ticks" stroke-width="3.2">{ticks}</g></svg>')
 
 def variogram_svg():
-    # واریوگرام تجربی و مدل کروی (نمایشی)
-    W, H, pad = 220, 130, 22; a, c0, c = 60, .18, .82
+    # واریوگرام تجربی با مدل کروی و نشانه‌گذاری اثر قطعه‌ای، سقف و دامنه (نمایشی)
+    W, H, L, B = 280, 160, 30, 26; a, c0, c = 62, .2, .8
     def model(h): return c0 + c * (1.5 * h / a - .5 * (h / a) ** 3) if h < a else c0 + c
     random.seed(3)
-    pts = [(h, model(h) + random.uniform(-.06, .06)) for h in range(8, 100, 8)]
-    X = lambda h: pad + h / 100 * (W - pad - 6); Y = lambda g: H - pad - g / 1.15 * (H - pad - 8)
-    curve = ' '.join(f'{X(h):.1f},{Y(model(h)):.1f}' for h in range(0, 101, 2))
-    dots = ''.join(f'<circle cx="{X(h):.1f}" cy="{Y(g):.1f}" r="2.6"/>' for h, g in pts)
-    return (f'<svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
-            f'<path class="ax" d="M{pad} 6V{H-pad}H{W-4}"/><line class="sill" x1="{pad}" y1="{Y(c0+c):.1f}" x2="{W-4}" y2="{Y(c0+c):.1f}"/>'
-            f'<polyline class="model" points="0,0 {curve}" /><g class="pts">{dots}</g>'
-            f'<text x="{W-6}" y="{H-8}" text-anchor="end">h</text><text x="{pad+4}" y="14">γ(h)</text></svg>').replace('points="0,0 ', 'points="')
+    pts = [(h, model(h) + random.uniform(-.05, .05), 30 + random.randint(0, 90)) for h in range(8, 104, 8)]
+    X = lambda h: L + h / 110 * (W - L - 10); Y = lambda g: H - B - g / 1.2 * (H - B - 12)
+    curve = ' '.join(f'{X(h):.1f},{Y(model(h)):.1f}' for h in [0.01] + list(range(1, 111)))
+    dots = ''.join(f'<circle cx="{X(h):.1f}" cy="{Y(g):.1f}" r="{1.6 + n / 60:.1f}"/>' for h, g, n in pts)
+    ticks = ''.join(f'<text x="{X(v):.1f}" y="{H - B + 12}" text-anchor="middle">{v}</text>' for v in (0, 50, 100))
+    return (f'<svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg" direction="ltr" aria-hidden="true">'
+            f'<path class="ax" d="M{L} 8V{H-B}H{W-6}"/>'
+            f'<line class="ann" x1="{L}" y1="{Y(c0+c):.1f}" x2="{W-6}" y2="{Y(c0+c):.1f}"/>'
+            f'<line class="ann" x1="{X(a):.1f}" y1="{Y(c0+c):.1f}" x2="{X(a):.1f}" y2="{H-B}"/>'
+            f'<polyline class="model" points="{curve}"/><g class="pts">{dots}</g>'
+            f'<text class="ann-t" x="{W-8}" y="{Y(c0+c)-4:.1f}" text-anchor="end">sill</text>'
+            f'<text class="ann-t" x="{X(a)+4:.1f}" y="{H-B-5}">range ≈ {a} m</text>'
+            f'<text class="ann-t" x="{L+4}" y="{Y(c0)+3:.1f}">nugget</text>'
+            f'{ticks}<text x="{W-6}" y="{H-4}" text-anchor="end">lag h (m)</text>'
+            f'<text x="{L-4}" y="12" text-anchor="end">γ</text></svg>')
 
 def swath_svg():
-    W, H, pad = 220, 130, 22; random.seed(5)
-    n = 12; base = [math.sin(i / 2.2) * .25 + .55 + i * .01 for i in range(n)]
-    comp = [b + random.uniform(-.09, .09) for b in base]; est = [b + random.uniform(-.03, .03) for b in base]
-    X = lambda i: pad + i / (n - 1) * (W - pad - 8); Y = lambda v: H - pad - v * (H - pad - 10)
+    # نمودار Swath: میانگین ترکیب‌ها در برابر میانگین مدل بلوکی در نوارهای شرقی (نمایشی)
+    W, H, L, B = 280, 160, 30, 26; random.seed(5); n = 12
+    base = [math.sin(i / 2.2) * .25 + .55 + i * .01 for i in range(n)]
+    comp = [b + random.uniform(-.09, .09) for b in base]; est = [b + random.uniform(-.025, .025) for b in base]
+    X = lambda i: L + 6 + i / (n - 1) * (W - L - 18); Y = lambda v: H - B - v * (H - B - 14)
     l1 = ' '.join(f'{X(i):.1f},{Y(v):.1f}' for i, v in enumerate(comp)); l2 = ' '.join(f'{X(i):.1f},{Y(v):.1f}' for i, v in enumerate(est))
-    return (f'<svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
-            f'<path class="ax" d="M{pad} 6V{H-pad}H{W-4}"/><polyline class="comp" points="{l1}"/><polyline class="est" points="{l2}"/></svg>')
+    d1 = ''.join(f'<circle class="lg-c" cx="{X(i):.1f}" cy="{Y(v):.1f}" r="2"/>' for i, v in enumerate(comp))
+    return (f'<svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg" direction="ltr" aria-hidden="true">'
+            f'<path class="ax" d="M{L} 8V{H-B}H{W-6}"/>'
+            f'<polyline class="comp" points="{l1}"/>{d1}<polyline class="est" points="{l2}"/>'
+            f'<rect class="lg-c" x="{L+8}" y="10" width="10" height="2.5"/><text x="{L+22}" y="14">composites</text>'
+            f'<rect class="lg-e" x="{L+92}" y="10" width="10" height="2.5"/><text x="{L+106}" y="14">block estimate</text>'
+            f'<text x="{W-6}" y="{H-4}" text-anchor="end">easting (swath)</text>'
+            f'<text x="{L-4}" y="12" text-anchor="end">grade</text></svg>')
 
 def qr_svg(vcard, label):
     import segno
