@@ -1,0 +1,254 @@
+[
+{
+"file": "fa-home-index.jpg",
+"lang": "fa",
+"title": "علی علینقی | اکتشاف معدن، تخمین ذخیره و مدل‌سازی سه‌بعدی",
+"label": "مشاورهٔ اکتشاف معدن، مدل‌سازی سه‌بعدی زمین‌شناسی و تخمین ذخیره"
+},
+{
+"file": "fa-svc-resource-estimation.jpg",
+"lang": "fa",
+"title": "تخمین ذخیره معدنی و ارزیابی منابع | علی علینقی",
+"label": "خدمات"
+},
+{
+"file": "fa-svc-3d-geological-modelling.jpg",
+"lang": "fa",
+"title": "مدل‌سازی سه‌بعدی زمین‌شناسی و مدل بلوکی | علی علینقی",
+"label": "خدمات"
+},
+{
+"file": "fa-svc-mineral-exploration.jpg",
+"lang": "fa",
+"title": "اکتشاف معدن و هدف‌گیری کانسار | علی علینقی",
+"label": "خدمات"
+},
+{
+"file": "fa-svc-exploration-geophysics.jpg",
+"lang": "fa",
+"title": "ژئوفیزیک اکتشافی: مغناطیس‌سنجی، IP و مقاومت ویژه | علی علینقی",
+"label": "خدمات"
+},
+{
+"file": "fa-svc-exploration-geochemistry.jpg",
+"lang": "fa",
+"title": "ژئوشیمی اکتشافی و جداسازی آنومالی | علی علینقی",
+"label": "خدمات"
+},
+{
+"file": "fa-svc-remote-sensing.jpg",
+"lang": "fa",
+"title": "دورسنجی (سنجش از دور) در اکتشاف مواد معدنی | علی علینقی",
+"label": "خدمات"
+},
+{
+"file": "fa-svc-project-management.jpg",
+"lang": "fa",
+"title": "مدیریت پروژه‌های اکتشافی و معدنی | علی علینقی",
+"label": "خدمات"
+},
+{
+"file": "fa-svc-commodities.jpg",
+"lang": "fa",
+"title": "اکتشاف و تخمین ذخیره طلا، مس، مولیبدن، آهن، سرب و روی و تالک | علی علینقی",
+"label": "خدمات"
+},
+{
+"file": "fa-art-kriging.jpg",
+"lang": "fa",
+"title": "کریجینگ چیست؟ راهنمای کاربردی کریجینگ در تخمین ذخیره | علی علینقی",
+"label": "زمین‌آمار"
+},
+{
+"file": "fa-art-variogram.jpg",
+"lang": "fa",
+"title": "واریوگرام چیست؟ محاسبه، مدل‌سازی و تفسیر واریوگرام | علی علینقی",
+"label": "زمین‌آمار"
+},
+{
+"file": "fa-art-cut-off-grade.jpg",
+"lang": "fa",
+"title": "عیار حد چیست و چگونه محاسبه می‌شود؟ فرمول، مثال و ماشین‌حساب | علی علینقی",
+"label": "ارزیابی اقتصادی"
+},
+{
+"file": "fa-art-resources-vs-reserves.jpg",
+"lang": "fa",
+"title": "تفاوت منابع و ذخایر معدنی: رده‌بندی JORC و معادل کدهای UNFC | علی علینقی",
+"label": "گزارش‌دهی"
+},
+{
+"file": "fa-art-qaqc.jpg",
+"lang": "fa",
+"title": "کنترل کیفیت (QA/QC) در اکتشاف: نمونهٔ استاندارد، شاهد و تکراری | علی علینقی",
+"label": "داده و کنترل کیفیت"
+},
+{
+"file": "fa-art-exploration-stages-iran.jpg",
+"lang": "fa",
+"title": "مراحل اکتشاف معدن در ایران: از شناسایی تا گواهی کشف و پروانهٔ بهره‌برداری | علی علینقی",
+"label": "اکتشاف"
+},
+{
+"file": "fa-art-index.jpg",
+"lang": "fa",
+"title": "مقالات و راهنماهای اکتشاف و تخمین ذخیره | علی علینقی",
+"label": "مقالات"
+},
+{
+"file": "fa-tools-index.jpg",
+"lang": "fa",
+"title": "ابزارهای آنلاین معدن: ماشین‌حساب عیار حد، تبدیل واحد و واریوگرام | علی علینقی",
+"label": "ابزارها"
+},
+{
+"file": "fa-tools-cut-off-grade.jpg",
+"lang": "fa",
+"title": "ماشین‌حساب آنلاین عیار حد (Cut-off Grade) برای مس، طلا، روی و سرب | علی علینقی",
+"label": "ابزارها"
+},
+{
+"file": "fa-tools-grade-converter.jpg",
+"lang": "fa",
+"title": "تبدیل واحد عیار (درصد، ppm، گرم در تن، اونس) و محاسبهٔ تناژ و فلز محتوا | علی علینقی",
+"label": "ابزارها"
+},
+{
+"file": "fa-tools-variogram-lab.jpg",
+"lang": "fa",
+"title": "آزمایشگاه تعاملی واریوگرام: برازش مدل کروی، نمایی و گاوسی | علی علینقی",
+"label": "ابزارها"
+},
+{
+"file": "fa-gloss-index.jpg",
+"lang": "fa",
+"title": "واژه‌نامهٔ اکتشاف و تخمین ذخیره (فارسی–انگلیسی) | علی علینقی",
+"label": "واژه‌نامه"
+},
+{
+"file": "en-home-index.jpg",
+"lang": "en",
+"title": "Ali Alinaghi | Mineral Exploration, Resource Estimation and 3D Modelling",
+"label": "Mineral exploration, 3D geological modelling and resource estimation consulting"
+},
+{
+"file": "en-svc-resource-estimation.jpg",
+"lang": "en",
+"title": "Mineral Resource Estimation Consultant | Ali Alinaghi",
+"label": "Services"
+},
+{
+"file": "en-svc-3d-geological-modelling.jpg",
+"lang": "en",
+"title": "3D Geological Modelling and Block Models | Ali Alinaghi",
+"label": "Services"
+},
+{
+"file": "en-svc-mineral-exploration.jpg",
+"lang": "en",
+"title": "Mineral Exploration and Target Generation | Ali Alinaghi",
+"label": "Services"
+},
+{
+"file": "en-svc-exploration-geophysics.jpg",
+"lang": "en",
+"title": "Exploration Geophysics: Magnetics, IP and Resistivity | Ali Alinaghi",
+"label": "Services"
+},
+{
+"file": "en-svc-exploration-geochemistry.jpg",
+"lang": "en",
+"title": "Exploration Geochemistry and Anomaly Separation | Ali Alinaghi",
+"label": "Services"
+},
+{
+"file": "en-svc-remote-sensing.jpg",
+"lang": "en",
+"title": "Remote Sensing for Mineral Exploration | Ali Alinaghi",
+"label": "Services"
+},
+{
+"file": "en-svc-project-management.jpg",
+"lang": "en",
+"title": "Exploration and Mining Project Management | Ali Alinaghi",
+"label": "Services"
+},
+{
+"file": "en-svc-commodities.jpg",
+"lang": "en",
+"title": "Gold, Copper, Molybdenum, Iron, Lead–Zinc and Talc Exploration | Ali Alinaghi",
+"label": "Services"
+},
+{
+"file": "en-art-kriging.jpg",
+"lang": "en",
+"title": "What Is Kriging? A Practical Guide for Mineral Resource Estimation | Ali Alinaghi",
+"label": "Geostatistics"
+},
+{
+"file": "en-art-variogram.jpg",
+"lang": "en",
+"title": "The Variogram Explained: Calculation, Modelling and Interpretation | Ali Alinaghi",
+"label": "Geostatistics"
+},
+{
+"file": "en-art-cut-off-grade.jpg",
+"lang": "en",
+"title": "Cut-off Grade: What It Is and How to Calculate It (with Calculator) | Ali Alinaghi",
+"label": "Economic evaluation"
+},
+{
+"file": "en-art-resources-vs-reserves.jpg",
+"lang": "en",
+"title": "Mineral Resources vs Ore Reserves: JORC Classification and UNFC Codes | Ali Alinaghi",
+"label": "Reporting"
+},
+{
+"file": "en-art-qaqc.jpg",
+"lang": "en",
+"title": "QA/QC in Mineral Exploration: Standards, Blanks and Duplicates | Ali Alinaghi",
+"label": "Data and QA/QC"
+},
+{
+"file": "en-art-exploration-stages-iran.jpg",
+"lang": "en",
+"title": "Stages of Mineral Exploration in Iran: From Reconnaissance to Discovery Certificate | Ali Alinaghi",
+"label": "Exploration"
+},
+{
+"file": "en-art-index.jpg",
+"lang": "en",
+"title": "Mineral Exploration and Resource Estimation Articles | Ali Alinaghi",
+"label": "Articles"
+},
+{
+"file": "en-tools-index.jpg",
+"lang": "en",
+"title": "Free Mining Tools: Cut-off Grade Calculator, Unit Converter, Variogram | Ali Alinaghi",
+"label": "Tools"
+},
+{
+"file": "en-tools-cut-off-grade.jpg",
+"lang": "en",
+"title": "Free Cut-off Grade Calculator for Copper, Gold, Zinc and Lead | Ali Alinaghi",
+"label": "Tools"
+},
+{
+"file": "en-tools-grade-converter.jpg",
+"lang": "en",
+"title": "Grade Unit Converter (%, ppm, g/t, oz/t) and Contained-Metal Calculator | Ali Alinaghi",
+"label": "Tools"
+},
+{
+"file": "en-tools-variogram-lab.jpg",
+"lang": "en",
+"title": "Interactive Variogram Lab: Fit Spherical, Exponential and Gaussian Models | Ali Alinaghi",
+"label": "Tools"
+},
+{
+"file": "en-gloss-index.jpg",
+"lang": "en",
+"title": "Mineral Exploration and Resource Estimation Glossary (English–Persian) | Ali Alinaghi",
+"label": "Glossary"
+}
+]
