@@ -217,7 +217,8 @@ ARTICLES = [
 <tr><td>333</td><td>Inferred mineral resource</td><td>Inferred Resource</td></tr>
 <tr><td>334</td><td>Reconnaissance mineral resource</td><td>Exploration results level; not a resource</td></tr>
 </tbody></table></div>
-<p>The match is not one-to-one; codes 211 and 221, for example, have no exact JORC home. Converting a national report to an international standard requires a Competent Person to review the data, QA/QC and economic assumptions.</p>'''),
+<p>The match is not one-to-one; codes 211 and 221, for example, have no exact JORC home. Converting a national report to an international standard requires a Competent Person to review the data, QA/QC and economic assumptions.</p>
+<p>Two real examples from the <a href="/en/atlas/">atlas of Iranian ore deposits</a>: the December 2024 discovery certificate for <a href="/en/atlas/sungun/">Sungun</a> uses the national “proven and probable” categories and roughly tripled the reported tonnage, while <a href="/en/atlas/kahang/">Kahang</a> has a published “proven reserve” although it is still at the exploration stage.</p>'''),
   ('Common reporting mistakes', '''<ul>
 <li>Calling something a "reserve" without a techno-economic study; a purely geological estimate is a resource, not a reserve.</li>
 <li>Adding Inferred Resources to higher categories, or using them in a reserve.</li>
@@ -313,6 +314,7 @@ ARTICLES = [
 <li>Have the report reviewed and approved, and receive a <b>discovery certificate</b> for a mineral with a defined reserve.</li>
 <li>Prepare a mining plan and apply for an <b>exploitation (mining) licence</b>.</li>
 </ol>
+<p>For example, a new discovery certificate for the Sungun copper deposit was issued in December 2024; its figures and a contained-copper check are on the <a href="/en/atlas/sungun/">Sungun page of the deposit atlas</a>.</p>
 <p>Administrative details, documents and deadlines can change as regulations are amended; check the latest rules with the official authorities before acting.</p>'''),
   ('Staged decision making', '''<p>Most exploration spend goes into drilling. A good exploration programme states before each stage which results will lead to continuing and which to stopping — for example a minimum intercept thickness and grade, or anomaly continuity across several profiles. This avoids spending on areas without enough evidence and is transparent for investors.</p>'''),
   ('Common mistakes', '''<ul>

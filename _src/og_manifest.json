@@ -56,31 +56,31 @@
 {
 "file": "fa-art-kriging.jpg",
 "lang": "fa",
-"title": "کریجینگ چیست؟ راهنمای کاربردی کریجینگ در تخمین ذخیره | علی علینقی",
+"title": "کریجینگ (Kriging) چیست؟ راهنمای کاربردی کریجینگ در تخمین ذخیرهٔ معدن | علی علینقی",
 "label": "زمین‌آمار"
 },
 {
 "file": "fa-art-variogram.jpg",
 "lang": "fa",
-"title": "واریوگرام چیست؟ محاسبه، مدل‌سازی و تفسیر واریوگرام | علی علینقی",
+"title": "واریوگرام (Variogram) در زمین‌آمار چیست؟ محاسبه، مدل‌سازی و تفسیر | علی علینقی",
 "label": "زمین‌آمار"
 },
 {
 "file": "fa-art-cut-off-grade.jpg",
 "lang": "fa",
-"title": "عیار حد چیست و چگونه محاسبه می‌شود؟ فرمول، مثال و ماشین‌حساب | علی علینقی",
+"title": "عیار حد (Cut-off grade) در معدن چیست و چگونه محاسبه می‌شود؟ فرمول و ماشین‌حساب | علی علینقی",
 "label": "ارزیابی اقتصادی"
 },
 {
 "file": "fa-art-resources-vs-reserves.jpg",
 "lang": "fa",
-"title": "تفاوت منابع و ذخایر معدنی: رده‌بندی JORC و معادل کدهای UNFC | علی علینقی",
+"title": "تفاوت منابع و ذخایر معدنی: رده‌بندی JORC، ذخیرهٔ قطعی و احتمالی و کد UNFC | علی علینقی",
 "label": "گزارش‌دهی"
 },
 {
 "file": "fa-art-qaqc.jpg",
 "lang": "fa",
-"title": "کنترل کیفیت (QA/QC) در اکتشاف: نمونهٔ استاندارد، شاهد و تکراری | علی علینقی",
+"title": "کنترل کیفیت (QA/QC) نمونه‌برداری در اکتشاف معدن: استاندارد، شاهد و تکراری | علی علینقی",
 "label": "داده و کنترل کیفیت"
 },
 {
@@ -124,6 +124,114 @@
 "lang": "fa",
 "title": "واژه‌نامهٔ اکتشاف و تخمین ذخیره (فارسی–انگلیسی) | علی علینقی",
 "label": "واژه‌نامه"
+},
+{
+"file": "fa-atlas-index.jpg",
+"lang": "fa",
+"title": "اطلس کانسارهای ایران: مس، آهن، طلا و سرب و روی | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-sarcheshmeh.jpg",
+"lang": "fa",
+"title": "کانسار مس پورفیری سرچشمه: زمین‌شناسی، دگرسانی و ارقام ذخیره | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-miduk.jpg",
+"lang": "fa",
+"title": "کانسار مس پورفیری میدوک شهربابک: زمین‌شناسی، سن و ذخیره | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-kahang.jpg",
+"lang": "fa",
+"title": "کانسار مس پورفیری کهنگ اردستان: زمین‌شناسی، دگرسانی و اکتشاف | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-sungun.jpg",
+"lang": "fa",
+"title": "کانسار مس پورفیری سونگون ورزقان: زمین‌شناسی، دگرسانی و ذخیره | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-masjed-daghi.jpg",
+"lang": "fa",
+"title": "کانسار مس–طلای پورفیری مسجد داغی جلفا: زمین‌شناسی، سن و ذخیره | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-dalli.jpg",
+"lang": "fa",
+"title": "کانسار مس–طلای پورفیری دالی دلیجان: زمین‌شناسی، دگرسانی و ذخیره | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-gol-e-gohar.jpg",
+"lang": "fa",
+"title": "کانسار سنگ آهن گل‌گهر سیرجان: زمین‌شناسی و دو نظریهٔ منشأ | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-chadormalu.jpg",
+"lang": "fa",
+"title": "کانسار سنگ آهن چادرملو: زمین‌شناسی کانسار آهن–آپاتیت نوع کایرونا | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-choghart.jpg",
+"lang": "fa",
+"title": "کانسار سنگ آهن چغارت بافق: زمین‌شناسی، دگرسانی و توریم | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-sangan.jpg",
+"lang": "fa",
+"title": "کانسار سنگ آهن سنگان خواف: زمین‌شناسی اسکارن آهن و ارقام ذخیره | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-mehdiabad.jpg",
+"lang": "fa",
+"title": "کانسار سرب و روی مهدی‌آباد یزد: زمین‌شناسی، تیپ و ارقام ذخیره | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-angouran.jpg",
+"lang": "fa",
+"title": "کانسار سرب و روی انگوران ماه‌نشان: زمین‌شناسی و منشأ | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-irankuh.jpg",
+"lang": "fa",
+"title": "کانسار سرب و روی ایرانکوه اصفهان: زمین‌شناسی و تیپ کانسار | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-zarshuran.jpg",
+"lang": "fa",
+"title": "کانسار طلای زرشوران تکاب: زمین‌شناسی کارلین‌گونه و ارقام ذخیره | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-agh-darreh.jpg",
+"lang": "fa",
+"title": "کانسار طلای آق‌دره تکاب: زمین‌شناسی و کانی‌سازی | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-sari-gunay.jpg",
+"lang": "fa",
+"title": "کانسار طلای ساری‌گونی قروه: زمین‌شناسی اپی‌ترمال و ارقام ذخیره | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-muteh.jpg",
+"lang": "fa",
+"title": "کانسار طلای موته اصفهان: زمین‌شناسی و سن کانی‌سازی | علی علینقی",
+"label": "اطلس کانسارها"
 },
 {
 "file": "en-home-index.jpg",
@@ -250,5 +358,113 @@
 "lang": "en",
 "title": "Mineral Exploration and Resource Estimation Glossary (English–Persian) | Ali Alinaghi",
 "label": "Glossary"
+},
+{
+"file": "en-atlas-index.jpg",
+"lang": "en",
+"title": "Atlas of Iranian Ore Deposits: Copper, Iron, Gold, Lead–Zinc | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-sarcheshmeh.jpg",
+"lang": "en",
+"title": "Sarcheshmeh Porphyry Copper Deposit: Geology, Alteration and Resource Figures | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-miduk.jpg",
+"lang": "en",
+"title": "Miduk Porphyry Copper Deposit, Shahr-e Babak: Geology, Age and Resources | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-kahang.jpg",
+"lang": "en",
+"title": "Kahang Porphyry Copper Deposit, Ardestan: Geology, Alteration and Exploration | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-sungun.jpg",
+"lang": "en",
+"title": "Sungun Porphyry Copper Deposit, Varzaqan: Geology, Alteration and Resources | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-masjed-daghi.jpg",
+"lang": "en",
+"title": "Masjed Daghi Porphyry Copper–Gold Deposit, Jolfa: Geology, Age and Resources | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-dalli.jpg",
+"lang": "en",
+"title": "Dalli Porphyry Copper–Gold Deposit, Delijan: Geology, Alteration and Resources | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-gol-e-gohar.jpg",
+"lang": "en",
+"title": "Gol-e-Gohar Iron Ore Deposit, Sirjan: Geology and Two Theories of Origin | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-chadormalu.jpg",
+"lang": "en",
+"title": "Chadormalu Iron Ore Deposit: Geology of a Kiruna-Type Magnetite–Apatite Deposit | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-choghart.jpg",
+"lang": "en",
+"title": "Choghart Iron Ore Deposit, Bafq: Geology, Alteration and Thorium | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-sangan.jpg",
+"lang": "en",
+"title": "Sangan Iron Ore Deposit, Khaf: Geology of an Iron Skarn District and Resource Figures | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-mehdiabad.jpg",
+"lang": "en",
+"title": "Mehdiabad Zinc–Lead Deposit, Yazd: Geology, Deposit Type and Resource Figures | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-angouran.jpg",
+"lang": "en",
+"title": "Angouran Zinc–Lead Deposit, Mahneshan: Geology and Origin | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-irankuh.jpg",
+"lang": "en",
+"title": "Irankuh Zinc–Lead District, Isfahan: Geology and Deposit Type | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-zarshuran.jpg",
+"lang": "en",
+"title": "Zarshuran Gold Deposit, Takab: Carlin-Like Geology and Resource Figures | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-agh-darreh.jpg",
+"lang": "en",
+"title": "Agh-Darreh Gold Deposit, Takab: Geology and Mineralisation | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-sari-gunay.jpg",
+"lang": "en",
+"title": "Sari Gunay Gold Deposit, Qorveh: Epithermal Geology and Resource Figures | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-muteh.jpg",
+"lang": "en",
+"title": "Muteh Gold Deposits, Isfahan: Geology and Age of Mineralisation | Ali Alinaghi",
+"label": "Deposit atlas"
 }
 ]

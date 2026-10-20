@@ -1,0 +1,16 @@
+﻿slug,name_en,name_fa,commodity,deposit_type,province,latitude,longitude,coordinate_source,coordinate_confidence,page_fa,page_en
+sarcheshmeh,Sarcheshmeh,سرچشمه,Copper,Porphyry Cu–Mo,Kerman,29.94500,55.86190,Mindat,High,https://alialinaghi72.github.io/atlas/sarcheshmeh/,https://alialinaghi72.github.io/en/atlas/sarcheshmeh/
+miduk,Miduk,میدوک,Copper,Porphyry Cu–Mo,Kerman,30.42056,55.16722,Mindat,High,https://alialinaghi72.github.io/atlas/miduk/,https://alialinaghi72.github.io/en/atlas/miduk/
+kahang,Kahang,کهنگ,Copper,Porphyry Cu–Mo,Isfahan,32.93167,52.48056,Mindat,Medium,https://alialinaghi72.github.io/atlas/kahang/,https://alialinaghi72.github.io/en/atlas/kahang/
+sungun,Sungun,سونگون,Copper,Porphyry Cu–Mo,East Azerbaijan,38.69480,46.70280,USGS,Medium–high,https://alialinaghi72.github.io/atlas/sungun/,https://alialinaghi72.github.io/en/atlas/sungun/
+masjed-daghi,Masjed Daghi,مسجد داغی,Copper,Porphyry Cu–Au and epithermal,East Azerbaijan,38.87720,45.93860,USGS,Medium,https://alialinaghi72.github.io/atlas/masjed-daghi/,https://alialinaghi72.github.io/en/atlas/masjed-daghi/
+dalli,Dalli,دالی,Copper,Porphyry Cu–Au,Markazi,34.27190,50.32420,USGS,Medium–high,https://alialinaghi72.github.io/atlas/dalli/,https://alialinaghi72.github.io/en/atlas/dalli/
+gol-e-gohar,Gol-e-Gohar,گل‌گهر,Iron,Iron (origin disputed),Kerman,29.10111,55.32306,Mindat,Medium,https://alialinaghi72.github.io/atlas/gol-e-gohar/,https://alialinaghi72.github.io/en/atlas/gol-e-gohar/
+chadormalu,Chadormalu,چادرملو,Iron,Iron oxide–apatite (Kiruna-type),Yazd,32.29667,55.51472,Mindat,Medium,https://alialinaghi72.github.io/atlas/chadormalu/,https://alialinaghi72.github.io/en/atlas/chadormalu/
+choghart,Choghart,چغارت,Iron,Iron oxide–apatite (Kiruna-type),Yazd,31.70000,55.46722,Mindat,Medium,https://alialinaghi72.github.io/atlas/choghart/,https://alialinaghi72.github.io/en/atlas/choghart/
+sangan,Sangan,سنگان,Iron,Iron skarn,Razavi Khorasan,34.48278,60.45222,Mindat,Low–medium,https://alialinaghi72.github.io/atlas/sangan/,https://alialinaghi72.github.io/en/atlas/sangan/
+angouran,Angouran,انگوران,Lead–zinc,Zn–Pb (carbonate and sulphide),Zanjan,36.62283,47.40674,Mindat,High,https://alialinaghi72.github.io/atlas/angouran/,https://alialinaghi72.github.io/en/atlas/angouran/
+irankuh,Irankuh,ایرانکوه,Lead–zinc,Carbonate-hosted Zn–Pb–Ba,Isfahan,32.51667,51.62861,Mindat,Medium,https://alialinaghi72.github.io/atlas/irankuh/,https://alialinaghi72.github.io/en/atlas/irankuh/
+zarshuran,Zarshuran,زرشوران,Gold,Sediment-hosted gold (Carlin-like),West Azerbaijan,36.72060,47.13970,USGS,Medium,https://alialinaghi72.github.io/atlas/zarshuran/,https://alialinaghi72.github.io/en/atlas/zarshuran/
+agh-darreh,Agh-Darreh,آق‌دره,Gold,Carbonate-hosted gold (Carlin-style),West Azerbaijan,36.66670,47.01670,Daliran (2008),Medium–high,https://alialinaghi72.github.io/atlas/agh-darreh/,https://alialinaghi72.github.io/en/atlas/agh-darreh/
+sari-gunay,Sari Gunay,ساری‌گونی,Gold,Epithermal gold,Kurdistan,35.20000,48.08330,PorterGeo,Medium,https://alialinaghi72.github.io/atlas/sari-gunay/,https://alialinaghi72.github.io/en/atlas/sari-gunay/

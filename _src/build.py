@@ -355,7 +355,7 @@ def expand(h, lang):
     h = re.sub(r'\{\{ico:(\w+)\}\}', lambda m: ico(m.group(1)), h)
     return h
 
-def doc_body(lang, sections, faq=(), lead='', tail='', refs=(), takeaways=()):
+def doc_body(lang, sections, faq=(), lead='', tail='', refs=(), takeaways=(), mid=''):
     l = L[lang]
     toc = (f'<a href="#takeaways">{l["takeaways"]}</a>' if takeaways else '') + ''.join(f'<a href="#s{n}">{h}</a>' for n, (h, _) in enumerate(sections, 1))
     if faq: toc += f'<a href="#q">{l["faq"]}</a>'
@@ -366,9 +366,9 @@ def doc_body(lang, sections, faq=(), lead='', tail='', refs=(), takeaways=()):
     if faq:
         fq = f'<section class="prose-sec rv" id="q"><h2>{l["faq"]}</h2><div class="faq">' + ''.join(
             f'<details{" open" if i == 0 else ""}><summary>{q}</summary><p>{a}</p></details>' for i, (q, a) in enumerate(faq)) + '</div></section>'
-    rf = (f'<section class="prose-sec refs rv" id="refs"><h2>{l["refs"]}</h2><ol>' + ''.join(f'<li>{r}</li>' for r in refs) + '</ol></section>') if refs else ''
+    rf = (f'<section class="prose-sec refs rv" id="refs"><h2>{l["refs"]}</h2><ol>' + ''.join(f'<li id="r{n}">{r}</li>' for n, r in enumerate(refs, 1)) + '</ol></section>') if refs else ''
     return (f'<div class="wrap doc"><aside class="toc" aria-label="{l["toc"]}"><div><h4>{l["toc"]}</h4>{toc}</div></aside>'
-            f'<article class="prose">{lead}{tk}{secs}{fq}{rf}{tail}</article></div>')
+            f'<article class="prose">{lead}{tk}{secs}{mid}{fq}{rf}{tail}</article></div>')
 
 def page_hero(trail, icon, h1, lede, meta='', actions='', tag=''):
     return (f'<section class="page-hero" id="top"><div class="wrap">{crumbs_html(trail)}'
@@ -555,20 +555,29 @@ def rss(lang):
             f'<title>{esc(l["name"] + " — " + l["n_art"])}</title><link>{url(lang)}</link><description>{esc(l["art_hub_d"])}</description>'
             f'<language>{lang}</language><atom:link href="{SITE}{l["home"]}feed.xml" rel="self" type="application/rss+xml"/>{it}</channel></rss>\n')
 
-PAGES = []   # (kind, slug, lastmod, priority)
+PAGES = []   # (kind, slug)
+# lastmod هر صفحه فقط وقتی تغییر می‌کند که محتوای <main> آن تغییر کند (گوگل lastmod نادرست را نادیده می‌گیرد)
+LASTMOD_F = os.path.join(SRC, 'lastmod.json')
+LASTMOD = json.load(open(LASTMOD_F)) if os.path.exists(LASTMOD_F) else {}
+def touch(rel, s):
+    m = re.search(r'<main[^>]*>(.*)</main>', s, re.S)
+    h = hashlib.sha1(re.sub(r'\?v=[0-9a-f]{8}', '', m.group(1) if m else s).encode()).hexdigest()[:12]
+    if LASTMOD.get(rel, [None])[0] != h: LASTMOD[rel] = [h, TODAY]
 def sitemap():
     out = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">']
-    for kind, slug, lastmod, prio in PAGES:
+    for kind, slug in PAGES:
         for lang in ('fa', 'en'):
+            lastmod = LASTMOD.get(out_path(lang, kind, slug), [None, TODAY])[1]
             out.append(f'  <url>\n    <loc>{url(lang, kind, slug)}</loc>')
             for al in ('fa', 'en'): out.append(f'    <xhtml:link rel="alternate" hreflang="{al}" href="{url(al, kind, slug)}"/>')
             out.append(f'    <xhtml:link rel="alternate" hreflang="x-default" href="{url("fa", kind, slug)}"/>')
-            out.append(f'    <lastmod>{lastmod}</lastmod>\n    <priority>{prio}</priority>\n  </url>')
+            out.append(f'    <lastmod>{lastmod}</lastmod>\n  </url>')
     out.append('</urlset>\n'); return '\n'.join(out)
 
 def write(rel, s):
     p = os.path.join(ROOT, rel); os.makedirs(os.path.dirname(p) or ROOT, exist_ok=True)
     open(p, 'w', encoding='utf-8').write(s); print('wrote', rel, len(s))
+    if rel.endswith('.html'): touch(rel, s)
 
 def out_path(lang, kind, slug=None): return path(lang, kind, slug).lstrip('/') + 'index.html'
 
@@ -586,10 +595,11 @@ if __name__ == '__main__':
             for d in DEPS: write(out_path(lang, 'atlas', d['slug']), build_deposit(lang, d))
         write(('' if lang == 'fa' else 'en/') + 'feed.xml', rss(lang))
     write('404.html', build_404())
-    PAGES += [('home', None, TODAY, '1.0')] + [('svc', t['slug'], TODAY, '0.8') for t in TOPICS['fa']] + \
-             [('art', None, TODAY, '0.8')] + [('art', a['slug'], a['updated'], '0.8') for a in ARTS['fa']] + \
-             [('tools', None, TODAY, '0.7')] + [('tools', t['slug'], TODAY, '0.7') for t in tools_content.TOOLS] + [('gloss', None, TODAY, '0.6')]
-    if DEPS: PAGES += [('atlas', None, TODAY, '0.8')] + [('atlas', d['slug'], d['updated'], '0.7') for d in DEPS]
+    if DEPS: write('atlas/iran-deposits.csv', iranmap.csv_text(sys.modules[__name__], DEPS))
+    PAGES += [('home', None)] + [('svc', t['slug']) for t in TOPICS['fa']] + [('art', None)] + [('art', a['slug']) for a in ARTS['fa']] + \
+             [('tools', None)] + [('tools', t['slug']) for t in tools_content.TOOLS] + [('gloss', None)]
+    if DEPS: PAGES += [('atlas', None)] + [('atlas', d['slug']) for d in DEPS]
     write('sitemap.xml', sitemap())
     json.dump(OG, open(os.path.join(SRC, 'og_manifest.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=0)
+    open(LASTMOD_F, 'w', encoding='utf-8').write('{\n' + ',\n'.join(f'{json.dumps(k)}: {json.dumps(v)}' for k, v in sorted(LASTMOD.items())) + '\n}\n')
     print('pages:', len(PAGES) * 2, 'og images listed:', len(OG))
