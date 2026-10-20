@@ -106,6 +106,43 @@
   // footer year
   var yr=document.getElementById('year'); if(yr) yr.textContent=faNum(new Date().getFullYear());
 
+  // share: copy link (and native share sheet where available)
+  document.querySelectorAll('.share .copy').forEach(function(b){
+    b.addEventListener('click',function(){
+      var u=b.getAttribute('data-url'), label=b.querySelector('span'), old=label.textContent;
+      function done(){ label.textContent=b.getAttribute('data-done'); setTimeout(function(){ label.textContent=old; },2000); }
+      if(navigator.share && window.matchMedia('(pointer:coarse)').matches){ navigator.share({url:u, title:document.title}).catch(function(){}); return; }
+      if(navigator.clipboard) navigator.clipboard.writeText(u).then(done,function(){});
+    });
+  });
+
+  // "was this useful?" — counted as an analytics event when analytics is enabled
+  document.querySelectorAll('.fb').forEach(function(box){
+    box.querySelectorAll('button').forEach(function(b){
+      b.addEventListener('click',function(){
+        var v=b.getAttribute('data-v'), page=box.getAttribute('data-page');
+        box.querySelectorAll('button').forEach(function(x){ x.disabled=true; x.classList.toggle('picked',x===b); });
+        box.querySelector('.fb-done').hidden=false;
+        try{
+          if(window.goatcounter&&window.goatcounter.count) window.goatcounter.count({path:'feedback/'+page+'/'+v, title:'feedback '+v, event:true});
+          if(window.gtag) window.gtag('event','feedback',{page:page, value:v});
+        }catch(e){}
+      });
+    });
+  });
+
+  // glossary search
+  var gq=document.getElementById('g-q');
+  if(gq){
+    var terms=[].slice.call(document.querySelectorAll('.term')), groups=[].slice.call(document.querySelectorAll('.g-group')), none=document.querySelector('.g-none');
+    gq.addEventListener('input',function(){
+      var q=gq.value.trim().toLowerCase().replace(/[‌يك]/g,function(c){ return c==='ي'?'ی':c==='ك'?'ک':''; }), any=false;
+      terms.forEach(function(t){ var hit=!q||t.getAttribute('data-s').replace(/‌/g,'').indexOf(q)>=0||t.textContent.toLowerCase().indexOf(q)>=0; t.hidden=!hit; if(hit) any=true; });
+      groups.forEach(function(g){ g.hidden=!g.querySelector('.term:not([hidden])'); });
+      none.hidden=any;
+    });
+  }
+
   // contact form: posts to a form service when data-endpoint is set, otherwise email / WhatsApp
   var form=document.getElementById('form'); if(!form) return;
   var status=document.getElementById('f-status');

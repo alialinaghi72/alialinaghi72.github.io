@@ -1,0 +1,470 @@
+[
+{
+"file": "fa-home-index.jpg",
+"lang": "fa",
+"title": "علی علینقی | اکتشاف معدن، تخمین ذخیره و مدل‌سازی سه‌بعدی",
+"label": "مشاورهٔ اکتشاف معدن، مدل‌سازی سه‌بعدی زمین‌شناسی و تخمین ذخیره"
+},
+{
+"file": "fa-svc-resource-estimation.jpg",
+"lang": "fa",
+"title": "تخمین ذخیره معدنی و ارزیابی منابع | علی علینقی",
+"label": "خدمات"
+},
+{
+"file": "fa-svc-3d-geological-modelling.jpg",
+"lang": "fa",
+"title": "مدل‌سازی سه‌بعدی زمین‌شناسی و مدل بلوکی | علی علینقی",
+"label": "خدمات"
+},
+{
+"file": "fa-svc-mineral-exploration.jpg",
+"lang": "fa",
+"title": "اکتشاف معدن و هدف‌گیری کانسار | علی علینقی",
+"label": "خدمات"
+},
+{
+"file": "fa-svc-exploration-geophysics.jpg",
+"lang": "fa",
+"title": "ژئوفیزیک اکتشافی: مغناطیس‌سنجی، IP و مقاومت ویژه | علی علینقی",
+"label": "خدمات"
+},
+{
+"file": "fa-svc-exploration-geochemistry.jpg",
+"lang": "fa",
+"title": "ژئوشیمی اکتشافی و جداسازی آنومالی | علی علینقی",
+"label": "خدمات"
+},
+{
+"file": "fa-svc-remote-sensing.jpg",
+"lang": "fa",
+"title": "دورسنجی (سنجش از دور) در اکتشاف مواد معدنی | علی علینقی",
+"label": "خدمات"
+},
+{
+"file": "fa-svc-project-management.jpg",
+"lang": "fa",
+"title": "مدیریت پروژه‌های اکتشافی و معدنی | علی علینقی",
+"label": "خدمات"
+},
+{
+"file": "fa-svc-commodities.jpg",
+"lang": "fa",
+"title": "اکتشاف و تخمین ذخیره طلا، مس، مولیبدن، آهن، سرب و روی و تالک | علی علینقی",
+"label": "خدمات"
+},
+{
+"file": "fa-art-kriging.jpg",
+"lang": "fa",
+"title": "کریجینگ (Kriging) چیست؟ راهنمای کاربردی کریجینگ در تخمین ذخیرهٔ معدن | علی علینقی",
+"label": "زمین‌آمار"
+},
+{
+"file": "fa-art-variogram.jpg",
+"lang": "fa",
+"title": "واریوگرام (Variogram) در زمین‌آمار چیست؟ محاسبه، مدل‌سازی و تفسیر | علی علینقی",
+"label": "زمین‌آمار"
+},
+{
+"file": "fa-art-cut-off-grade.jpg",
+"lang": "fa",
+"title": "عیار حد (Cut-off grade) در معدن چیست و چگونه محاسبه می‌شود؟ فرمول و ماشین‌حساب | علی علینقی",
+"label": "ارزیابی اقتصادی"
+},
+{
+"file": "fa-art-resources-vs-reserves.jpg",
+"lang": "fa",
+"title": "تفاوت منابع و ذخایر معدنی: رده‌بندی JORC، ذخیرهٔ قطعی و احتمالی و کد UNFC | علی علینقی",
+"label": "گزارش‌دهی"
+},
+{
+"file": "fa-art-qaqc.jpg",
+"lang": "fa",
+"title": "کنترل کیفیت (QA/QC) نمونه‌برداری در اکتشاف معدن: استاندارد، شاهد و تکراری | علی علینقی",
+"label": "داده و کنترل کیفیت"
+},
+{
+"file": "fa-art-exploration-stages-iran.jpg",
+"lang": "fa",
+"title": "مراحل اکتشاف معدن در ایران: از شناسایی تا گواهی کشف و پروانهٔ بهره‌برداری | علی علینقی",
+"label": "اکتشاف"
+},
+{
+"file": "fa-art-index.jpg",
+"lang": "fa",
+"title": "مقالات و راهنماهای اکتشاف و تخمین ذخیره | علی علینقی",
+"label": "مقالات"
+},
+{
+"file": "fa-tools-index.jpg",
+"lang": "fa",
+"title": "ابزارهای آنلاین معدن: ماشین‌حساب عیار حد، تبدیل واحد و واریوگرام | علی علینقی",
+"label": "ابزارها"
+},
+{
+"file": "fa-tools-cut-off-grade.jpg",
+"lang": "fa",
+"title": "ماشین‌حساب آنلاین عیار حد (Cut-off Grade) برای مس، طلا، روی و سرب | علی علینقی",
+"label": "ابزارها"
+},
+{
+"file": "fa-tools-grade-converter.jpg",
+"lang": "fa",
+"title": "تبدیل واحد عیار (درصد، ppm، گرم در تن، اونس) و محاسبهٔ تناژ و فلز محتوا | علی علینقی",
+"label": "ابزارها"
+},
+{
+"file": "fa-tools-variogram-lab.jpg",
+"lang": "fa",
+"title": "آزمایشگاه تعاملی واریوگرام: برازش مدل کروی، نمایی و گاوسی | علی علینقی",
+"label": "ابزارها"
+},
+{
+"file": "fa-gloss-index.jpg",
+"lang": "fa",
+"title": "واژه‌نامهٔ اکتشاف و تخمین ذخیره (فارسی–انگلیسی) | علی علینقی",
+"label": "واژه‌نامه"
+},
+{
+"file": "fa-atlas-index.jpg",
+"lang": "fa",
+"title": "اطلس کانسارهای ایران: مس، آهن، طلا و سرب و روی | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-sarcheshmeh.jpg",
+"lang": "fa",
+"title": "کانسار مس پورفیری سرچشمه: زمین‌شناسی، دگرسانی و ارقام ذخیره | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-miduk.jpg",
+"lang": "fa",
+"title": "کانسار مس پورفیری میدوک شهربابک: زمین‌شناسی، سن و ذخیره | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-kahang.jpg",
+"lang": "fa",
+"title": "کانسار مس پورفیری کهنگ اردستان: زمین‌شناسی، دگرسانی و اکتشاف | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-sungun.jpg",
+"lang": "fa",
+"title": "کانسار مس پورفیری سونگون ورزقان: زمین‌شناسی، دگرسانی و ذخیره | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-masjed-daghi.jpg",
+"lang": "fa",
+"title": "کانسار مس–طلای پورفیری مسجد داغی جلفا: زمین‌شناسی، سن و ذخیره | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-dalli.jpg",
+"lang": "fa",
+"title": "کانسار مس–طلای پورفیری دالی دلیجان: زمین‌شناسی، دگرسانی و ذخیره | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-gol-e-gohar.jpg",
+"lang": "fa",
+"title": "کانسار سنگ آهن گل‌گهر سیرجان: زمین‌شناسی و دو نظریهٔ منشأ | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-chadormalu.jpg",
+"lang": "fa",
+"title": "کانسار سنگ آهن چادرملو: زمین‌شناسی کانسار آهن–آپاتیت نوع کایرونا | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-choghart.jpg",
+"lang": "fa",
+"title": "کانسار سنگ آهن چغارت بافق: زمین‌شناسی، دگرسانی و توریم | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-sangan.jpg",
+"lang": "fa",
+"title": "کانسار سنگ آهن سنگان خواف: زمین‌شناسی اسکارن آهن و ارقام ذخیره | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-mehdiabad.jpg",
+"lang": "fa",
+"title": "کانسار سرب و روی مهدی‌آباد یزد: زمین‌شناسی، تیپ و ارقام ذخیره | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-angouran.jpg",
+"lang": "fa",
+"title": "کانسار سرب و روی انگوران ماه‌نشان: زمین‌شناسی و منشأ | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-irankuh.jpg",
+"lang": "fa",
+"title": "کانسار سرب و روی ایرانکوه اصفهان: زمین‌شناسی و تیپ کانسار | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-zarshuran.jpg",
+"lang": "fa",
+"title": "کانسار طلای زرشوران تکاب: زمین‌شناسی کارلین‌گونه و ارقام ذخیره | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-agh-darreh.jpg",
+"lang": "fa",
+"title": "کانسار طلای آق‌دره تکاب: زمین‌شناسی و کانی‌سازی | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-sari-gunay.jpg",
+"lang": "fa",
+"title": "کانسار طلای ساری‌گونی قروه: زمین‌شناسی اپی‌ترمال و ارقام ذخیره | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "fa-atlas-muteh.jpg",
+"lang": "fa",
+"title": "کانسار طلای موته اصفهان: زمین‌شناسی و سن کانی‌سازی | علی علینقی",
+"label": "اطلس کانسارها"
+},
+{
+"file": "en-home-index.jpg",
+"lang": "en",
+"title": "Ali Alinaghi | Mineral Exploration, Resource Estimation and 3D Modelling",
+"label": "Mineral exploration, 3D geological modelling and resource estimation consulting"
+},
+{
+"file": "en-svc-resource-estimation.jpg",
+"lang": "en",
+"title": "Mineral Resource Estimation Consultant | Ali Alinaghi",
+"label": "Services"
+},
+{
+"file": "en-svc-3d-geological-modelling.jpg",
+"lang": "en",
+"title": "3D Geological Modelling and Block Models | Ali Alinaghi",
+"label": "Services"
+},
+{
+"file": "en-svc-mineral-exploration.jpg",
+"lang": "en",
+"title": "Mineral Exploration and Target Generation | Ali Alinaghi",
+"label": "Services"
+},
+{
+"file": "en-svc-exploration-geophysics.jpg",
+"lang": "en",
+"title": "Exploration Geophysics: Magnetics, IP and Resistivity | Ali Alinaghi",
+"label": "Services"
+},
+{
+"file": "en-svc-exploration-geochemistry.jpg",
+"lang": "en",
+"title": "Exploration Geochemistry and Anomaly Separation | Ali Alinaghi",
+"label": "Services"
+},
+{
+"file": "en-svc-remote-sensing.jpg",
+"lang": "en",
+"title": "Remote Sensing for Mineral Exploration | Ali Alinaghi",
+"label": "Services"
+},
+{
+"file": "en-svc-project-management.jpg",
+"lang": "en",
+"title": "Exploration and Mining Project Management | Ali Alinaghi",
+"label": "Services"
+},
+{
+"file": "en-svc-commodities.jpg",
+"lang": "en",
+"title": "Gold, Copper, Molybdenum, Iron, Lead–Zinc and Talc Exploration | Ali Alinaghi",
+"label": "Services"
+},
+{
+"file": "en-art-kriging.jpg",
+"lang": "en",
+"title": "What Is Kriging? A Practical Guide for Mineral Resource Estimation | Ali Alinaghi",
+"label": "Geostatistics"
+},
+{
+"file": "en-art-variogram.jpg",
+"lang": "en",
+"title": "The Variogram Explained: Calculation, Modelling and Interpretation | Ali Alinaghi",
+"label": "Geostatistics"
+},
+{
+"file": "en-art-cut-off-grade.jpg",
+"lang": "en",
+"title": "Cut-off Grade: What It Is and How to Calculate It (with Calculator) | Ali Alinaghi",
+"label": "Economic evaluation"
+},
+{
+"file": "en-art-resources-vs-reserves.jpg",
+"lang": "en",
+"title": "Mineral Resources vs Ore Reserves: JORC Classification and UNFC Codes | Ali Alinaghi",
+"label": "Reporting"
+},
+{
+"file": "en-art-qaqc.jpg",
+"lang": "en",
+"title": "QA/QC in Mineral Exploration: Standards, Blanks and Duplicates | Ali Alinaghi",
+"label": "Data and QA/QC"
+},
+{
+"file": "en-art-exploration-stages-iran.jpg",
+"lang": "en",
+"title": "Stages of Mineral Exploration in Iran: From Reconnaissance to Discovery Certificate | Ali Alinaghi",
+"label": "Exploration"
+},
+{
+"file": "en-art-index.jpg",
+"lang": "en",
+"title": "Mineral Exploration and Resource Estimation Articles | Ali Alinaghi",
+"label": "Articles"
+},
+{
+"file": "en-tools-index.jpg",
+"lang": "en",
+"title": "Free Mining Tools: Cut-off Grade Calculator, Unit Converter, Variogram | Ali Alinaghi",
+"label": "Tools"
+},
+{
+"file": "en-tools-cut-off-grade.jpg",
+"lang": "en",
+"title": "Free Cut-off Grade Calculator for Copper, Gold, Zinc and Lead | Ali Alinaghi",
+"label": "Tools"
+},
+{
+"file": "en-tools-grade-converter.jpg",
+"lang": "en",
+"title": "Grade Unit Converter (%, ppm, g/t, oz/t) and Contained-Metal Calculator | Ali Alinaghi",
+"label": "Tools"
+},
+{
+"file": "en-tools-variogram-lab.jpg",
+"lang": "en",
+"title": "Interactive Variogram Lab: Fit Spherical, Exponential and Gaussian Models | Ali Alinaghi",
+"label": "Tools"
+},
+{
+"file": "en-gloss-index.jpg",
+"lang": "en",
+"title": "Mineral Exploration and Resource Estimation Glossary (English–Persian) | Ali Alinaghi",
+"label": "Glossary"
+},
+{
+"file": "en-atlas-index.jpg",
+"lang": "en",
+"title": "Atlas of Iranian Ore Deposits: Copper, Iron, Gold, Lead–Zinc | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-sarcheshmeh.jpg",
+"lang": "en",
+"title": "Sarcheshmeh Porphyry Copper Deposit: Geology, Alteration and Resource Figures | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-miduk.jpg",
+"lang": "en",
+"title": "Miduk Porphyry Copper Deposit, Shahr-e Babak: Geology, Age and Resources | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-kahang.jpg",
+"lang": "en",
+"title": "Kahang Porphyry Copper Deposit, Ardestan: Geology, Alteration and Exploration | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-sungun.jpg",
+"lang": "en",
+"title": "Sungun Porphyry Copper Deposit, Varzaqan: Geology, Alteration and Resources | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-masjed-daghi.jpg",
+"lang": "en",
+"title": "Masjed Daghi Porphyry Copper–Gold Deposit, Jolfa: Geology, Age and Resources | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-dalli.jpg",
+"lang": "en",
+"title": "Dalli Porphyry Copper–Gold Deposit, Delijan: Geology, Alteration and Resources | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-gol-e-gohar.jpg",
+"lang": "en",
+"title": "Gol-e-Gohar Iron Ore Deposit, Sirjan: Geology and Two Theories of Origin | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-chadormalu.jpg",
+"lang": "en",
+"title": "Chadormalu Iron Ore Deposit: Geology of a Kiruna-Type Magnetite–Apatite Deposit | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-choghart.jpg",
+"lang": "en",
+"title": "Choghart Iron Ore Deposit, Bafq: Geology, Alteration and Thorium | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-sangan.jpg",
+"lang": "en",
+"title": "Sangan Iron Ore Deposit, Khaf: Geology of an Iron Skarn District and Resource Figures | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-mehdiabad.jpg",
+"lang": "en",
+"title": "Mehdiabad Zinc–Lead Deposit, Yazd: Geology, Deposit Type and Resource Figures | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-angouran.jpg",
+"lang": "en",
+"title": "Angouran Zinc–Lead Deposit, Mahneshan: Geology and Origin | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-irankuh.jpg",
+"lang": "en",
+"title": "Irankuh Zinc–Lead District, Isfahan: Geology and Deposit Type | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-zarshuran.jpg",
+"lang": "en",
+"title": "Zarshuran Gold Deposit, Takab: Carlin-Like Geology and Resource Figures | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-agh-darreh.jpg",
+"lang": "en",
+"title": "Agh-Darreh Gold Deposit, Takab: Geology and Mineralisation | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-sari-gunay.jpg",
+"lang": "en",
+"title": "Sari Gunay Gold Deposit, Qorveh: Epithermal Geology and Resource Figures | Ali Alinaghi",
+"label": "Deposit atlas"
+},
+{
+"file": "en-atlas-muteh.jpg",
+"lang": "en",
+"title": "Muteh Gold Deposits, Isfahan: Geology and Age of Mineralisation | Ali Alinaghi",
+"label": "Deposit atlas"
+}
+]
