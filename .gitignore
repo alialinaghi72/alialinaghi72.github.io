@@ -1,3 +1,7 @@
 __pycache__/
 research_notes/
 reports/
+_geovalid/app/dist/
+_geovalid/app/build/
+_geovalid/app/.venv/
+.pytest_cache/

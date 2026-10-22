@@ -1,0 +1,22 @@
+[project]
+name = "geovalid-pro"
+version = "0.1.0"
+description = "Exploration drillhole database validation, analysis and reporting"
+requires-python = ">=3.11"
+dependencies = ["numpy>=2.0", "pandas>=2.2", "scipy>=1.12", "matplotlib>=3.8", "openpyxl>=3.1", "xlrd>=2.0",
+                "PyYAML>=6.0", "charset-normalizer>=3.3", "PySide6-Essentials>=6.7"]
+
+[project.scripts]
+geovalid = "geovalid_pro.cli:main"
+
+[project.gui-scripts]
+geovalid-gui = "geovalid_pro.gui.app:main"
+
+[tool.setuptools.packages.find]
+include = ["geovalid_pro*"]
+
+[tool.setuptools.package-data]
+geovalid_pro = ["resources/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

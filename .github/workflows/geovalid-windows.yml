@@ -1,0 +1,65 @@
+name: GEOVALID PRO – Windows build
+
+on:
+  push:
+    branches: [ccr-78119761-njo55d]
+    paths: ["_geovalid/app/**", ".github/workflows/geovalid-windows.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: _geovalid/app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller==6.22.3 pytest
+      - name: Tests (injected-error recall, clean twin, unit tests)
+        run: python -m pytest -q
+      - name: Build exe
+        run: |
+          python tools/make_icon.py
+          pyinstaller --noconfirm --clean packaging/geovalid.spec
+      - name: Smoke test – CLI exe
+        shell: pwsh
+        run: |
+          ./dist/GEOVALID/geovalid-cli.exe run --sample --out smoke_out --lang both
+          $code = $LASTEXITCODE
+          Write-Host "exit code $code (2 = CRITICAL issues found in the sample: expected)"
+          if ($code -ne 2) { exit 1 }
+          if (-not (Get-ChildItem smoke_out -Recurse -Filter report_fa.html)) { exit 1 }
+          exit 0
+      - name: Smoke test – GUI exe
+        shell: pwsh
+        run: |
+          $png = Join-Path $HOME "GEOVALID_PRO/gui_smoke.png"
+          if (Test-Path $png) { Remove-Item $png }
+          $p = Start-Process ./dist/GEOVALID/GEOVALID.exe -ArgumentList "--smoke-test" -PassThru
+          if (-not $p.WaitForExit(300000)) { $p.Kill(); Write-Error "GUI did not finish"; exit 1 }
+          if (-not (Test-Path $png)) { Write-Error "GUI smoke screenshot missing"; exit 1 }
+          Copy-Item $png dist/GEOVALID/screenshot_gui.png
+      - name: Add guide and sample data
+        shell: pwsh
+        run: |
+          ./dist/GEOVALID/geovalid-cli.exe sample --out dist/GEOVALID
+          Copy-Item README_RUN.md dist/GEOVALID/
+          Copy-Item geovalid_pro/resources/OFL.txt dist/GEOVALID/LICENSE_Vazirmatn_OFL.txt
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path dist/GEOVALID -DestinationPath GEOVALID_PRO_0.1.0_win64.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GEOVALID_PRO_0.1.0_win64
+          path: _geovalid/app/GEOVALID_PRO_0.1.0_win64.zip
+          retention-days: 30

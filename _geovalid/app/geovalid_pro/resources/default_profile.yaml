@@ -1,0 +1,54 @@
+# GEOVALID PRO — base validation profile (03 rule catalogue defaults).
+# Copy this file, edit thresholds and load it in the program (Settings → Profile) or with --profile.
+profile: base
+version: 0.1.0
+key_analytes: [Au, Cu, Zn, Pb, Ag, Mo, Fe, Ni, Co, Cr2O3, Al2O3, Mn, U]
+depth_eps_m: 0.001
+rules:
+  COL-002: {z_zero_tol_m: 20}
+  COL-004: {near_dup_distance_m: 1.0, near_dup_dz_m: 2.0}
+  COL-005: {edge_buffer_m: 25}
+  COL-007: {eoh_tol_m: 0.05}
+  COL-010: {grid_steps_m: [100, 50, 25], round_decimals_max: 0}
+  COL-011: {warn_m: 2.0, error_m: 5.0, handheld_warn_m: 10.0, handheld_error_m: 20.0}
+  COL-012: {min_n: 20, offset_min_m: 1.0}
+  COL-013: {min_group_n: 3}
+  COL-014: {min_year: 1950, max_rate_m_day: 300}
+  COL-015: {isolation_x_median: 3.0, ce_clustered: 0.80}
+  COL-016: {z_range_m: [-50, 5700], robust_z: 5.0}
+  COL-019: {vertical_tol_deg: 0.5}
+  SUR-002: {dup_angle_tol_deg: 0.1}
+  SUR-005: {near_horizontal_deg: 5}
+  SUR-006: {survey_overrun_tol_m: 0.5}
+  SUR-007: {first_station_max_m: 30}
+  SUR-008: {max_spacing_m: 50, extrap_max_m: 50, extrap_max_frac: 0.20}
+  SUR-009: {min_length_m: 50, const_tol_deg: 0.01}
+  SUR-010: {warn_deg_30m: 3.0, error_deg_30m: 6.0, min_dmd_m: 3}
+  SUR-011: {max_dip_change_deg: 5, max_dip_change_deg_30m: 10}
+  SUR-012: {max_az_change_deg: 10, max_az_change_deg_30m: 20, suppress_steeper_than_dip_deg: -85}
+  SUR-013: {spike_deg: 10}
+  SUR-015: {eoh_diff_m: 2.0}
+  SUR-016: {cross_dist_m: 1.0, collar_zone_m: 5, exit_tol_m: 2.0, step_m: 1.0}
+  SUR-020: {sentinels: [-99, -999, -9999, 999, 9999], steep_dip_cutoff_deg: -85}
+  INT-002: {micro_overlap_m: 0.01}
+  INT-004: {top_gap_tol_m: 0.5, bottom_gap_tol_m: 0.5, micro_gap_m: 0.01}
+  INT-007: {short_m: 0.2, long_sample_m: 3.0, long_logging_m: 50}
+  INT-008: {contact_tol_m: 0.05}
+  INT-009: {min_window_n: 5}
+  ASY-003: {total_max_pct: 101, au_max_ppm: 10000}
+  ASY-004: {min_minority_frac: 0.05, min_n: 200, min_separation_decades: 2.5}
+  ASY-006: {fe_rel_tol_frac: 0.05, partial_tol_frac: 0.05, cu_s_max_ratio: 4.0, cu_min_pct: 0.5}
+  ASY-007: {tukey_k: 3, cv_topcut: 2.0}
+  ASY-011: {bdl_share_warn_frac: 0.30, bdl_share_info_frac: 0.80}
+  ASY-015: {total_min_pct: 98}
+  QAQ-001: {target_crm_pct: 5, target_blank_pct: 3, target_field_dup_pct: 2, target_coarse_dup_pct: 2, target_pulp_dup_pct: 2, min_originals_n: 100}
+  QAQ-002: {sd_warn: 2, sd_fail: 3, bias_warn_pct: 3, bias_err_pct: 5, min_n_bias: 10}
+  QAQ-003: {blank_warn_x_dl: 5, blank_fail_x_dl: 10}
+  QAQ-004: {hard_limit_pct: {FIELD_DUP: 30, COARSE_DUP: 20, PULP_DUP: 10}, max_fail_frac: 0.10, min_mean_x_dl: 10}
+  LIT-002: {thin_m: 0.5, thin_share_frac: 0.20}
+  LIT-003: {cover_codes: [OB, OVB, OVBD, ALL, ALLUV, ALV, SOIL, SOL, COLL, QAL, QT, CV, COVER, TILL, SCREE, FILL]}
+  GEO-001: {cr_tol_pct: 5}
+  GEO-002: {tol_pct: 1}
+  GEO-003: {diff_tol_pct: 2, len_tol_m: 0.02}
+  GEO-004: {low_pct: 85, high_pct: 95, alpha: 0.01, min_n_per_class: 30}
+  DEN-001: {abs_bounds_gcm3: [1.0, 6.5], k_mad: 4}
