@@ -35,6 +35,14 @@ Section numbers §0–§19 refer to the requirements brief. "02 §x" refers to t
 | A16 | Offline | Enforced technically (socket guard, WebEngine request interceptor, PROJ/GDAL/DuckDB network off) and proven by a no-network CI job | Makes §1.1 testable |
 | A17 | Determinism | Seeded statistics, stable sorts, content hashes. Identical inputs give identical issues, fingerprints and report numbers (02 §1.10). | Addition |
 | A18 | Reports from working data | Final reports and **all exports** come from a `RELEASE` (02 §9). A **draft** report from the working version is allowed, watermarked on every page. | Clarifies 02 §9.5 |
+| A19 | Report language `bi` | **Primary-language body** (default fa) with bilingual headings, captions, table headers, chapter key findings, executive summary and action plan. Figure and table numbers are identical in fa, en and bi. A full second-language report comes from the same job on request (§9.5). | Interprets §14 item 5 |
+| A20 | Report outputs | One Report Document Model feeds DOCX, print HTML → PDF and a **self-contained** dashboard. Lint blocks placeholders and untraceable numbers. **PDF/A is not produced** (§9.8). | Refines §14 |
+| A21 | GUI workflow | **Non-modal stepper** instead of a modal wizard; linked views through a selection bus. Maps, sections, strip logs, charts, IDs and numeric fields are **never mirrored** in RTL. A language change applies on restart (§10). | Refines §16 |
+| A22 | Large tables | `ArrowTableModel` over memory-mapped Arrow with DuckDB-computed permutations; **no `QSortFilterProxyModel`**. Grids are read-only; edits go only through change sets (§10.8). | Makes §16 performance achievable |
+| A23 | CLI | Non-interactive; decisions come from files; stable exit codes (0–7, 70, 130); `--fail-on` threshold with a `--baseline` ratchet; JUnit output (§11) | Extends §16 |
+| A24 | Performance targets | Dataset L (5 000 holes, 1.05 M interval rows, 12 M assays) on a 16 GB, 4-core laptop: full validation **≤ 150 s**, incremental ≤ 45 s, peak worker RSS ≤ 5 GB. Gated nightly on a reference machine (§12). | Makes §16 testable |
+| A25 | Persistence | No Save command for review work: every decision is committed at once. Rolling `VACUUM INTO` backups. A release anchor printed in every report (§13.2, §13.3). | Addition |
+| A26 | Distribution | Two executables (GUI; console CLI and worker) in one one-dir bundle; **per-user install without admin rights**; side-by-side major versions. Linux gets a headless wheel only (§14). | Refines §1.1 |
 
 ---
 
@@ -1362,4 +1370,798 @@ The statement is always printed with: "Indicative only. Not a Competent Person /
 - The report prints the weights, τ values and caps.
 - **Weight sensitivity:** 1 000 seeded Dirichlet draws around the default weights (≈ ±25 %) plus τ × 0.5…1.5. The report gives the 5th–95th percentile, e.g. "DCI 71 (67–74)". A conclusion that flips within that range is flagged as weight-sensitive.
 
-<!-- @@CONTINUE@@ -->
+---
+
+## 9. Reporting pipeline
+
+### 9.1 Pipeline and principles
+```
+ run results (issues · drv_* · stats objects §6.7 · drv_confidence)
+   │
+   ├─► report.findings ──► Finding set (typed values · rule IDs · T1.xx · provenance)         language-free
+   │        ├─► report.narrative ── phrasebooks fa/en ──► paragraphs (en + fa) · actions       both languages
+   │        └─► report.sections ── one builder per §14.1 chapter and appendix ──► RDM          both languages
+   │
+   ├─► plots.registry ──► figure set ──► plots.render (process pool, cache) ──► PNG 300 dpi + SVG per language
+   │
+   └─► RDM ──► report.numbering ──► report.lint ──┬─► docx_builder ─────────────────► report.docx
+                                                  ├─► html_builder (print) ──► pdf.py ──► report.pdf
+                                                  ├─► html_builder (dashboard) ──────► dashboard.html
+                                                  └─► io.writers.issue_log ──────────► issues.xlsx · issues.csv
+```
+
+1. **Compute once, render many.** Findings, figure data and numbering are computed once per report job. The fa, en and bi outputs of one release therefore carry identical numbers and identical figure and table numbers: Figure 3-7 is the same figure in every language, so an English-reading CP/QP can cross-reference a Persian report.
+2. **Every number has one source.** Narrative, figure annotations and tables read the same frozen statistics objects (§6.7). The report layer never recomputes a statistic.
+3. **Final reports come from a release** (A18, §7.6). Draft reports from Vw carry the watermark on every page.
+4. **No placeholder text.** A section without data prints a specific *not assessable* statement: what is missing and why it matters (brief §14.1). Lint enforces it (§9.10).
+
+### 9.2 Report Document Model (RDM)
+```python
+# geovalid_pro/report/model.py — interface sketch
+Lang = Literal["en", "fa"]; Mode = Literal["en", "fa", "bi"]
+
+@dataclass(frozen=True)
+class I18n:                                   # every user-facing string exists in both languages
+    en: str; fa: str
+
+@dataclass(frozen=True)
+class Span:                                   # inline run inside a paragraph
+    text: I18n
+    kind: Literal["plain", "id", "number", "term", "emph", "ref"] = "plain"   # id/number → LTR isolate in fa
+    finding: str | None = None                # provenance, e.g. "collar.dz_summary:median_dz_m"
+    target: str | None = None                 # anchor for kind="ref" (figure, table, section, issue)
+
+@dataclass(frozen=True)
+class Para:        spans: tuple[Span, ...]; style: str = "Body"   # style names exist in the DOCX template and print.css
+@dataclass(frozen=True)
+class Heading:     level: int; text: I18n; anchor: str
+@dataclass(frozen=True)
+class FigureBlock: key: str; anchor: str; size: "SizeClass"; caption: I18n; source: I18n
+@dataclass(frozen=True)
+class TableBlock:
+    key: str; anchor: str; caption: I18n; columns: tuple["ColumnSpec", ...]; data: "pa.Table"
+    highlight: tuple["Highlight", ...] = (); landscape: bool = False; max_rows: int = 60
+@dataclass(frozen=True)
+class Callout:     kind: Literal["key_findings", "limitation", "disclaimer", "not_assessable"]; body: tuple["Block", ...]
+@dataclass(frozen=True)
+class Section:     heading: Heading; blocks: tuple["Block", ...]; orientation: Literal["portrait", "landscape"] = "portrait"
+
+@dataclass(frozen=True)
+class Document:
+    meta: "ReportMeta"              # project, release/version, recipe/profile/run hashes, mode, branding, draft flag
+    front: tuple[Section, ...]      # title page, disclaimer, TOC, executive summary
+    chapters: tuple[Section, ...]   # §14.1 chapters 2–13
+    appendices: tuple[Section, ...] # issue list, rule catalogue + thresholds, dictionaries, method notes, glossary,
+                                    # rule-execution matrix, audit summary
+```
+- `ColumnSpec` carries the canonical and display units, the number format (decimals or significant figures by quantity kind), alignment and a bilingual header with the unit in brackets (brief §15).
+- The RDM holds **both languages**; the builder selects by mode. One RDM serves fa, en and bi.
+- Builders are pure functions of the RDM plus rendered figure files: `DocxBuilder.build(doc, mode) → Path`, `HtmlBuilder.print(doc, mode)`, `HtmlBuilder.dashboard(doc, mode, data)`. The Typst contingency of §3.2 would be one more builder over the same RDM.
+
+### 9.3 Figure and table registry
+```python
+# geovalid_pro/plots/registry.py — interface sketch
+@figure("collar.dz_map", chapter=3, order=70, size=Size.FULL_PORTRAIT,
+        requires=("drv_collar_spatial", "drv_collar_method"),
+        when="n_dem_sampled >= 5",                                  # safe expression (§5.11) over FigData fields
+        caption_en="Collar elevation residual ΔZ = Z_collar − Z_topo against {dem_name}; diverging scale "
+                   "centred on 0 m. n = {n} ({n_excluded} excluded: {excluded_reasons}).",
+        caption_fa="باقیمانده ارتفاع دهانه گمانه ΔZ = Z دهانه − Z توپوگرافی نسبت به {dem_name}؛ مقیاس رنگی "
+                   "واگرا با مرکز صفر متر. n = {n} ({n_excluded} مورد کنار گذاشته شده: {excluded_reasons}).",
+        jorc_items=("T1.08",), version=1)
+def collar_dz_map(data: "FigData", style: "Style", lang: Lang) -> "matplotlib.figure.Figure": ...
+```
+
+| Aspect | Decision |
+|---|---|
+| Selection | A figure is included when its `requires` products exist and `when` holds. Numbering is assigned **after** selection, so it has no gaps. |
+| Numbering | Per chapter: Figure 3-7 / «شکل ۳-۷», Table 6-2 / «جدول ۶-۲». Order is (chapter, `order`, instance key), which is deterministic. Appendix items are numbered A-1, B-1, … |
+| Multi-instance figures | `instances=` expands a figure per analyte, domain or campaign (e.g. a log-probability plot per element). Instances are numbered 6-4a, 6-4b, …, so chapter numbering stays stable when the element list changes. |
+| Per-hole figures | The report includes only the holes the findings point to (top-issue holes, twins, representative holes; default ≤ 12 per chapter). The full set (strip logs, dip/azimuth vs depth for every hole) is an optional **hole atlas** PDF (`--atlas`), one page per hole, from the same render pool. |
+| Captions | Templates over `FigData` fields. Lint requires `n`, `n_excluded` and a source line (table, release, DEM name) in every data caption (brief §15). |
+| Size classes | `FULL_PORTRAIT` 160 × 200 mm, `HALF` 160 × 95 mm, `THIRD` 160 × 62 mm, `LANDSCAPE` 247 × 150 mm, `STRIP` 160 × 230 mm (A4, 25 mm margins). Fonts are set in points at final size; figures are never rescaled in the document. |
+| Files | `figures/fig_03-07_collar-dz-map_fa.png` (300 dpi) and `.svg`, one set per language |
+| Cache | Key = `sha256(figure key, figure version, FigData hash, style version, lang, size)`. A re-run that does not change a figure's data reuses it. |
+| Tables | `@table` registry with the same selection, numbering and caption rules. Body tables are capped at `max_rows` (default 60); full listings go to an appendix (cap 500 rows) and always to the XLSX outputs. A 10 000-page PDF issue list is never produced. |
+
+Every figure is also available in the GUI (§10.6) through the same builder function, so a GUI chart and its report figure cannot disagree.
+
+### 9.4 Narrative generation: deterministic phrasebook engine
+**No LLM is used, and none is needed.** The narrative is produced fully offline by a deterministic template engine; the same findings give the same text, byte for byte. Phrasebook entries are written natively in Persian and English by geologists (not machine-translated) and are versioned with the software. `phrasebook_sha256` is recorded in the report manifest.
+
+**Findings.** `report.findings` turns results into typed facts:
+```python
+@dataclass(frozen=True)
+class Finding:
+    key: str                                  # "collar.dz_summary"
+    chapter: int                              # §14.1 chapter
+    values: Mapping[str, "Quantity | str | int | float | bool"]   # Quantity = value + unit + kind (grade, depth, pct, angle…)
+    severity: Severity | None                 # strongest related issue, if any
+    rule_ids: tuple[str, ...] = (); jorc_items: tuple[str, ...] = ()
+    figures: tuple[str, ...] = (); tables: tuple[str, ...] = ()
+    provenance: Mapping[str, str] = field(default_factory=dict)  # value name → product key / stats-object id / run_id
+```
+
+**Phrasebook entry** (`report/narrative/phrasebooks/collar.yaml`):
+```yaml
+- id: collar.dz.datum_offset.ellipsoidal
+  finding: collar.dz_summary
+  when: "abs_median_dz_m >= offset_warn_m and mad_dz_m < 0.5 * abs_median_dz_m and abs(median_dz_m - geoid_n_m) <= 1.0"
+  priority: 90                                   # among matching entries the highest wins
+  observe:
+    en: "Collar elevations lie a median {abs_median_dz_m} m {above_below} the {dem_name} surface (MAD {mad_dz_m} m; n = {n}, {n_excluded} excluded)."
+    fa: "تراز دهانه گمانه‌ها به‌طور میانه {abs_median_dz_m} متر {above_below} سطح {dem_name} است (MAD برابر {mad_dz_m} متر؛ n = {n}، {n_excluded} مورد کنار گذاشته شده)."
+  interpret:
+    en: >-
+      An offset this uniform is a vertical-datum problem, not GPS noise. It equals the geoid undulation at the project
+      centroid (N = {geoid_n_m} m, {geoid_model}), so the collar Z are most probably ellipsoidal heights from GNSS
+      processed without a geoid model. Every RL-dependent product (level plans, pierce points, surfaces built from
+      collars) inherits this {abs_median_dz_m} m bias.
+    fa: >-
+      جابه‌جایی با این میزان یکنواختی ناشی از مبنای ارتفاعی است، نه نوفه GPS. این مقدار با ارتفاع ژئوئید در مرکز محدوده
+      (N = {geoid_n_m} متر، {geoid_model}) برابر است؛ بنابراین ارتفاع دهانه‌ها به احتمال زیاد ارتفاع بیضوی حاصل از GNSS
+      بدون اعمال مدل ژئوئید است. همه محصولات وابسته به تراز (نقشه‌های تراز، نقاط برخورد، سطوح ساخته‌شده از دهانه‌ها)
+      این سوگیری {abs_median_dz_m} متری را به ارث می‌برند.
+  act:
+    en: "Confirm the vertical datum with the survey contractor, then apply one datum-shift change set (COL-012) instead of draping collars individually."
+    fa: "مبنای ارتفاعی را با پیمانکار نقشه‌برداری تأیید کنید و سپس به‌جای انطباق تک‌تک دهانه‌ها بر توپوگرافی، یک مجموعه تغییرات «جابه‌جایی مبنا» (COL-012) اعمال کنید."
+    action: {code: CONFIRM_VERTICAL_DATUM, priority: P1, scope: project}
+  labels:
+    above_below: {pos: {en: above, fa: "بالاتر از"}, neg: {en: below, fa: "پایین‌تر از"}}
+  cite: [fig.collar.dz_hist, fig.collar.dz_map, tab.collar.dz_by_campaign]
+```
+
+Engine rules:
+- **Three slots: observe → interpret → act.** This turns brief §19 ("explain *why* an issue matters … and *what to do*") into structure. Lint fails a finding of severity ≥ WARNING whose selected entry has an empty `interpret` or `act` slot.
+- **Selection.** For each finding, the entries whose `when` holds are ranked by `priority`, then `id`, and the first wins. Conditions use the safe expression evaluator of §5.11 in scalar mode. Every finding family ships a fallback entry, so a finding that matches nothing is a lint error, never a silent omission.
+- **Thresholds are quoted with their origin**, e.g. "above the 5 m ERROR threshold (project profile kz_west_2026)". The reader always sees which number drove a statement.
+- **Number formatting by quantity kind:** depths and ΔZ to 0.1 m in prose; grades to the analyte's display significant figures in its display unit (02 §1.8); percentages to 0 or 1 decimal; counts with thousands separators. fa uses Persian digits, `٫` and `٬` (§3.8). Each number span keeps its `finding:value` provenance, which the HTML carries as a `data-src` attribute.
+- **Plurals and Persian conventions.** en uses `{n|hole|holes}` selectors. In Persian a counted noun stays singular («۳۷ گمانه»), so fa templates need no plural selectors. A build-time lint flags fa entries with missing zero-width non-joiners in common affixes («می شود» → «می‌شود», «گمانه ها» → «گمانه‌ها»).
+- **Order.** Paragraphs follow the chapter's section order; within a section, by severity, then priority. Two findings with the same `cause` key share one interpretation instead of repeating it.
+
+**Executive summary** (chapter 1) is assembled, not written separately:
+- the DCI with its sensitivity range (§8.6) and traffic light;
+- key findings: the highest-priority `interpret` sentence of each chapter with severity ≥ WARNING;
+- the **top 10 critical issues**, aggregated by rule × table (ten distinct problems, not ten rows of one rule), ranked by severity, then affected metres inside logged mineralisation, then affected holes, then rule ID;
+- waived CRITICAL issues with reviewer and reason (§7.6), unconfirmed inferences (02 §1.9), failed and disabled rules;
+- the fit-for-purpose statement with its disclaimer (§8.5).
+
+**Recommendations and action plan** (chapter 13) are compiled from the `act.action` records:
+- priority classes: **P1** before any resource estimate; **P2** before the next release; **P3** practice improvement;
+- each action states why (its interpret sentence), its scope (holes, metres, batches), its JORC items and an **effort estimate** from the profile's effort model, printed as a range (×0.7 to ×1.5) and labelled indicative:
+```yaml
+report:
+  effort_model:                            # person-days
+    RESURVEY_COLLAR_DGPS:   {unit: collar,  per_unit: 0.04, fixed: 2.0}
+    REASSAY_BATCH:          {unit: batch,   per_unit: 0.5,  fixed: 1.0}
+    RELOG_INTERVALS:        {unit: 100 m,   per_unit: 0.3,  fixed: 0.5}
+    CONFIRM_VERTICAL_DATUM: {unit: project, per_unit: 1.0,  fixed: 0.0}
+```
+
+The CP/QP disclaimer (brief §19) is a fixed block on the reverse of the title page and directly above the fit-for-purpose statement, in each active language.
+
+### 9.5 Language modes
+| Element | `fa` | `en` | `bi` (decision) |
+|---|---|---|---|
+| Body narrative | fa | en | **Primary language** (`report.bi_primary`, default fa) |
+| Chapter key-findings box | fa | en | **Both** |
+| Executive summary, action plan, disclaimer | fa | en | **Both, in full** (primary first) |
+| Headings, figure and table captions, table headers | fa | en | **Both** (secondary on the next line, secondary style) |
+| Text inside figures | fa | en | Primary language |
+| Glossary appendix | fa/en | fa/en | fa/en |
+| Page direction | RTL | LTR | Primary language's; secondary paragraphs carry their own direction |
+| Digits | Persian in prose and tables; Latin in IDs and coordinates (§3.8) | Latin | By paragraph language |
+
+**Decision for `bi`.** A fully interleaved bilingual body doubles the page count and makes a 150-page report hard to read in either language. This design gives an English-speaking reviewer everything needed to navigate and audit a Persian report (every heading, caption and table header, each chapter's key findings, the executive summary and the action plan in both languages), with identical figure numbers across modes (§9.1). A complete second-language report costs only rendering time, because findings and figures are computed once: `--lang fa,en` produces both in one job. A fully parallel text, if required, is one more builder mode over the same RDM, not a redesign (Q1, §16).
+
+### 9.6 DOCX builder (`report/docx_builder.py`)
+- **Template-driven.** python-docx opens the Word-authored `reference_fa.dotx` or `reference_en.dotx`. Paragraph, character, table and caption styles, multilevel heading numbering and the header/footer layout live in the template, so the client restyles the report in Word without code changes. Branding (logo, "Arad/A.A" placeholder) comes from `project.branding` (02 §4.1).
+- **RTL mechanics** as §3.8: `w:bidi` paragraphs, `w:rtl` runs, complex-script fonts and sizes, `w:bidiVisual` tables, `w:sectPr/w:bidi`. RDM spans of kind `id` and `number` become separate LTR runs.
+- **Figures** are inserted as 300-dpi PNG at the exact size-class width, with bilingual alt text.
+- **Fields.** Captions are chapter-numbered `SEQ` fields whose cached results are **pre-filled with the RDM numbers**, so they are correct even if the user declines Word's field update. Cross-references are `REF` fields to bookmarks. The TOC is a field updated on open (`w:updateFields`, §3.8).
+- **Tables** use the template's table style: zebra rows; header row repeated on each page (`w:tblHeader`); rows never split across pages (`w:cantSplit`); units in headers; failures highlighted by cell shading from `Highlight` rules (e.g. CRM results outside ±3SD). Wide tables and maps go into landscape sections.
+- **Page numbers** are `PAGE`/`NUMPAGES` fields. In fa documents they rely on Word's digit substitution for `fa-IR` runs; S-03 verifies this, and the fallback is Latin page numbers.
+- **Stable output.** Core properties (author, created, modified) are set to the release values and parts are written in a fixed order, so the same release yields a byte-identical DOCX (tested).
+
+### 9.7 HTML: print document and interactive dashboard (`report/html_builder.py`)
+Both HTML outputs are rendered from the RDM with shared Jinja2 block partials (`templates/_blocks/*.j2`: paragraph, figure, table, callout), so the PDF and the dashboard present the same text, numbers and captions.
+
+**Print HTML** (input to the PDF, §3.2):
+- static: inline SVG figures (PNG for raster-heavy maps whose SVG would exceed 5 MB), no JavaScript;
+- CSS print subset: `break-inside: avoid` on figures and table rows; `thead` repeated on each page (native in Chromium); widow and orphan control;
+- landscape sections use CSS named pages (`page: landscape`) if S-01 confirms the pinned Chromium honours them. Otherwise the renderer prints the portrait and landscape runs as separate PDFs and pypdf concatenates them in order. In both cases page numbers and the outline are applied afterwards (§3.2 step 3).
+
+**Dashboard HTML** (brief §14 item 5):
+- **One self-contained file** that works from a USB stick or an e-mail attachment: fonts as WOFF2 data URIs, `plotly.min.js` embedded once (§3.8), data in `<script type="application/json">` blocks and a small vanilla `dashboard.js`. Nothing is fetched, not even local files (browsers block `fetch()` under `file://`).
+- Content: DCI and component gauges; the JORC Table 1 matrix; issue counts by table × severity; a collar map coloured by score or inferred method; the key interactive figures of each chapter; and an **issue explorer** (filter, sort, search) over the 50 000 highest-ranked issues (configurable). Beyond that limit the dashboard holds the aggregated pivots and points to the complete XLSX/CSV issue log. Size budget: ≤ 40 MB at dataset L (§11.6).
+- **Hardening.** Jinja2 autoescaping is on, so a hole ID such as `<script>` in client data renders as text. A Content-Security-Policy meta tag (`default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:`) makes outbound requests impossible even when the file is opened in a browser.
+
+### 9.8 PDF
+The renderer and its contingency are defined in §3.2. In addition:
+- metadata: title, author (from settings), subject = release label and `version_id`, keywords = rule-catalogue and profile hashes; creation and modification dates set to the release time;
+- PDF outline from the headings; internal links for the TOC, cross-references and issue references;
+- **PDF/A is not produced.** Chromium does not emit PDF/A, and the usual converter (Ghostscript) is AGPL, which the licence policy bans (§3.10). If archival PDF/A is mandatory, a permissively licensed conversion path with veraPDF validation becomes a separate spike (Q9, §16).
+
+### 9.9 Issue log and tabular outputs (`io/writers/issue_log.py`)
+- **issues.xlsx** (XlsxWriter, `constant_memory`):
+  - `README`: run metadata, filters applied, severity legend (fa/en);
+  - `Issues`: all §1.3 fields plus `fingerprint`, `run_id` and JORC items; auto-filter, frozen header, severity colours;
+  - pivot sheets by table × severity, by rule, by hole (top 500), by JORC item and by status.
+
+  Beyond 1 048 575 issues the `Issues` sheet continues as `Issues_2`, …; the CSV is always one file.
+- **issues.csv**: UTF-8 **with BOM**, so Excel opens Persian text correctly on double-click.
+- **Formula-injection guard.** XlsxWriter runs with `strings_to_formulas=False`. In the CSV, a *text* cell starting with `=`, `+`, `-` or `@` that does not parse as a number is prefixed with `'`. This applies to the issue log only, never to the cleaned database, whose values must remain exactly as stored (02 §9.6).
+- Every report table is also written to `tables.xlsx`, one sheet per table named by its number (`T06-02`), at full precision.
+
+### 9.10 Report lint, manifest and reproducibility
+`report/lint.py` runs on the RDM before any builder. A final report with lint errors is not written. A draft report is written with a visible "lint findings" page.
+
+| Check | Error when |
+|---|---|
+| Placeholders | An unresolved `{…}`, `None`, `nan` or `inf`; an empty section; "TBD"-like text |
+| References | A figure or table not referenced in the text; a reference to a missing anchor |
+| Traceability | A number span without provenance |
+| Interpretation | A finding ≥ WARNING without `interpret` and `act` text (§9.4) |
+| Captions | Missing `n`, `n_excluded` or source line |
+| Language parity | A string missing in an active language; Latin digits in fa prose numbers |
+| Disclosure | Missing CP/QP disclaimer, rule-execution matrix (§5.1) or threshold appendix with provenance (§5.9) |
+| Offline | Any `http(s)://`, `//cdn` or external `src`/`href` in HTML; any external relationship in the DOCX other than a plain hyperlink |
+
+Outputs go to a new folder `<output>/<release label>_<mode>_<yyyymmdd-hhmm>/`: `report.docx`, `report.pdf`, `dashboard.html`, `figures/`, `tables.xlsx`, `issues.xlsx`, `issues.csv`, `profile.yaml` (resolved, with provenance), `run_metadata.json` (02 §5.9 fields and input hashes) and **`report_manifest.json`**. The manifest holds `run_id`, `version_id`, the recipe, profile, parameters and rule-catalogue hashes, the phrasebook, template, style and font hashes, the software version, and the SHA-256 of every output file.
+- DOCX, PDF, HTML and the manifest are stored in the `.gvp` as `REPORT` blobs, and the figures of release reports as `FIGURE` blobs (02 §5.11). `audit_log` receives `REPORT_WRITTEN` with the manifest hash.
+- **Reproducibility.** Regenerating a release report with the same software version yields identical text and numbers. DOCX and HTML are byte-identical (tested). PDFs are compared by extracted text, because Chromium's internal object order is not guaranteed to be stable.
+- The title page prints the release label, `version_id`, the first 12 hex digits of `recipe_sha256` and the run date. This **release anchor** ties the issued document to one exact state of the project (§13.2).
+
+### 9.11 Report job and timing
+Report generation is a worker job (§1.4): findings → narrative → figure rendering in the process pool (≤ 4 processes, cached by data hash) → DOCX → print HTML → PDF (offscreen Qt WebEngine, two passes) → dashboard → issue log. Targets for dataset L, one language and ~150 figures: ≤ 4 min cold; ≤ 90 s when only the narrative or styling changed (§12.3).
+
+---
+
+## 10. GUI architecture
+
+### 10.1 Application shell
+- **Boot order** (`gui/app.py`): offline guard (§13.1) → logging and crash handler → fonts → settings (language) → `QTranslator`s (application `.qm` and Qt's `qtbase_fa.qm`) → layout direction → main window. At start-up the GUI process imports only Qt, pyqtgraph, `api`, pyarrow and duckdb. matplotlib loads with the first chart. scipy, scikit-learn, geopandas and rasterio serve the worker and are never imported at GUI start-up. Target cold start: ≤ 4 s (§12.3).
+- **Main window.** A `QMainWindow` with a central workspace and dockable panels: Project (tables, layers, versions, runs), Workflow (§10.2), Issues (§10.4), Inspector (record in context), Map, Section, Strip log, Charts, Jobs/Log. Layouts are saved per user (`saveState` in QSettings), with three presets: Import, Review, Report.
+- **Selection bus** (`gui/main_window.py`): one `QObject` with the signals `holeSelected(str)`, `issueSelected(int)`, `rowSelected(str, int)` (table, `row_uid`) and `extentRequested(QRectF)`. Every view publishes and subscribes. Clicking an issue centres the map on the collar, opens the hole's strip log at the interval, draws a section through the hole along its azimuth and fills the Inspector. Each of these is computed in `TaskPool` and painted when ready.
+- **Banners:** *read-only* when the project is opened read-only (§4.4); *working version* when the user views Vw with change sets applied since the last release.
+
+### 10.2 Workflow (the wizard of brief §16)
+The §16 sequence is a **non-modal stepper**, not a modal `QWizard`. A real audit loops through review → fix → re-run several times, and a modal wizard would trap the user in that loop. Each step's state is derived from the project, so the stepper is always resumable and shows ✓ / ⚠ / ✗ per step.
+
+| Step | View | Key interactions | API |
+|---|---|---|---|
+| 1 Create project | Form | Name fa/en, deposit type (selects the default profile), commodities, report language, branding | `api.project.create` |
+| 2 Import files | Drop zone + file list | Drag files or folders. Per-file sniff preview (encoding, delimiter, header rows, sheets, Excel date system) with overrides. Access tier shown (§3.5). | `api.importing` (add sources, preview) |
+| 3 Map fields & units | Mapping grid | Source column ↔ canonical field with score and evidence tooltip; unit per column; table type; "accept all above confidence"; mapping templates | `api.importing` (propose/confirm mapping) |
+| 3b Decide inferences | Evidence cards | One card per inference (depth unit, analyte units, dip convention, azimuth reference, …) with its evidence waterfall (§6.9). Critical kinds are marked *required before release*. | `api.importing` (decide inferences) |
+| 4 Set CRS | CRS panel + preview map | Offline EPSG search (proj.db); zone suggestion from coordinates; X/Y-swap and lat/long detections; local grid; vertical datum | same |
+| 5 Topo / map / boundary | Layer list + map | Layer metadata: source, resolution, vertical CRS, vintage, RMSE, share of flat triangles (§6.8) | same |
+| 6 Choose profile | Profile editor (§10.9) | Deposit profile, diff against base, threshold forms | `api.validation` |
+| 7 Run | Job view | Stage list, progress, ETA, cancel | worker job `validate` |
+| 8 Review | Review panel (§10.4) | Filter, inspect, bulk actions | `api.review` |
+| 9 Fix / annotate | Change-set panel | Draft, undo, apply with reason | `api.review` |
+| 10 Re-run | Job view | Incremental by default, full on request (§5.4.4) | worker job `validate` |
+| 11 Export & report | Release + outputs | Release-gate checklist with links to the causes (§7.6); outputs; language mode | worker jobs `release`, `report`, `export` |
+
+### 10.3 Dashboard
+- Issue counts by table × severity (heat grid) and by family; new, fixed and reopened issues since the previous run.
+- DCI gauge and component bars (custom `QPainter` widgets, A13), with the sensitivity range (§8.6).
+- JORC Table 1 matrix (T1.01–T1.12) as traffic lights, plus NI 43-101 Items 11 and 12.
+- Mini-map of hole scores; distribution of inferred collar-survey methods.
+- Run health: rule-execution matrix summary (failed, disabled, not applicable), unconfirmed inferences, release-gate status.
+- Every element is a link that filters the review panel.
+
+### 10.4 Review panel
+- **Layout:** a rule summary list (rule, title in the UI language, counts by status) next to the issue table; the Inspector dock shows the selected issue.
+- **Filter bar:** severity, family, rule, table, hole pattern (glob), status, JORC item, campaign, text search on messages, *new since baseline*. Filters compile to one DuckDB query over the issue snapshot (§3.4) that returns a row permutation (§10.8): ≤ 300 ms at 1 M issues.
+- **Record in context** (Inspector):
+  - the offending row with ±5 neighbouring rows of the same hole from the canonical table;
+  - raw and canonical values side by side (`*_raw` twins), with the normalisation-log entries that touched the cell;
+  - the rule's evidence as a small table or chart (e.g. dogleg values of the adjacent stations);
+  - the fix proposal as an old → new diff;
+  - related holes (twins, crossing traces) as links;
+  - the review history of the fingerprint.
+- **Bulk actions:** *Accept fix*; *Ignore* (mandatory reason, with per-rule presets such as "genuine high grade, confirmed against the laboratory certificate"); *Edit value* (a dialog that creates a draft change with its reason); *Reset to open*. Each action writes its `issue_review` rows in one transaction (02 §5.6). There is no Save button: every decision is committed at once (§13.3).
+- **Change-set panel:** DRAFT sets and their changes, a `QUndoStack` per set (§7.4), conflicts found on apply, *Apply* (reason pre-filled), *Revert* for applied sets.
+- **Keyboard review:** `J`/`K` next/previous, `A` accept, `I` ignore, `E` edit, `Space` toggles the Inspector, `Ctrl+Z`/`Ctrl+Y` within the draft. Reviewing thousands of similar issues is a keyboard task.
+
+### 10.5 Map, section and strip-log viewers (pyqtgraph)
+| Viewer | Content | Rendering strategy |
+|---|---|---|
+| **Map (plan)** | Collars (symbol by inferred method or hole type; colour by any field, score or issue severity), traces, DEM hillshade, licence, geological map, issue markers | Aspect locked at 1:1 (`setAspectLocked`); coordinates in the project CRS with a lat/long readout. **All traces in one `PlotCurveItem`** with a `connect` array: one draw call for 5 000 holes. Collars and issue markers in a pixel-mode `ScatterPlotItem`. DEM as an `ImageItem` from a three-level pyramid. Polygons as `QPainterPath`s pre-simplified per zoom band. Labels only above a zoom threshold. Scale bar, north arrow (grid north, convergence noted) and grid ticks. |
+| **Section** | Traces projected within a ± corridor; interval bands along the traces (any table or assay, from `drv_interval_master`); topographic profile; issue markers | Defined by a drawn line, a detected drill fence (§6.8) or *through this hole along its azimuth*. **Vertical exaggeration defaults to 1:1** and is printed on the view whenever it differs. |
+| **Strip log** | Depth tracks: lithology, alteration (type + intensity), mineralisation, weathering, assays (log scale, BDL marked), CR/RQD, density, magnetic susceptibility, survey dip/azimuth with dogleg | Shared depth axis; track sets configurable and saved per project; issues drawn as hatched bands on the affected track |
+| **3D** (optional) | Traces as tubes, DEM surface, licence, issues as glyphs | `pyvistaqt.QtInteractor` in a dock; imported lazily; separate installer component (§14.3). When it is absent, the menu entry says how to add it. |
+
+- Picking in any viewer publishes to the selection bus.
+- **Level of detail:** `setClipToView(True)` and automatic down-sampling on dense curves. Above ~200 k visible markers the map shows a binned density image until the user zooms in. S-08 validates the frame rates (§15).
+- Viewers export PNG/SVG through the same furniture module as the report figures (`plots/furniture.py`).
+
+### 10.6 Charts
+- matplotlib `FigureCanvasQTAgg` hosts the **same figure builders** as the report (§9.3), called with the UI language.
+- Data are prepared in `TaskPool`; drawing happens on the main thread (painting, §1.4). Charts with more than 50 k points use hexbin or rasterised artists, keeping a redraw ≤ 300 ms.
+- The matplotlib navigation toolbar is kept. *Export figure* writes 300-dpi PNG + SVG with the report caption.
+
+### 10.7 Background work: `TaskPool` and `JobRunner`
+```python
+# geovalid_pro/gui/workers — interface sketch
+class TaskSignals(QObject):
+    progress = Signal(int, int, str)      # done, total, message (UI language)
+    result   = Signal(object, int)        # immutable payload (Arrow table, frozen dataclass), generation
+    error    = Signal(object)             # ErrorInfo(kind, message_en, message_fa, log_ref)
+    finished = Signal()
+
+class Task(QRunnable):
+    def __init__(self, fn: Callable[[CancelToken, ProgressSink], Any], *, topic: str, generation: int): ...
+    def run(self) -> None: ...            # opens its own read-only SQLite connection and DuckDB cursor
+
+class TaskPool:                           # QThreadPool with ≤ 4 threads (§1.4)
+    def submit(self, fn, *, topic: str) -> "TaskHandle": ...   # a newer task on the same topic supersedes older ones
+
+class JobRunner(QObject):                 # long jobs in the worker subprocess
+    stage    = Signal(str, int, int)      # stage key, done, total
+    log      = Signal(dict)
+    finished = Signal(object)             # JobResult(exit_code, run_id, outputs)
+    def start(self, job: "JobSpec") -> None: ...                # QProcess: geovalid.exe worker --job <job.json>
+    def cancel(self, grace_s: float = 10.0) -> None: ...
+```
+- **Thread rules.** Worker threads never touch widgets or models. Results reach the main thread only through queued signals, and they are immutable (Arrow tables, frozen dataclasses). Each thread opens its own SQLite connection and DuckDB cursor; connections are never shared.
+- **Supersession.** Each `submit` on a topic (e.g. `inspector`, `strip_log`) increments that topic's generation. Results of an older generation are dropped and its cancel token is set, so clicking quickly through issues never paints stale context.
+- **Cancellation.**
+  - Tasks: cooperative `CancelToken` checks inside loops.
+  - Jobs: `cancel()` writes `{"t": "cancel"}` to the worker's stdin. The worker stops at the next checkpoint (§5.4.3), rolls back its open transaction, marks the run `CANCELLED` and exits with code 130 (§11.3). After the grace period, `QProcess.kill()` performs a hard cancel. This is safe because the worker writes in short transactions and blobs are content-addressed (§7.3); the next open marks the run as interrupted (§13.3).
+- **Progress.** The worker emits NDJSON events (§11.5). The job view shows stages, progress and an ETA computed from the durations of the same stages in the project's previous runs.
+- **One writing job per project** (§1.4). Further jobs (e.g. *Report* after *Run*) wait in the Jobs dock. Read-only tasks continue during a job, and the views reload the issue snapshot and products when it finishes.
+
+### 10.8 Model/view for million-row tables
+```python
+class ArrowTableModel(QAbstractTableModel):
+    """Read-only model over a pyarrow.Table (memory-mapped from the cache) with an optional row permutation."""
+    def __init__(self, table: "pa.Table", columns: Sequence["ColumnSpec"], fmt: "Formatter"): ...
+    def rowCount(self, parent=QModelIndex()) -> int: ...       # len(perm) or table.num_rows
+    def columnCount(self, parent=QModelIndex()) -> int: ...
+    def data(self, index: QModelIndex, role: int = Qt.DisplayRole) -> Any: ...  # served from the block cache
+    def headerData(self, section: int, orientation, role: int = Qt.DisplayRole) -> Any: ...
+    def set_permutation(self, perm: "np.ndarray | None") -> None: ...           # int32; begin/endResetModel
+    def set_overlay(self, overlay: Mapping[tuple[int, str], Any]) -> None: ...   # draft values, live statuses
+
+class IssueTableModel(ArrowTableModel): ...    # Parquet issue snapshot (§1.4) + live review-status overlay
+```
+- **No copies.** The table stays in Arrow, memory-mapped from the cache. `data()` reads from a **block cache**: the first access to a row formats its block of 256 rows × visible columns once (localised numbers, labels) and keeps it in an LRU of ~200 blocks. A repaint of 50 rows × 15 columns costs well under 1 ms.
+- **Sorting and filtering happen outside Qt.** DuckDB (or Arrow compute) runs them in `TaskPool` and returns an `int32` permutation, which the model swaps in. **`QSortFilterProxyModel` is not used**: it calls `data()` for every row, which costs seconds of Python at 1 M rows. Selection is preserved across permutations by key (`issue_id`, `row_uid`).
+- **Fixed geometry.** Fixed row height (`QHeaderView.ResizeMode.Fixed`); column widths estimated from a 1 000-row sample, never from `resizeColumnsToContents` over the whole table.
+- **Roles.** Display: formatted value. ToolTip: raw value and normalisation note. Foreground and Background: severity and draft-change marking. `UserRole`: the record key. Numeric columns use tabular figures and absolute right alignment in both languages.
+- **No editing in grids.** Grids are read-only. *Edit value* opens a dialog that creates a draft change with its reason (§7.2). The model then shows the draft value through the overlay, in italics with a marker, without touching the data.
+- **Clipboard** copies canonical values with Latin digits, tab-separated, so pasting into Excel or a modelling package is lossless.
+- S-07 validates these figures at 1 M issues (§15).
+
+### 10.9 Settings, profile and dictionary editors
+- **Profile editor.** Forms are generated from the JSON Schema of each rule's `Params` (§5.2), so units, ranges, bilingual labels and defaults come from the code and the editor cannot drift from the rules. Each value shows its provenance (base / deposit / project) and can be reset to the parent's value. Saving uses ruamel round-trip, which preserves the client's comments. An invalid value is refused in the form, not at run time.
+- **Dictionary editors** (codes, synonyms, map-unit ↔ lithology correlation, CRM values) edit SQLite reference tables. Every edit is logged as `REFERENCE_EDITED` (02 §5.8).
+- **Application settings:** UI language, report defaults, reviewer display name, memory budget, cache location and size cap, backup retention, digit style in data grids.
+
+### 10.10 Internationalisation and RTL
+- **Two string sources, no duplication.**
+  - UI chrome strings use `self.tr()`. `pyside6-lupdate` extracts them into `i18n/ts/geovalid_fa.ts`; they are translated in Qt Linguist against the glossary and compiled by `pyside6-lrelease` into `.qm` at build time.
+  - Engine strings (rule titles, messages, enum and field labels, glossary) come from rule metadata and `i18n/labels/*.yaml`, and are never in `.ts`.
+  - CI fails a release build on unfinished `.ts` entries or on mismatched `%1`/`%n` placeholders.
+- **RTL mirroring.** In fa, `QGuiApplication.setLayoutDirection(Qt.RightToLeft)`. Menus, docks, forms, table column order and scroll bars mirror automatically. Directional icons (arrows, undo/redo, indent) have mirrored variants.
+- **Never mirrored** (explicitly `Qt.LeftToRight`): map, section, strip log, 3D view and charts (east stays on the right, depth increases downwards, axes keep their mathematical orientation); coordinate and numeric inputs; ID fields; file paths; expression and YAML editors.
+- **Dates.** Jalali display in fa through `QCalendar(QCalendar.System.Jalali)`, Gregorian in en, ISO in tooltips. Storage is always Gregorian (02 §6.3).
+- **Digits.** fa labels and prose use Persian digits. Data grids default to Latin digits (setting); the clipboard always uses Latin digits.
+- **A language change takes effect on restart.** Live re-translation of every widget, together with a change of layout direction and saved dock states, is a large test surface for little user benefit.
+- **Fonts:** Vazirmatn in fa, Inter in en (§3.8).
+
+### 10.11 Display, accessibility and robustness
+- Qt 6 high-DPI scaling with `PassThrough` rounding, so laptops at 125 % and 150 % scaling render sharply.
+- Minimum window 1280 × 720. The Review layout stays usable at 1366 × 768, common on field-office laptops.
+- Severity is never shown by colour alone: an icon shape and text accompany it, and palettes are colour-blind safe (brief §15).
+- Wizard, review panel and dialogs are fully keyboard-operable.
+- An exception in a slot is caught by the global handler. The user sees a bilingual error dialog with the crash-bundle option (§13.3), and the application continues.
+
+### 10.12 GUI testing
+- pytest-qt with `QT_QPA_PLATFORM=offscreen`: wizard flows on synthetic S; review actions writing the correct `issue_review` rows; cancellation and supersession.
+- Golden screenshots in fa and en of the key views (dashboard, review panel, mapping grid, evidence cards), compared with a tolerance, so RTL regressions are caught visually.
+- Model tests on 1 M synthetic issues count `data()` calls per repaint and fail above budget.
+- Packaging CI runs `geovalid-pro.exe --self-test` on the frozen build (§14.6): it opens the main window offscreen, loads synthetic S, renders a map and a chart, and exits with 0.
+
+---
+
+## 11. Command-line interface
+
+### 11.1 Principles
+- `geovalid` is a thin `click` application over `geovalid_pro.api`. It is the same code path the GUI's worker uses (A1), so a batch result is the result the GUI would show.
+- **Non-interactive by default.** The CLI never prompts unless `--interactive` is given and stdin is a terminal. Decisions a person makes in the GUI (mapping confirmation, inference decisions) come from files (§11.4); the audit trail records the file and its hash.
+- **Machine-readable.** `--json` prints one JSON document on stdout. Progress and logs go to stderr. Exit codes are stable (§11.3).
+- CLI messages default to English (`--lang fa` is available), because Windows consoles render Persian RTL poorly. Reports and issue logs do not depend on this setting.
+- Output is UTF-8 on all platforms (`sys.stdout.reconfigure(encoding="utf-8")`).
+
+### 11.2 Commands
+Global options: `--project/-p PATH`, `--json`, `--quiet/-q`, `--verbose/-v`, `--log-file PATH`, `--progress {auto,bar,ndjson,none}`, `--lang {en,fa}`, `--memory-budget SIZE`, `--threads N`, `--version`.
+
+| Command | Purpose | Key options |
+|---|---|---|
+| `run` | End-to-end batch: optional import → build Vb → full validation → score → optional release → report → optional export | `--profile`, `--source PATH…`, `--mapping-template`, `--decisions`, `--accept-proposed-mapping`, `--release LABEL`, `--report {fa,en,bi}[,…]`, `--format docx,pdf,html`, `--export TARGET…`, `--out DIR`, `--fail-on`, `--baseline` |
+| `validate` | Validation run on the working version; prints the summary | `--profile`, `--rules "COL-*,SUR-010"`, `--tables assay`, `--full`, `--fail-on`, `--baseline`, `--junit FILE`, `--issues FILE.csv` |
+| `report` | Report from a release, or from Vw with `--draft` (watermarked) | `--release LABEL` \| `--draft`, `--lang`, `--format`, `--atlas`, `--out` |
+| `export` | Software, GIS, cleaned-database and issue-log exports, **from a release only** (A18) | `--release`, `--to {leapfrog,datamine,micromine,surpac,vulcan,generic,gis,cleaned,issues}`, `--export-profile`, `--out` |
+| `diff` | VER comparison: two versions, two projects, or a version against a software export | `--from`, `--to`, `--other PROJECT.gvp`, `--against-export DIR --preset leapfrog`, `--out diff.xlsx`, `--fail-on-change` |
+| `profile` | `list`; `show NAME [--resolved] [--provenance]`; `validate FILE`; `init --extends porphyry_cu`; `diff A B`; `catalogue [--format md,xlsx,yaml] [--lang]` | — |
+| `gen-synthetic` | Synthetic database with injected errors and a ground-truth manifest (§11.6) | `--size {S,M,L,XL}`, `--seed`, `--deposit`, `--inject {all,none,RULE_IDS}`, `--rate`, `--format {gvp,csv,xlsx,sqlite}`, `--out` |
+| `project` | `create`, `info`, `verify` (§13.2), `release`, `history`, `backup`, `migrate`, `unlock` (stale lock on this host only, §4.4) | — |
+| `worker` | Internal: runs one job for the GUI (§11.5); hidden from help | `--job FILE` |
+
+The brief's example works as written:
+```
+geovalid run --project x.gvp --profile porphyry_cu.yaml --report fa
+```
+Without `--release`, this validates, scores and writes a **draft** report, and says so on stderr. A final report needs `--release LABEL`, which must first pass the release gates (§7.6). `--export` without `--release` is a usage error (exit 2), because exports never come from a working version.
+
+### 11.3 Exit codes
+| Code | Name | Meaning |
+|---|---|---|
+| 0 | `OK` | Completed; no issue at or above `--fail-on` |
+| 1 | `FINDINGS` | Completed; at least one issue at or above `--fail-on` (with `--baseline`: at least one *new* such issue) |
+| 2 | `USAGE` | Invalid arguments, profile, decisions file or export profile (e.g. an unknown rule ID or parameter, §5.9) |
+| 3 | `INPUT` | A source is unreadable; mapping is incomplete for a required field; an external file is missing or fails its hash (02 §8) |
+| 4 | `PROJECT` | Project missing, locked by another instance, read-only, written by a newer schema, or failing integrity or audit-chain verification on open |
+| 5 | `GATE` | A release gate or the report lint failed; the failed gates are listed |
+| 6 | `RULE_FAILURE` | Completed, but at least one rule `FAILED` (§5.4.5): results are incomplete |
+| 7 | `OFFLINE_VIOLATION` | The offline guard blocked a network attempt (§13.1); treated as a defect |
+| 70 | `INTERNAL` | Unexpected error; a crash bundle was written (§13.3) |
+| 130 | `CANCELLED` | Interrupted (Ctrl+C or cancel from the GUI); the run is marked `CANCELLED` |
+
+- When several conditions apply, the most fundamental wins: **2 > 4 > 3 > 70 > 7 > 6 > 5 > 1 > 0**. A run with failed rules and findings exits 6, because its findings are incomplete.
+- `--fail-on {CRITICAL,ERROR,WARNING,INFO,never}`; the default is `CRITICAL`. Issues `ignored` with a reason never count.
+- **Ratchet:** `--baseline <release label | run_id>` counts only fingerprints absent from the baseline. A new client delivery then fails CI only if it introduces new problems, not because of known and documented ones.
+
+### 11.4 Non-interactive decisions
+```yaml
+# decisions.yaml — applied as CONFIRMED inferences; decided_by and the file hash go to audit_log
+decided_by: "A.A"
+mapping_templates: [templates/acquire_kz_west.yaml]
+inferences:
+  - {kind: CRS,            value: 32639}
+  - {kind: DEPTH_UNIT,     table: "*",    value: M}
+  - {kind: DIP_CONVENTION, value: NEGATIVE_DOWN}
+  - {kind: AZ_REFERENCE,   table: survey, campaign: PH1-2014, value: MAG}
+  - {kind: ANALYTE_UNIT,   table: assay,  field: Au_FA, value: ppm}
+```
+- Without a decisions file, `run` proceeds with provisional top-ranked values exactly as the GUI does (02 §1.9), and a release attempt then fails gate 2 (exit 5). Batch use can never pass a gate by accident.
+- `--accept-proposed-mapping` accepts mapping candidates above the confidence threshold. Required fields that remain unmatched still exit 3.
+
+### 11.5 Worker protocol (`geovalid worker`)
+- The GUI writes a job manifest (`job.json`: job kind, project path, parameters, `job_id`) and starts `geovalid.exe worker --job job.json`.
+- **stdout carries NDJSON events**, one per line, flushed immediately:
+```json
+{"t":"stage","job":"…","stage":"rules.INT","done":14,"total":42,"ts":"…"}
+{"t":"progress","job":"…","done":312000,"total":1050000,"msg_en":"INT-002 lithology","msg_fa":"INT-002 سنگ‌شناسی"}
+{"t":"log","level":"WARNING","logger":"io.readers.access","msg":"…"}
+{"t":"heartbeat","rss_mb":3120,"ts":"…"}
+{"t":"result","exit":0,"run_id":"…","outputs":[{"path":"…","sha256":"…"}]}
+```
+- **stdin** accepts `{"t":"cancel"}`.
+- A dedicated thread sends a heartbeat every 2 s. If none arrives for 60 s, the GUI marks the job unresponsive and offers a hard cancel; it never kills the worker on its own.
+- `--progress ndjson` makes any CLI command emit the same events on stderr, for CI wrappers.
+
+### 11.6 Synthetic databases (`gen-synthetic`)
+| Size | Holes | Metres | Interval rows (all interval tables) | Survey stations | Samples | Assay determinations (long) | Use |
+|---|---|---|---|---|---|---|---|
+| S | 50 | 10 k | 10 k | 1 k | 3 k | 120 k | Unit and rule tests |
+| M | 1 000 | 200 k | 210 k | 20 k | 60 k | 2.4 M | Rule budgets (§5.12); CI on every pull request |
+| **L** | **5 000** | **1 000 k** | **1.05 M** | **100 k** | **300 k** | **12 M** | Brief §16 target; nightly benchmark (§12) |
+| XL | 10 000 | 2 500 k | 2.6 M | 200 k | 750 k | 30 M | Stress test; no timing target |
+
+- **L composition:** lithology 150 k, alteration 150 k (+ 250 k observation rows), mineralisation 100 k, weathering 25 k, geotech runs 330 k and samples 300 k (10 % QC) interval rows, plus 160 k point rows (density, magnetic susceptibility, structure); 40 analytes.
+- The generator first builds geologically coherent data: a porphyry or epithermal model with lithology domains, grade shells and an oxidation profile, realistic survey drift, and collar methods that differ by campaign. It then injects errors at a controlled rate. `ground_truth.json` lists every injection (rule ID, table, record key, expected fingerprint); the rule tests of §5.12 measure recall and false positives against it.
+- CSV/XLSX outputs have deliberately messy headers, encodings and Persian header names, so the import path is exercised as well.
+
+### 11.7 CI example
+```yaml
+# client-side CI on a new database delivery (any runner with the CLI installed)
+- run: >
+    geovalid run -p kz_west.gvp --source deliveries/2026-11/ --mapping-template templates/acquire_kz_west.yaml
+    --decisions decisions.yaml --profile kz_west.yaml --baseline "Release MRE 2026-06" --fail-on ERROR
+    --junit out/validation.xml --json > out/summary.json
+```
+The JUnit XML has one test suite per family and one test case per rule × table. A test case fails when it holds issues at or above `--fail-on` (the first 100 are listed). CI dashboards then show, for example, "SUR-010 survey: 12 new ERRORs" without custom tooling.
+
+---
+
+## 12. Performance plan
+
+### 12.1 Reference workload and machine
+- **Workload:** synthetic **L** (§11.6): 5 000 holes, 1 000 km drilled, 1.05 M interval rows, 100 k survey stations, 300 k samples, 12 M assay determinations; a 5 m DEM over 10 × 10 km (4 M cells) or a 1 M-triangle TIN; a 1:25 000 geological map with 2 000 polygons; ≈ 400 k composites at 2 m. The `.gvp` is ≈ 1.5–2.5 GB with embedded sources.
+- **Reference laptop** (the "normal laptop" of brief §16): Windows 11 x64; 4 performance cores / 8 threads at ≥ 2.5 GHz base (Core i5-1240P or Ryzen 5 7530U class); **16 GB RAM**; NVMe SSD; no discrete GPU.
+- **Minimum machine:** 8 GB RAM, 4 cores, SSD. Every function works; targets relax to 2×, and the memory budget scales (§12.2).
+- Spinning disks and network drives are outside the targets (§4.4).
+
+### 12.2 Memory budget
+- **Worker budget** `B = clamp(0.5 × physical RAM, 3 GB, 12 GB)`: 8 GB on the reference laptop, 4 GB on the minimum machine. It can be overridden in settings or with `--memory-budget`.
+- **GUI process:** ≤ 1.5 GB at dataset L (memory-mapped 1 M-issue snapshot, viewers, block caches).
+
+| Consumer (worker, B = 8 GB) | Allowance | Control |
+|---|---|---|
+| Interpreter and native libraries | 0.6 GB | Fixed |
+| Active task working set (projected columns + temporaries) | ≤ 1.5 GB | Mandatory column projection (§4.3); per-analyte assay parts (§4.1); hole-batched execution (below) |
+| L1 product cache | ≤ 2.0 GB | LRU + reference counts (§5.4.2, §6.1); spill to L2 |
+| DuckDB | ≤ min(25 % of RAM, B − memory in use) | `memory_limit`; spill to `temp_directory` in the cache (§3.4) |
+| Issue buffers (sink, fingerprints, messages) | ≤ 0.5 GB | 50 k-row batches |
+| Headroom (allocator fragmentation, BLAS buffers) | remainder, ≥ 1.4 GB | — |
+
+- **Monitor.** A psutil thread samples RSS every 500 ms. At 85 % of B the L1 cache is evicted to L2 and `gc.collect()` runs.
+- **Chunking.** Before each task the executor estimates its working set (`rows × projected bytes × rule multiplier`, default multiplier 4). A hole-grouped rule or product whose estimate exceeds the remaining budget runs in **batches of 500 holes**. Every hole-grouped rule declares `chunkable=True` and is tested to give identical output in chunked mode.
+- At 100 % of B with nothing left to evict, the job stops with a clear message (task, estimate, budget) instead of driving Windows into paging. The run is marked `FAILED` (exit 6); nothing is corrupted.
+- **Expected peak at L: ≈ 4–5 GB**, dominated by `drv_interval_master` (~750 k rows × ~80 columns ≈ 0.5 GB) held together with `drv_assay_wide` and the spatial products.
+
+### 12.3 Benchmark targets
+Reference laptop, dataset L, warm OS file cache. *Cold* means empty product and result caches.
+
+| Operation | Target | Hard limit (CI gate) |
+|---|---|---|
+| GUI cold start to main window (installed build) | ≤ 4 s | 8 s |
+| Open project L to dashboard: cache present / first open (blob extraction and hash verification) | ≤ 5 s / ≤ 20 s | 10 s / 45 s |
+| Import + normalise + build Vb from CSV (≈ 1.2 GB of text) | ≤ 3 min | 5 min |
+| Same from XLSX workbooks | ≤ 6 min | 10 min |
+| **Full validation, all rules, cold caches** | **≤ 150 s** | **180 s** |
+| Incremental re-run after a typical review change set (one table, ≤ 1 000 changes) | ≤ 45 s | 90 s |
+| Desurvey, 5 000 holes, all three methods | ≤ 3 s | 6 s |
+| Local Moran's I, 400 k composites, k = 8, one analyte (two-stage inference, §12.4) | ≤ 5 s | 10 s |
+| Report, one language, ~150 figures, DOCX + PDF + HTML: cold / figures cached | ≤ 4 min / ≤ 90 s | 6 min / 3 min |
+| Leapfrog CSV export set | ≤ 30 s | 60 s |
+| Version diff of two L versions | ≤ 60 s | 120 s |
+| Issue filter or sort, 1 M issues (GUI) | ≤ 300 ms | 1 s |
+| Issue click → Inspector, strip log and map updated | ≤ 200 ms | 500 ms |
+| Map pan/zoom, 5 000 traces + 100 k markers | ≥ 30 fps | 15 fps |
+| Peak worker RSS during full validation | ≤ 5 GB | 6 GB |
+
+The incremental worst case is an edit of assay values, which cascades through `drv_assay_wide`, `drv_interval_master`, composites and the spatial rules. Collar-only and logging edits typically re-run in ≤ 15 s.
+
+**Budget for full validation (L, ≤ 150 s).** Each rule has its own budget, measured on M and extrapolated (§5.12). The budgets must sum to the target:
+
+| Step | s | Step | s |
+|---|---|---|---|
+| Load and project columns | 5 | IMP, COL, SUR rules | 10 |
+| `drv_trace` + `drv_trace_compare` | 3 | INT rules (6 tables + extensions) | 15 |
+| `drv_collar_spatial` (DEM sampling, overlays, KD-tree) | 3 | ASY rules (40 analytes) | 12 |
+| `drv_collar_method` | 2 | QAQ rules | 5 |
+| `drv_assay_wide` (DuckDB pivot, 12 M rows) | 10 | LIT, GEO, ALT, MIN, WTH, DEN, MAG, STR, SMP rules | 15 |
+| `drv_qaqc_*` | 5 | CRS and SPA rules (Moran's I for 3 commodities, trace proximity, contacts) | 25 |
+| `drv_interval_master` | 12 | Post-processing: bands, messages, fingerprints, carry-over (~200 k issues) | 5 |
+| `drv_composite` | 5 | Issue sink (SQLite + Parquet snapshot); scoring with sensitivity | 10 |
+| | | **Total** | **142** |
+
+The rule-execution matrix (§5.1) records each task's runtime and peak memory, so a rule that is slow on a particular client database is visible in the report appendix.
+
+### 12.4 Techniques
+| Technique | Applied to |
+|---|---|
+| Vectorised kernels; no per-row Python | All rules and products (§5.5, §6.3) |
+| Mandatory column projection; Arrow-backed strings; categoricals for codes | All reads (§4.3) |
+| One Parquet part per analyte; row-group pruning by hole and analyte | Assay rules, change-set apply, incremental runs (§4.1) |
+| Column-hash result cache and product cache | Incremental re-runs (§5.4.4, §6.1) |
+| Column-wise rebuild of wide products: `drv_assay_wide` and `drv_interval_master` rebuild only the analyte columns whose part hashes changed | Incremental re-runs after assay edits |
+| Just-in-time products with reference counting | Peak memory (§5.4.2) |
+| DuckDB out-of-core joins and pivots | Wide assay table, QA/QC joins, diffs, issue aggregation (§3.4) |
+| One global `searchsorted` on composite keys | Point-in-interval, contacts, trace interpolation (§5.5, §6.3) |
+| KD-trees cached by point-set hash | Spacing, near duplicates, proximity, spatial weights (§6.8) |
+| **Two-stage local Moran's I:** analytical randomisation z-scores for every location, then 999 conditional permutations only for candidates with \|z\| ≥ 1.5; BH-FDR over the combined p-values. Every reported SPA-001 issue therefore carries a permutation p-value, at ~5 % of the full permutation cost. | SPA-001 (refines §6.8) |
+| Chunked, seeded permutations | Ripley envelopes, Moran candidates (§6.8) |
+| Process pool and data-hash cache for figures | Reports (§9.3) |
+| Bulk SQLite inserts (`executemany`, 50 k rows per transaction, indexes built after bulk load) | Issue sink, import |
+| Memory-mapped Parquet and permutation-based model/view | Review panel (§10.8) |
+
+### 12.5 Benchmark governance
+- `tests/bench` (pytest-benchmark) covers the §12.3 table on S, M and L.
+- **Nightly on a dedicated reference laptop** (self-hosted runner, Windows 11, 16 GB). Hosted CI runners have variable CPUs and noisy neighbours, so they run M only, against a loose 2× gate.
+- A regression of more than 20 % against the rolling median of the last 10 nightly runs fails the build. A hard-limit breach blocks a release.
+- py-spy flame graphs and memory high-water marks are archived for each nightly run.
+- XL runs weekly for scaling trends. It has no timing target, only the requirement to finish within the memory budget.
+
+---
+
+## 13. Security, robustness and the offline guarantee
+
+### 13.1 Offline guarantee
+**Statement.** GEOVALID PRO makes no network connection at any time: no telemetry, no update check, no licence activation, no CDN, no map tiles, no online CRS or geoid grids, no crash upload. This is enforced in layers and proven in CI (A16).
+
+| Layer | Mechanism |
+|---|---|
+| Code | ruff `banned-api` and import-linter forbid `urllib.request`, `http.client`, `ftplib`, `smtplib`, `requests`, `httpx`, `aiohttp`, direct `socket` use (outside `core/offline.py`) and `webbrowser` (outside the local-file opener in `gui/app.py`) anywhere in `geovalid_pro` |
+| Python sockets | `core.offline.install_guard()` runs first in every process (GUI, CLI, worker, figure-pool processes). It wraps `socket.socket.connect`/`connect_ex`, `socket.create_connection` and `socket.getaddrinfo`, so any `AF_INET`/`AF_INET6` use raises `OfflineViolation` and is logged with its stack. `AF_UNIX` and Windows named pipes (used by multiprocessing) are unaffected. |
+| PROJ / pyproj | `PROJ_NETWORK=OFF`, `pyproj.network.set_network_enabled(False)`, `PROJ_DATA` pointing at the bundled data; geoid grids are bundled (`resources/geoid`, §2.1) |
+| GDAL (pyogrio, rasterio) | `io` refuses paths with `/vsicurl/`, `/vsis3/`, `/vsigs/`, `/vsiaz/`, `http(s)://` or `ftp://` before GDAL sees them. `GDAL_HTTP_*` variables are cleared and `CPL_VSIL_CURL_ALLOWED_EXTENSIONS` is set to an impossible value. Where present, the **LIBKML driver is skipped** (`GDAL_SKIP=LIBKML`), because KML `NetworkLink` elements could be followed; the plain KML driver does not fetch. |
+| DuckDB | Extension auto-install and auto-load off; extension directory set to an empty read-only folder; configuration locked (§3.4). `httpfs` can never load. |
+| Qt WebEngine | `QWebEngineUrlRequestInterceptor` allows only `file:`, `data:` and `qrc:`. JavaScript is off in the print profile. Chromium flags: `--disable-background-networking --disable-component-update --dns-prefetch-disable --no-pings`. Off-the-record profile with no persistent storage. |
+| Outputs | Report lint forbids external references in HTML and DOCX (§9.10); the dashboard carries a strict CSP (§9.7) |
+| Help | The user manual (fa/en) is bundled and opens locally in the QtPdf viewer |
+
+**Proof in CI.**
+- Unit test: in each process type, the guard raises on `socket.create_connection(("example.org", 80))`.
+- **No-network job:** the full workflow (generate L → import → validate → report fa, en and bi → all exports → diff) runs on Linux in a container started with `--network none`, and on the installed Windows build behind an outbound-deny firewall rule for the install folder (`New-NetFirewallRule -Direction Outbound -Action Block`). The job asserts zero `OfflineViolation` log entries and results identical to a run with the network available.
+
+### 13.2 File integrity and hashing
+- **SHA-256 everywhere**, streamed in 8 MiB blocks (OpenSSL-backed `hashlib`, ~1–2 GB/s on CPUs with SHA extensions):
+  - sources: hashed at import; re-verified on open (external sources) and at release (gate 5, §7.6);
+  - blobs: content-addressed and verified when extracted to the cache (§4.2);
+  - runs: every input listed with its hash in `run_input` (02 §5.9);
+  - outputs: every file of a report or export listed in its manifest (§9.10), and `REPORT_WRITTEN`/`EXPORT_WRITTEN` logged with the manifest hash.
+- **`geovalid project verify`** (GUI: *Project → Verify integrity*) runs `PRAGMA integrity_check` and checks every blob hash, every manifest, the audit-log chain and the external sources. It exits 0 or 4.
+- **What the hash chain proves, and what it does not.** The `audit_log` chain (02 §5.8) detects accidental corruption and naive edits. Anyone with SQLite and this specification could rebuild a consistent chain, so on its own it does not resist a knowledgeable actor. The **release anchor** closes that gap: label, `version_id`, `recipe_sha256` and the `entry_hash` of the release event are printed on the report title page and written to the manifest (§9.10). Once a report is issued, any later alteration of that release is shown by comparing the project with the anchor in the issued document. Digital signatures (PKI) are not in scope for v1 (Q6, §16).
+
+### 13.3 Crash safety and autosave
+- **No unsaved state exists.** Every decision (mapping, inference, review status, draft change, profile edit) is committed to the `.gvp` immediately in a short SQLite transaction, so review work has no Save command. *Save as* is a `VACUUM INTO` snapshot (§4.1). UI state (layout, filters, last selection) lives in QSettings per user and project.
+- **Atomic writes.** Blobs are written first, then manifests and status in one transaction (§7.3); `synchronous=FULL` is used around change-set apply, release, rebase and migration. Exported files are written as `*.partial` and renamed when complete.
+- **Recovery after an unclean shutdown.** On open, a lock left by a dead process on this host (§4.4) triggers recovery:
+  1. SQLite replays the WAL, then `PRAGMA quick_check` runs;
+  2. runs still `RUNNING` become `FAILED` with the note "interrupted";
+  3. orphan blobs are garbage-collected and stale `*.partial` files are removed.
+
+  The dashboard keeps showing the last `COMPLETED` run; a partial run is never presented as current.
+- **Rolling backups** by `VACUUM INTO` into `<project>.gvp.backups/`: on open when the newest backup is older than 24 h, and before every migration, release and rebase. The last 3 are kept (setting). Backups are full copies, so for large projects the backup folder can be placed on another disk.
+- **A worker crash** (a native fault in GDAL, the ACE driver or Chromium) affects only its job. The GUI sees the exit code or the missing heartbeat, marks the job failed and keeps all review work.
+- **Crash bundle.** `faulthandler` is enabled in every process and writes to the log. `sys.excepthook`, `threading.excepthook` and a Qt message handler route all errors to logging. After a crash the user can create a zip containing logs, the run manifest, software and dependency versions and platform details, but **no project data**. The user can inspect it and send it by their own means; nothing is sent automatically.
+- **Disk space.** Import, release, report and backup compare free space with an estimate first, and refuse with a clear message rather than failing midway.
+
+### 13.4 Logging
+- Python `logging`, configured in `core/log.py`. Handlers: rotating JSON-lines files (10 MB × 10) in `%LOCALAPPDATA%\geovalid_pro\logs\` (`gui.log`, `cli.log`, `worker-<job_id>.log`); stderr for the CLI; the job-event stream for the GUI (§11.5).
+- Fields: `ts` (UTC), `level`, `logger`, `process`, `thread`, `job_id`, `run_id`, `rule_id`, `msg`, structured `extra`.
+- Library output is captured: `logging.captureWarnings(True)`; GDAL/CPL errors through the pyogrio and rasterio error handlers; Qt messages through `qInstallMessageHandler`.
+- **Run log inside the project.** A run's WARNING-and-above records, rule tracebacks (§5.4.5) and per-task timings are stored with the run as a zstd JSON-lines blob. This needs one more blob kind, `RUN_LOG`, in 02 §5.11 (change request to the schema).
+- **Confidentiality.** Data values are not logged at INFO or above. DEBUG logging with values is available only in an explicit diagnostic mode, which a banner shows while it is on.
+
+### 13.5 Untrusted inputs
+Client files, `.gvp` projects received from other users and profiles are all treated as untrusted. **Opening any of them must not execute code.**
+
+| Input | Protection |
+|---|---|
+| XML-based formats (XLSX, KML, DOCX templates) | defusedxml; entity expansion disabled |
+| ZIP containers (XLSX, KMZ, DOCX) | Limits on total uncompressed size and compression ratio (zip-bomb guard); member paths containing `..` or absolute paths are refused |
+| Excel | Formulas are never evaluated: calamine reads cached values, and a formula cell without a cached value raises an `IMP-*` WARNING. VBA in `.xlsm`/`.xls` is never executed or loaded. |
+| CSV and text | Field-size and line-length limits; bytes are never decoded with silent `errors="ignore"` (02 N01) |
+| `.gvp` from another user | `PRAGMA trusted_schema=OFF`; `SQLITE_DBCONFIG_DEFENSIVE` (`Connection.setconfig`, Python ≥ 3.12); extension loading disabled. The schema is compared with the expected DDL for its `user_version`; unexpected triggers, views or tables force a read-only open with a warning. **No pickle anywhere** in project data, cache or job files: Parquet, JSON and SQLite only. |
+| Profiles (YAML) | ruamel safe loading, so no Python object tags; unknown keys rejected (§5.9); expressions through the AST whitelist (§5.11), never `eval` |
+| Rule packs (Python) | Disabled by default; enabled per organisation, each file pinned by SHA-256 (§5.11) |
+| Templates | User-editable Jinja2 templates run in `SandboxedEnvironment` with autoescaping |
+| SQL sources | Read-only `SELECT`; table names quoted as identifiers; parameters bound; passwords never stored (§3.9) |
+| Access databases | Opened from a temporary copy (§3.5) |
+
+### 13.6 Confidentiality and identity
+- Exploration data are commercially sensitive. No data leave the machine (§13.1), logs exclude values (§13.4) and crash bundles exclude data (§13.3).
+- **At-rest encryption is not built into v1.** The recommended control is full-disk encryption (BitLocker) on workstations and backup disks. Built-in encryption (SQLCipher) would add a native dependency and a key-management problem (Q7, §16).
+- Identity is the OS login plus a display name; there is no authentication (§7.7).
+
+---
+
+## 14. Packaging and distribution
+
+### 14.1 Decision: PyInstaller one-dir (A15)
+| Criterion | **PyInstaller 6, one-dir** (chosen) | Nuitka (standalone) | PyInstaller one-file | Embedded Python + wheels / conda constructor |
+|---|---|---|---|---|
+| PySide6 + Qt WebEngine | Maintained hooks (QtWebEngineProcess, resources, ICU) | Supported plug-in; more configuration | Same hooks | Works (PyPI wheels) |
+| Scientific/GIS stack (numpy, scipy, pyarrow, two GDALs, pyproj data, matplotlib) | Community hooks cover all of it | Usually works; compile problems need per-package flags | Same | Works unchanged |
+| Build time, full stack | 5–10 min | 45–90 min (C compilation of the stack) | 5–10 min | ~5 min |
+| Start-up | ~2–4 s (DLL loading dominates) | ~10–20 % faster | +10–30 s: unpacks ~1 GB to `%TEMP%` at every start | ~3–5 s |
+| LGPL replaceability | Separate DLLs | Separate DLLs | Libraries hidden in an archive | Separate DLLs |
+| Antivirus false positives | Low with a self-built, signed bootloader | Low | **High** (self-extracting pattern) | Low |
+| Source protection | Weak (bytecode archive) | Moderate (compiled C) | Weak | None |
+
+**Decision.** PyInstaller one-dir. It has the most mature hooks for exactly this stack, it builds in minutes (essential when packaging runs on every merge from Phase 1), and it keeps the LGPL libraries replaceable. Nuitka's advantages (somewhat faster start-up, harder decompilation) do not justify a 45–90-minute build and a second set of packaging problems. One-file is rejected for start-up time, antivirus behaviour and LGPL compliance. **Source protection is not a goal**; if the client requires it, Nuitka can be evaluated later for `geovalid_pro` alone (Q10, §16).
+
+### 14.2 Bundle layout
+```
+GEOVALID PRO\
+├── geovalid-pro.exe      GUI (windowed subsystem)
+├── geovalid.exe          CLI and worker (console subsystem)
+├── _internal\            shared by both executables: python312.dll, Qt and native DLLs, packages
+│   ├── PySide6\          Qt6*.dll, QtWebEngineProcess.exe, resources\, translations\ (en, fa only)
+│   ├── geovalid_pro\resources\   fonts, geomag, geoid, profiles, dictionaries, js, report templates
+│   └── …
+├── manual\               user manual fa/en (PDF, built by the report pipeline itself)
+└── licences\             third-party notices, OFL and LGPL texts with source pointers, SBOM (CycloneDX)
+```
+- **Two executables in one `COLLECT`.** A windowed executable cannot serve a console, and a console executable shows a window when started by a GUI. The GUI therefore launches workers as `geovalid.exe worker`; QProcess creates them with `CREATE_NO_WINDOW` (Qt's behaviour when the parent has no console), which S-10 verifies.
+- **Build-time preparation:**
+  - compiled `.qm` translations and `.qrc` resources;
+  - the matplotlib font cache, pre-built with the bundled fonts;
+  - the hidden-imports list, generated from the rule and product registries (§5.4.1);
+  - exclusion of unused Qt modules (Qt3D, Quick, Multimedia, Bluetooth, Positioning, SerialPort, …) and of all GPL-only modules (§3.10); exclusion of package test suites; WebEngine locales trimmed to `en-US` and `fa`.
+- The PyInstaller **bootloader is built from source** in CI instead of using the prebuilt one, which antivirus heuristics often flag.
+
+### 14.3 Installer (Inno Setup 6.3)
+- **Per-user installation without administrator rights by default** (`PrivilegesRequired=lowest`, into `%LOCALAPPDATA%\Programs\GEOVALID PRO`), with an all-users option for IT (`PrivilegesRequiredOverridesAllowed=dialog commandline`, into Program Files). Exploration geologists often have no local administrator rights.
+- `ArchitecturesAllowed=x64compatible` and `ArchitecturesInstallIn64BitMode=x64compatible`; `MinVersion=10.0.19045` (Windows 10 22H2) and Windows 11. Windows on ARM installs under x64 emulation but is not tested or supported.
+- LZMA2 solid compression.
+
+| Component | Default | Size | Notes |
+|---|---|---|---|
+| Core application | Required | ~1.1 GB unpacked | GUI, CLI, engine, fonts, geomag and geoid data, profiles, manual |
+| Visual C++ 2015–2022 x64 runtime | Only if missing | ~25 MB | The redistributable needs administrator rights. In a per-user install it is skipped, and the app-local CRT DLLs shipped in `_internal` are used. |
+| 3D viewer (pyvista, pyvistaqt, vtk) | Off | ~230 MB unpacked | Imported lazily (§2.2) |
+| Microsoft Access Database Engine x64 | Off | ~80 MB installer | Offered only when no 32-bit Office is detected (registry `Bitness`/`Platform` values): with 32-bit Office the x64 engine cannot be installed alongside, and tier 2 is used (§3.5). Bundling depends on confirming Microsoft's redistribution terms (Q4, §16). |
+| Sample project (synthetic M) and tutorial | On | ~150 MB | Generated at build time by `gen-synthetic` |
+
+- **Integration:** `.gvp` file association and icon (per-user under `HKCU\Software\Classes`); Start-menu entries for the GUI, the manual (fa and en) and a "GEOVALID command prompt" with `geovalid` on `PATH`; an optional "Add CLI to PATH" task.
+- **Silent install** for IT: `/VERYSILENT /SUPPRESSMSGBOXES /COMPONENTS=…`. The installer can be wrapped as an Intune Win32 app. An MSI (WiX) is produced only if the client's IT requires one (Q5, §16).
+- **Uninstall** removes the application, never user projects, backups or exports. An optional checkbox also clears the cache and logs.
+- **Side-by-side major versions.** The Inno `AppId` contains the major version, so 1.x and 2.x can be installed together. A Competent Person can then reproduce a release with the exact software version that produced it (`software_version` in `run`, 02 §5.9). Every released installer is archived with its SHA-256 for at least 10 years.
+
+### 14.4 Code signing
+- **Authenticode** (SHA-256 digest, RFC 3161 timestamp) on both executables, the installer and the uninstaller (Inno `SignTool` directive). Unsigned third-party DLLs and `.pyd` files are signed as well, which reduces antivirus heuristics.
+- **Certificate:** an organisation-validated (OV) code-signing certificate. Since 2023 the private key must be held on certified hardware (token or HSM), so CI signs through a cloud HSM or signing service, or on a self-hosted build machine with the token attached. An EV certificate no longer bypasses SmartScreen reputation, so OV is sufficient; reputation builds with distribution.
+- **The signing identity is a client decision** (Q3, §16). Certificate authorities and signing services serve only eligible organisations and jurisdictions. If no public certificate can be obtained for the publishing entity, the fallback is an internal code-signing certificate that the client's IT deploys as a trusted publisher (Group Policy or Intune), plus published SHA-256 checksums of every artefact.
+- Distribution inside the client organisation (USB, internal share, Intune) avoids most SmartScreen prompts, which apply to downloaded files carrying Mark-of-the-Web.
+
+### 14.5 Size estimate
+| Part | Unpacked (MB) |
+|---|---|
+| Python 3.12 runtime and stdlib | 40 |
+| Qt / PySide6 (Essentials + WebEngine + Pdf + Svg, trimmed) | 300 |
+| numpy, scipy (with OpenBLAS) | 120 |
+| pyarrow (trimmed) | 100 |
+| Two GDALs (pyogrio, rasterio), pyproj with `proj.db`, shapely/GEOS | 165 |
+| pandas, statsmodels, scikit-learn | 140 |
+| duckdb | 50 |
+| matplotlib, plotly (+ `plotly.min.js`), pyqtgraph, mplstereonet | 110 |
+| Readers and writers (calamine, openpyxl, xlrd, lxml, python-docx, XlsxWriter, laspy/lazrs, ezdxf, trimesh, pypdf) | 50 |
+| Fonts, geomag and geoid data (Iran clip), profiles, dictionaries, templates | 25 |
+| Manual and licences | 15 |
+| **Core total** | **≈ 1.1 GB** |
+| **Installer (LZMA2)** | **≈ 380–450 MB** (+ ~80 MB with the 3D component) |
+
+S-10 measures the real figures. The budget is ≤ 1.3 GB unpacked for the core.
+
+### 14.6 Build pipeline (CI)
+| Job | Runner | Content |
+|---|---|---|
+| `lint-test` | `ubuntu-24.04` and `windows-2025` | `uv sync --frozen` (hash-pinned); ruff, mypy, import-linter (§2.2), licence audit (§3.10); unit, rule (synthetic S and M) and property tests; GUI tests offscreen |
+| `build-win` | `windows-2025`, pinned explicitly rather than the moving `windows-latest` label | Build the bootloader; compile `.qm`/`.qrc`; generate hidden imports; run PyInstaller from the committed spec. **Frozen smoke tests:** `geovalid --version`, `gen-synthetic --size S`, `run` end-to-end including fa and en PDF offscreen, `geovalid-pro.exe --self-test`. Then sign, build the manual, compile the Inno Setup installer, sign it, and produce the SBOM (cyclonedx-py), third-party notices and `SHA256SUMS`. |
+| `install-test` | Clean **Windows 10 22H2 and Windows 11** VMs (self-hosted or cloud), not only Server images | Silent per-user install; packaging tests run from the installed location, including a project under a path with spaces and Persian characters (`C:\Users\…\Documents\پروژه کوه‌زر\`); Microsoft Defender scan; uninstall check |
+| `no-network` | Linux container with `--network none`; Windows VM with an outbound block | §13.1 proof |
+| `bench` (nightly) | Self-hosted reference laptop | §12.5 |
+| `linux-headless` | `ubuntu-24.04` | A `geovalid_pro` wheel with the locked requirements, for headless CI use; an optional OCI image with all dependencies, usable offline once pulled. No Linux GUI package. |
+
+- **Traceable, not bit-reproducible.** PyInstaller output embeds timestamps, so a build is identified by `build_id` (commit + build date) and `dependency_lock_sha256` (02 §5.9), not claimed to be byte-identical.
+- **Packaging from Phase 1** (A15). Every phase deliverable is an installer, so the riskiest integration problems (WebEngine, two GDALs, Persian paths, antivirus, console windows) surface in the first weeks rather than in Phase 5.
+
+### 14.7 Versions, migration and updates
+- Semantic versioning. A change to a rule's logic bumps that rule's `version` (§5.2), and release notes list rule-catalogue changes, so users know which issues may change after an upgrade.
+- **Project migrations are forward-only.** Each is preceded by a backup (§13.3) and logged as `SCHEMA_MIGRATED`. A project written by a newer version opens read-only in an older one (CLI exit 4).
+- **No automatic updates** (offline). Updates are new installers, distributed by the client's IT.
+
+---
+
+## 15. Spike register
+A spike is a time-boxed experiment that settles one technical risk before the work that depends on it starts. Each spike has an acceptance test and a fallback, so a failed spike changes the plan, not the architecture. Scheduling is in `04_phase_plan.md`.
+
+| ID | Question | Days | Acceptance | Fallback |
+|---|---|---|---|---|
+| S-01 | Qt WebEngine `printToPdf` for Persian reports, headless on Windows and Linux | 4 | A 40-page fa/en/bi sample (tables, SVG, mixed runs) with shaping confirmed by a Persian reader; offscreen in CI; two-pass TOC; header/footer overlay; named pages tested | Typst backend over the RDM (§3.2) |
+| S-02 | Vazirmatn + reshaper + bidi in matplotlib | 2 | Every presentation form the reshaper emits renders; multi-line labels, legends, tick labels, mixed fa/en | Pre-shaped text paths per glyph run |
+| S-03 | RTL DOCX in Word 2016/2019/365 and LibreOffice | 3 | bidi paragraphs and tables, captions, `SEQ`/`REF` fields, embedded fonts on a PC without Vazirmatn, Persian page numbers | Latin page numbers; fonts declared as a requirement |
+| S-04 | access-parser (tier 2) against ACE (tier 1) | 3 | Cell-by-cell equality on the client corpus (Jet 3, Jet 4, ACE; cp1256) | Tier 3 guided export |
+| S-05 | Datamine `.dm` reader | 4 | 100 % cell equality on ≥ 10 files with CSV twins (§3.6) | CSV export |
+| S-06 | Micromine `.DAT` reader | 3 | As S-05 | Text/CSV export |
+| S-07 | Model/view at 1 M rows | 3 | Scroll ≥ 50 fps; filter/sort ≤ 300 ms; RTL layout correct; ≤ 600 MB for the snapshot | Window-limited model over paged DuckDB queries |
+| S-08 | pyqtgraph viewers at scale | 3 | 5 000 traces + 100 k markers at ≥ 30 fps pan/zoom; picking ≤ 50 ms; section projection ≤ 200 ms | Density-image rendering at more zoom levels; OpenGL viewport |
+| S-09 | End-to-end performance baseline | 4 | Prototype products and representative rules on L within 1.3 × the §12.3 budget; peak RSS ≤ 6 GB | Re-budget; move specific steps into DuckDB |
+| S-10 | Full-stack freeze and installer | 4 | One-dir build of the full stack; per-user install on clean Windows 10 and 11; no console window; Persian paths; Defender clean; size within §14.5 | Adjust hooks; separate windowless worker executable |
+| S-11 | Client corpus intake | 3 + client time | ≥ 3 anonymised real databases profiled (formats, encodings, header languages, Access versions, Excel quirks); mapping dictionaries seeded; regression golden set frozen (brief §18) | Synthetic-only regression until data are supplied |
+| S-12 | Two GDALs side by side; Unicode paths | 2 | All drivers listed in §3.3 work on both stacks; Persian file paths; KMZ through `/vsizip/` | Build environment from conda-forge, where pyogrio and rasterio link one shared GDAL |
+
+---
+
+## 16. Open questions for the client (architecture)
+1. **Q1 Bilingual report.** Is `bi` acceptable as designed in §9.5 (primary-language body; bilingual headings, captions, table headers, key-findings boxes, executive summary and action plan; a full second-language report on request)? Or is a fully parallel text required?
+2. **Q2 Hardware.** Is a 16 GB, 4-core laptop with an SSD representative of the team's machines (§12.1)? Are 8 GB machines in use, and are 2× longer run times acceptable on them?
+3. **Q3 Signing identity.** Which legal entity publishes and signs GEOVALID PRO, and can it obtain an OV code-signing certificate? If not, can client IT deploy an internal certificate (§14.4)?
+4. **Q4 Access databases.** What share of client data arrives as MDB/ACCDB? Is Office 32-bit or 64-bit on the fleet? May the ACE engine be bundled (after review of its licence), or will IT install it (§3.5, §14.3)?
+5. **Q5 Deployment.** Is a per-user installation acceptable? Does IT require an MSI or Intune package (§14.3)?
+6. **Q6 Report authenticity.** Is the release anchor printed in each report sufficient (§13.2), or are digitally signed PDFs required (certificate and PKI needed)?
+7. **Q7 Encryption.** Is full-disk encryption (BitLocker) sufficient, or must project files be encrypted by the application (§13.6)?
+8. **Q8 Concurrent review.** Is one writer per project sufficient (§4.4), or must several reviewers work on one project at the same time? The latter needs a review-package export/merge workflow, which would be planned after Phase 5.
+9. **Q9 PDF/A.** Is PDF/A required for archival or regulatory submission (§9.8)?
+10. **Q10 Licensing and protection.** Is copy protection, an offline licence file or source protection required? None is planned (§13.1, §14.1).
+11. **Q11 Hole atlas.** Should the per-hole atlas be a default output or produced on request (§9.3)?
+12. **Q12 House style.** Will the client supply a Word house template (styles, logo, Arad/A.A branding) to become `reference_fa.dotx`/`reference_en.dotx` (§9.6)?
+13. **Q13 Proprietary samples.** Can the client provide ≥ 10 Datamine `.dm` and ≥ 10 Micromine `.DAT` files, each with its CSV export, and ≥ 3 anonymised real databases for S-05, S-06 and S-11 (§15)?
