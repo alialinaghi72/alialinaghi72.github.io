@@ -777,16 +777,20 @@ def fig_batch_matrix(batches, elements):
 
 
 def fig_source_matrix(diagnosis):
-    from .diagnosis import STAGE_EN, STAGES
+    from .diagnosis import STAGES
     m = diagnosis.matrix()
     rows = list(m)
     levels = [[m[el][st] or "NONE_SEV" for st in STAGES] for el in rows]
     short = {"CRITICAL": "Critical", "MATERIAL": "Material", "MINOR": "Minor",
              None: ""}
     texts = [[short[m[el][st]] for st in STAGES] for el in rows]
+    short = {"SAMPLING": "Sampling", "PREPARATION": "Preparation",
+             "ACCURACY": "Accuracy", "PRECISION": "Precision",
+             "CONTAMINATION": "Contam-\nination", "INTERLAB": "Inter-lab",
+             "DATA": "Data", "PROGRAMME": "QC design"}
     f = Figure.matrix("Where the error comes from", rows, STAGES, levels, texts,
                       "Worst finding in each stage of the sample chain, by element",
-                      col_labels=[STAGE_EN[s].replace(" ", "\n", 1) for s in STAGES],
+                      col_labels=[short[s] for s in STAGES],
                       legend=[("CRITICAL", "critical"), ("MATERIAL", "material"),
                               ("MINOR", "minor"), ("NONE_SEV", "no finding")])
     f.size = (7.2, 1.35 + 0.38 * len(rows))

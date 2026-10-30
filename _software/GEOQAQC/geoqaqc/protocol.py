@@ -497,8 +497,8 @@ _CLEAN_RULES = [
      "If every CRM reads about 1000x or 10000x its certificate, the units "
      "differ. The certificate is rescaled and the mismatch is reported."),
     ("C12", "Detect a single decimal or unit slip",
-     "One CRM at 10x, 100x or 1000x its certificate while the others agree is "
-     "a transcription slip, not an analytical failure."),
+     "One CRM at 10x, 100x, 1000x or 10000x its certificate (or that fraction) "
+     "while the others agree is a transcription slip, not an analytical failure."),
     ("C13", "Detect swapped CRMs",
      "A result that fails its own certificate but agrees with another CRM's "
      "certificate is a labelling error, not a laboratory failure."),
