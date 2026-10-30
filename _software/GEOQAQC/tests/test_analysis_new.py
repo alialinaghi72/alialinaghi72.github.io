@@ -78,6 +78,9 @@ def test_coverage():
     # only CRMs that were actually inserted count towards coverage
     assert cov["certs"] == [("OREAS-501b", pytest.approx(0.283))]
     assert cov["none_above_p90"] is True                 # P90 = 2.31 % Cu
+    # 101 quantiles (P0..P100) of the routine grades for the coverage chart
+    q = cov["quantiles"]
+    assert len(q) == 101 and q[0][0] == 0 and q[-1] == (100, pytest.approx(2.4))
 
 
 # ---- duplicates: error budget, max-min, quartiles, split ---------------------

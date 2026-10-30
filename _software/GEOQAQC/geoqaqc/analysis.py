@@ -1002,6 +1002,7 @@ def analyse_coverage(project, RB):
         mid_q = sorted(pcts)[len(pcts) // 2]
         cv = [c for _, c in certs]
         out[el] = {"pcts": pcts, "certs": certs, "n": len(vals),
+                   "quantiles": [(q, pctile(vals, float(q))) for q in range(101)],
                    "below_p50_only": bool(cv) and max(cv) < pcts[mid_q],
                    "none_above_p90": bool(cv) and max(cv) < pcts[hi_q],
                    "none_below_p10": bool(cv) and min(cv) > pcts[lo_q]}
