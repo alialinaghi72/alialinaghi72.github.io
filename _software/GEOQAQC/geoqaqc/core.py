@@ -98,13 +98,15 @@ def to_latin_digits(s):
     return str(s).translate(_DIGITS)
 
 
-def fnum(v):
+def fnum(v, decimal_comma=False):
     """Permissive float parse. Handles '<0.01' and '>10000' detection-limit
     notation by returning the numeric part; use dl_flag() to know which.
 
     A comma is a thousands separator only in the form 1,234 or 1,234,567.5;
     any other single comma between digits is a decimal comma (0,123), which
-    is how semicolon-delimited exports from many locales write numbers."""
+    is how semicolon-delimited exports from many locales write numbers.
+    With decimal_comma=True (a table already known to use that convention)
+    every comma is the decimal mark and dots are thousands separators."""
     if v is None:
         return None
     s = to_latin_digits(v).strip()
@@ -112,7 +114,9 @@ def fnum(v):
         return None
     if s and s[0] in "<>":
         s = s[1:].strip()
-    if "," in s:
+    if decimal_comma:
+        s = s.replace(".", "").replace(",", ".")
+    elif "," in s:
         if _THOUSANDS.match(s):
             s = s.replace(",", "")
         elif _DECIMAL_COMMA.match(s):
