@@ -549,3 +549,54 @@ def _sequence(project, L):
         L.add("C18", "(several)", "", "", "flagged",
               f"{len(rep)} sequence number(s) used more than once ({ex}); "
               f"file order breaks the tie")
+
+
+# ===========================================================================
+#  Pairs (C16, C17) -- run after the duplicates are paired
+# ===========================================================================
+def _hard(a, b):
+    return abs(a - b) / (a + b) * 100.0 if a + b > 0 else None
+
+
+def clean_pairs(project, pairs, S, RB, log=print):
+    """C17: list duplicates that could not be paired. C16: a pair that
+    disagrees grossly in most elements comes from two different samples and
+    is excluded (project.excluded_pairs); with too few voting elements it is
+    only flagged, because one element cannot tell a mispair from a nugget."""
+    L = project.clean_log or CleanLog()
+    project.clean_log = L
+    if _on(RB, "C17"):
+        for sid, dtype, why in project.orphan_dups:
+            L.add("C17", sid, "", dtype, "flagged",
+                  f"{why}; this duplicate is not in the precision statistics")
+    if not _on(RB, "C16"):
+        return
+    dls = {el: detection_limit(project, el, S) for el in project.elements}
+    multi = len(project.elements) >= RB["mispair_min_el"]
+    for dtype, plist in pairs.items():
+        for so, sd_ in plist:
+            voting, bad = [], []
+            for el in project.elements:
+                if not usable(so, el) or not usable(sd_, el) or not dls[el]:
+                    continue
+                a, b = so.vals[el], sd_.vals[el]
+                if min(a, b) <= RB["mispair_kdl"] * dls[el]:
+                    continue
+                h = _hard(a, b)
+                voting.append(el)
+                if h is not None and h > RB["mispair_hard"]:
+                    bad.append((el, h))
+            if not bad:
+                continue
+            detail = ", ".join(f"{el} HARD {h:.0f}%" for el, h in bad)
+            if (multi and len(voting) >= RB["mispair_min_el"]
+                    and len(bad) / len(voting) >= RB["mispair_frac"]):
+                project.excluded_pairs.add((so.sid, sd_.sid))
+                L.add("C16", sd_.sid, "", f"{dtype} of {so.sid}", "excluded",
+                      f"disagrees with its parent in {len(bad)} of "
+                      f"{len(voting)} elements ({detail}): the two results "
+                      f"come from different samples")
+            elif len(voting) < RB["mispair_min_el"]:
+                L.add("C16", sd_.sid, "", f"{dtype} of {so.sid}", "flagged",
+                      f"{detail}; too few elements to tell a mispair from a "
+                      f"nugget effect, so the pair is kept")
