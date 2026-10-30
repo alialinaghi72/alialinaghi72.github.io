@@ -26,9 +26,10 @@ def _sample_dir(base: str | None, clean: bool = False) -> Path:
 def cmd_run(a) -> int:
     from .engine import ProjectSpec, load_inputs, run
     from .io.writers import write_outputs
+    from .synth import SAMPLE_TABLES
     if a.sample:
         d = _sample_dir(None)
-        files = [str(p) for p in sorted(d.glob("*.csv")) if p.stem in ("collar", "survey", "assay", "lithology", "geotech", "density")]
+        files = [str(d / f"{n}.csv") for n in SAMPLE_TABLES]
         a.dem, a.licence, a.crm = a.dem or str(d / "dem.asc"), a.licence or str(d / "licence.csv"), a.crm or str(d / "crm_standards.csv")
     else:
         files = a.files or []

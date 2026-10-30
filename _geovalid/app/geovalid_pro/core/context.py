@@ -73,6 +73,8 @@ class Ctx:
             return bool(self.interval_tables)
         if need in ("assay", "lithology", "geotech", "density"):
             return bool(self.by_kind(need))
+        if need == "logging":
+            return any(self.by_kind(k) for k in ("lithology", "alteration", "weathering"))
         if need == "analytes":
             return any(t.analytes for t in self.tables)
         if need == "dem":

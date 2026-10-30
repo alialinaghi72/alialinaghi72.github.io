@@ -123,7 +123,7 @@ def qaq_003(ctx):
             dlm = float(dl.mode().iloc[0])
             v = a.parsed.loc[blanks]
             vals = v.loc[v["flag"] == "VAL", "value"]
-            ctx.stats.setdefault("blank_results", {}).setdefault(t.name, []).append((a.analyte, dlm, vals))
+            ctx.stats.setdefault("blank_results", {}).setdefault(t.name, []).append((a.analyte, dlm, v[["flag", "value"]]))
             for i, val in vals.items():
                 ratio = val / dlm
                 if ratio > p["blank_warn_x_dl"]:

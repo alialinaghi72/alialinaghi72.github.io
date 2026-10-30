@@ -1,6 +1,6 @@
 """Synthetic drillhole database with an error injector and ground-truth manifest (04 §3.2–3.3).
 
-generate(folder, inject=True) writes collar/survey/assay/lithology/geotech/density CSVs, a DEM (.asc),
+generate(folder, inject=True) writes collar/survey/assay/lithology/alteration/weathering/geotech/density CSVs, a DEM (.asc),
 a licence polygon, a CRM table and manifest.csv (rule_id, table, hole_id, description).
 With inject=False the clean twin is produced: deterministic rules must raise no ERROR/CRITICAL on it.
 """
@@ -15,10 +15,36 @@ X0, Y0 = 512000.0, 3285000.0     # UTM zone 40N, central Iran
 CRMS = {"GV-CRM1": {"Cu": (0.55, 0.02), "Au": (0.80, 0.04)}, "GV-CRM2": {"Cu": (1.20, 0.04), "Au": (2.10, 0.08)}}
 LITHS = ["AND", "DIO", "QMP", "BXH", "TUF"]
 COLOURS = ["grey", "green", "pink", "dark grey", "buff", "red-brown"]
+# Porphyry model: grade multipliers by host unit, alteration zone and weathering profile (Sillitoe 2010 style zoning)
+LITH_F = {"QMP": 2.2, "BXH": 2.6, "DIO": 1.0, "AND": 0.55, "TUF": 0.35, "ALLUV": 0.05}
+ALT_F = {"POTASSIC": 1.6, "PHYLLIC": 1.2, "ARGILLIC": 0.6, "PROPYLITIC": 0.4}
+WTH_F = {"OXIDE": 0.5, "MIXED": 1.3, "PRIMARY": 1.0}
+SG_LITH = {"QMP": 2.62, "BXH": 2.68, "DIO": 2.78, "AND": 2.72, "TUF": 2.45, "ALLUV": 2.0}
+CENTRE = (250.0, 250.0)       # stock centre, metres from the grid origin
+SAMPLE_TABLES = ("collar", "survey", "assay", "lithology", "alteration", "weathering", "geotech", "density")
 
 
 def dem_z(x, y):
     return 1500 + 80 * np.sin((x - X0) / 400) + 60 * np.cos((y - Y0) / 300) + 0.02 * (x - X0)
+
+
+def _pos(hx, hy, depth):
+    """Horizontal offset and vertical depth of a point `depth` m down a −60°/045° hole."""
+    h = 0.5 * depth / np.sqrt(2)
+    return hx + h, hy + h, 0.866 * depth
+
+
+def _at(intervals, depth):
+    for fr, to, *v in intervals:
+        if fr <= depth < to:
+            return v
+    return intervals[-1][2:]
+
+
+def _pick(rng, probs: dict, prev):
+    keys = [k for k in probs if k != prev]
+    w = np.array([probs[k] for k in keys], float)
+    return keys[int(rng.choice(len(keys), p=w / w.sum()))]
 
 
 def generate(folder: str, inject: bool = True, seed: int = 7) -> dict:
@@ -64,6 +90,64 @@ def generate(folder: str, inject: bool = True, seed: int = 7) -> dict:
             srows.append({"HoleID": r.HoleID, "Depth": d, "Azimuth": round(az, 2), "Dip": round(dip, 2), "Instrument": "Gyro"})
     survey = pd.DataFrame(srows)
 
+    # ---------------- logging: lithology (Persian headers), alteration, weathering ----------------
+    lrows, arows_alt, wrows, logs = [], [], [], {}
+    for r in collar.itertuples():
+        hx, hy = r.East - X0, r.North - Y0
+        cover = round(float(rng.uniform(3, 8)), 1)
+        lith_iv = [(0.0, cover, "ALLUV")]
+        lrows.append({"شماره گمانه": r.HoleID, "از": 0.0, "تا": cover, "سنگ‌شناسی": "ALLUV", "رنگ": "buff"})
+        d, prev = cover, None
+        while d < r.MaxDepth:
+            L = round(float(rng.uniform(5, 40)), 1)
+            to = min(round(d + L, 1), r.MaxDepth)
+            px, py, pz = _pos(hx, hy, (d + to) / 2)
+            rad = np.hypot(px - CENTRE[0], py - CENTRE[1])
+            if rad < 110 and pz > 35:
+                probs = {"QMP": .55, "BXH": .25, "DIO": .15, "AND": .05, "TUF": .0}
+            elif rad < 200:
+                probs = {"DIO": .40, "BXH": .12, "QMP": .13, "AND": .25, "TUF": .10}
+            else:
+                probs = {"AND": .45, "TUF": .30, "DIO": .20, "QMP": .03, "BXH": .02}
+            if pz < 40:
+                probs["TUF"] += .25
+                probs["AND"] += .15
+            code = _pick(rng, probs, prev)
+            prev = code
+            lith_iv.append((d, to, code))
+            lrows.append({"شماره گمانه": r.HoleID, "از": d, "تا": to, "سنگ‌شناسی": code, "رنگ": rng.choice(COLOURS)})
+            d = to
+        alt_iv, d = [], 0.0
+        while d < r.MaxDepth:
+            to = min(round(d + float(rng.uniform(6, 30)), 1), r.MaxDepth)
+            px, py, pz = _pos(hx, hy, (d + to) / 2)
+            d3 = np.sqrt((px - CENTRE[0]) ** 2 + (py - CENTRE[1]) ** 2 + 0.6 * (pz - 170) ** 2) + rng.normal(0, 25)
+            if d3 < 115:
+                alt, inten = "POTASSIC", "STRONG" if d3 < 70 else "MODERATE"
+            elif d3 < 195:
+                alt, inten = "PHYLLIC", "STRONG" if d3 < 150 else "MODERATE"
+            elif pz < 70 and np.hypot(px - CENTRE[0], py - CENTRE[1]) < 280:
+                alt, inten = "ARGILLIC", "MODERATE"
+            else:
+                alt, inten = "PROPYLITIC", "WEAK" if d3 > 260 else "MODERATE"
+            if alt_iv and alt_iv[-1][2:] == [alt, inten]:
+                alt_iv[-1][1] = to
+            else:
+                alt_iv.append([d, to, alt, inten])
+            d = to
+        for fr, to, alt, inten in alt_iv:
+            arows_alt.append({"HoleID": r.HoleID, "From": round(fr, 1), "To": round(to, 1), "AltType": alt, "Intensity": inten})
+        ox = round(cover + float(rng.uniform(10, 35)), 1)
+        mx = round(ox + float(rng.uniform(5, 20)), 1)
+        wth_iv = [(0.0, min(ox, r.MaxDepth), "OXIDE"), (min(ox, r.MaxDepth), min(mx, r.MaxDepth), "MIXED"), (min(mx, r.MaxDepth), r.MaxDepth, "PRIMARY")]
+        wth_iv = [w for w in wth_iv if w[1] > w[0]]
+        for fr, to, w in wth_iv:
+            wrows.append({"HoleID": r.HoleID, "From": fr, "To": to, "Oxidation": w})
+        logs[r.HoleID] = (lith_iv, [tuple(a) for a in alt_iv], wth_iv)
+    lith = pd.DataFrame(lrows)
+    alteration = pd.DataFrame(arows_alt)
+    weathering = pd.DataFrame(wrows)
+
     # ---------------- assays with QC ----------------
     arows, n_orig, sample_no = [], 0, 100000
     qc_seq = []
@@ -73,11 +157,15 @@ def generate(folder: str, inject: bool = True, seed: int = 7) -> dict:
         hx, hy = r.East - X0, r.North - Y0
         while depth + L <= r.MaxDepth:
             mid = depth + L / 2
-            trend = np.exp(-((hx - 250) ** 2 + (hy - 250) ** 2) / 2 / 160 ** 2) * np.exp(-((mid - 120) / 90) ** 2)
-            cu = float(np.clip(0.05 + 0.9 * trend * rng.lognormal(0, 0.45), 0.003, 6))
-            au = float(cu * rng.lognormal(0.2, 0.5) * 0.8)
-            mo = float(20 + 300 * trend * rng.lognormal(0, 0.6))
-            s = float(cu * rng.uniform(0.6, 1.6) + rng.uniform(0.3, 1.5))
+            px, py, _ = _pos(hx, hy, mid)
+            trend = np.exp(-((px - CENTRE[0]) ** 2 + (py - CENTRE[1]) ** 2) / 2 / 170 ** 2) * np.exp(-((mid - 140) / 110) ** 2)
+            lith_iv, alt_iv, wth_iv = logs[r.HoleID]
+            lc, (ac, _), (wc,) = _at(lith_iv, mid)[0], _at(alt_iv, mid), _at(wth_iv, mid)
+            f = LITH_F[lc] * ALT_F[ac] * WTH_F[wc]
+            cu = float(np.clip((0.02 + 0.55 * trend) * f * rng.lognormal(0, 0.4), 0.002, 6))
+            au = float(cu * rng.lognormal(0.2, 0.5) * 0.8 * (1.5 if lc == "BXH" else 1.0))
+            mo = float(15 + 260 * trend * (2.0 if ac == "POTASSIC" else 1.0) * (1.4 if lc == "QMP" else 1.0) * rng.lognormal(0, 0.6))
+            s = float((cu * rng.uniform(0.6, 1.6) + rng.uniform(0.3, 1.5)) * (0.5 if wc == "OXIDE" else 1.0))
             fe = float(rng.uniform(2.5, 6.5))
             sample_no += 1
             arows.append({"HoleID": r.HoleID, "From": round(depth, 2), "To": round(depth + L, 2), "SampleID": f"S{sample_no}",
@@ -112,23 +200,6 @@ def generate(folder: str, inject: bool = True, seed: int = 7) -> dict:
             depth += L
     assay = pd.DataFrame(arows)
 
-    # ---------------- lithology (Persian headers) ----------------
-    lrows = []
-    for r in collar.itertuples():
-        d = 0.0
-        cover = round(float(rng.uniform(3, 8)), 1)
-        lrows.append({"شماره گمانه": r.HoleID, "از": 0.0, "تا": cover, "سنگ‌شناسی": "ALLUV", "رنگ": "buff"})
-        d = cover
-        prev = None
-        while d < r.MaxDepth:
-            L = round(float(rng.uniform(5, 40)), 1)
-            to = min(round(d + L, 1), r.MaxDepth)
-            code = rng.choice([c for c in LITHS if c != prev])
-            prev = code
-            lrows.append({"شماره گمانه": r.HoleID, "از": d, "تا": to, "سنگ‌شناسی": code, "رنگ": rng.choice(COLOURS)})
-            d = to
-    lith = pd.DataFrame(lrows)
-
     # ---------------- geotech ----------------
     grows = []
     for r in collar.itertuples():
@@ -148,7 +219,9 @@ def generate(folder: str, inject: bool = True, seed: int = 7) -> dict:
     drows = []
     for r in collar.itertuples():
         for dd in np.arange(10, r.MaxDepth - 0.2, 10.0):
-            drows.append({"HoleID": r.HoleID, "From": round(dd, 1), "To": round(dd + 0.2, 1), "SG": round(float(rng.uniform(2.55, 2.95)), 3)})
+            lith_iv, _, wth_iv = logs[r.HoleID]
+            sg = SG_LITH[_at(lith_iv, dd + 0.1)[0]] - (0.25 if _at(wth_iv, dd + 0.1)[0] == "OXIDE" else 0) + rng.normal(0, 0.06)
+            drows.append({"HoleID": r.HoleID, "From": round(dd, 1), "To": round(dd + 0.2, 1), "SG": round(float(sg), 3)})
     dens = pd.DataFrame(drows)
 
     # ---------------- error injection ----------------
@@ -271,6 +344,8 @@ def generate(folder: str, inject: bool = True, seed: int = 7) -> dict:
     survey.to_csv(out / "survey.csv", index=False)
     assay.to_csv(out / "assay.csv", index=False)
     lith.to_csv(out / "lithology.csv", index=False, encoding="utf-8-sig")
+    alteration.to_csv(out / "alteration.csv", index=False)
+    weathering.to_csv(out / "weathering.csv", index=False)
     geo.to_csv(out / "geotech.csv", index=False)
     dens.to_csv(out / "density.csv", index=False)
     xs, ys = np.arange(X0 - 200, X0 + 800, 10.0), np.arange(Y0 - 200, Y0 + 800, 10.0)
@@ -284,5 +359,7 @@ def generate(folder: str, inject: bool = True, seed: int = 7) -> dict:
     (out / "README.txt").write_text(
         "GEOVALID PRO synthetic test database (porphyry Cu-Au-Mo style, UTM 40N).\n"
         + ("Errors were injected deliberately; see manifest.csv.\n" if inject else "Clean twin: no injected errors.\n")
-        + "Campaigns: A = RTK, B = handheld GPS, C = DGPS. lithology.csv uses Persian headers.\n", encoding="utf-8")
+        + "Campaigns: A = RTK, B = handheld GPS, C = DGPS. lithology.csv uses Persian headers.\n"
+        + "Grade follows a porphyry model: host unit (QMP, BXH > DIO > AND, TUF), alteration (potassic > phyllic > argillic, propylitic)\n"
+        + "and weathering (leached oxide, supergene-enriched mixed zone, primary).\n", encoding="utf-8")
     return {"folder": str(out), "manifest": pd.DataFrame(manifest)}

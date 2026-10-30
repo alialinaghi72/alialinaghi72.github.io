@@ -2,34 +2,14 @@
 import glob
 
 import pandas as pd
-import pytest
 
 from geovalid_pro import synth
-from geovalid_pro.engine import ProjectSpec, load_inputs, run
 from geovalid_pro.io.writers import write_outputs
+
+from conftest import _run
 
 # Findings the clean twin contains by design (campaign B is a handheld-GPS campaign).
 DESIGNED = {("COL-010", "ERROR")}
-
-
-def _run(folder):
-    ins = [i for i in load_inputs(sorted(glob.glob(f"{folder}/*.csv"))) if i.kind != "ignore"]
-    return run(ProjectSpec(ins, dem_path=f"{folder}/dem.asc", licence_path=f"{folder}/licence.csv",
-                           crm_path=f"{folder}/crm_standards.csv", project_name="test"))
-
-
-@pytest.fixture(scope="module")
-def injected(tmp_path_factory):
-    d = tmp_path_factory.mktemp("err")
-    synth.generate(str(d), inject=True)
-    return d, _run(str(d))
-
-
-@pytest.fixture(scope="module")
-def clean(tmp_path_factory):
-    d = tmp_path_factory.mktemp("clean")
-    synth.generate(str(d), inject=False)
-    return d, _run(str(d))
 
 
 def test_every_injected_error_is_detected(injected):
@@ -76,6 +56,10 @@ def test_outputs_written(injected, tmp_path):
     assert (col["QC_FLAG"] == "C").any()
     html = files["report_fa"].read_text(encoding="utf-8")
     assert 'dir=\'rtl\'' in html and "گزارش اعتبارسنجی" in html
+    assert "تحلیل عیار بر پایهٔ واحدهای توصیفی" in html
+    assert "Grade versus logged geology" in files["report_en"].read_text(encoding="utf-8")
+    ga = pd.read_excel(files["grade_vs_geology_xlsx"], sheet_name=None)
+    assert {"Association", "Category_stats", "Domain_suggestions", "Contacts"} <= set(ga)
 
 
 def test_sources_never_modified(tmp_path):

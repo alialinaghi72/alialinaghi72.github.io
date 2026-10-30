@@ -1,9 +1,12 @@
 # GEOVALID PRO — base validation profile (03 rule catalogue defaults).
 # Copy this file, edit thresholds and load it in the program (Settings → Profile) or with --profile.
 profile: base
-version: 0.1.0
+version: 0.2.0
 key_analytes: [Au, Cu, Zn, Pb, Ag, Mo, Fe, Ni, Co, Cr2O3, Al2O3, Mn, U]
 depth_eps_m: 0.001
+# Cut-offs for the grade analyses (box plots, grade-length curve, grade x thickness). [value, unit]; other analytes use P75.
+analysis_cutoffs: {Cu: [0.2, "%"], Au: [0.3, "g/t"], Zn: [1.0, "%"], Pb: [1.0, "%"], Ag: [20, "g/t"], Mo: [100, "ppm"],
+                   Ni: [0.3, "%"], Co: [500, "ppm"], Mn: [10, "%"], U: [100, "ppm"]}
 rules:
   COL-002: {z_zero_tol_m: 20}
   COL-004: {near_dup_distance_m: 1.0, near_dup_dz_m: 2.0}
@@ -36,7 +39,7 @@ rules:
   INT-008: {contact_tol_m: 0.05}
   INT-009: {min_window_n: 5}
   ASY-003: {total_max_pct: 101, au_max_ppm: 10000}
-  ASY-004: {min_minority_frac: 0.05, min_n: 200, min_separation_decades: 2.5}
+  ASY-004: {min_minority_frac: 0.05, min_n: 200, min_separation_decades: 2.5, group_gap_decades: 1.0, group_separation_decades: 2.0, min_group_n: 10}
   ASY-006: {fe_rel_tol_frac: 0.05, partial_tol_frac: 0.05, cu_s_max_ratio: 4.0, cu_min_pct: 0.5}
   ASY-007: {tukey_k: 3, cv_topcut: 2.0}
   ASY-011: {bdl_share_warn_frac: 0.30, bdl_share_info_frac: 0.80}
@@ -52,3 +55,5 @@ rules:
   GEO-003: {diff_tol_pct: 2, len_tol_m: 0.02}
   GEO-004: {low_pct: 85, high_pct: 95, alpha: 0.01, min_n_per_class: 30}
   DEN-001: {abs_bounds_gcm3: [1.0, 6.5], k_mad: 4}
+  CRS-004: {alpha: 0.01, effect_min: 0.2, min_n: 30, cv_mixed: 2.0, eta2_weak: 0.02}
+  CRS-005: {max_dist_m: 20}

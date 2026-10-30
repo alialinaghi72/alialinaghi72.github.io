@@ -86,6 +86,23 @@ def asy_003(ctx):
                         value=round(float(tot[i]), 2), **_row_ctx(t, i))
 
 
+def _group_shift(x: pd.Series, groups: pd.Series, p):
+    """Group medians of log values split by the widest gap; return (minority groups, factor, value share) or None."""
+    d = pd.DataFrame({"x": x, "g": groups}).dropna()
+    size = d.groupby("g")["x"].size()
+    med = d.groupby("g")["x"].median()[size >= p.get("min_group_n", 10)].sort_values()
+    if len(med) < 6:
+        return None
+    gaps = med.diff().to_numpy()[1:]
+    k = int(np.argmax(gaps)) + 1
+    lower, upper = med.iloc[:k], med.iloc[k:]
+    sep = float(upper.median() - lower.median())
+    if gaps[k - 1] < p.get("group_gap_decades", 1.0) or sep < p.get("group_separation_decades", 2.0):
+        return None
+    minority = upper if size[upper.index].sum() <= size[lower.index].sum() else lower
+    return list(minority.index), 10 ** sep, float(size[minority.index].sum() / size[med.index].sum())
+
+
 def _two_means(x: np.ndarray):
     lo, hi = np.percentile(x, 25), np.percentile(x, 75)
     for _ in range(50):
@@ -121,6 +138,29 @@ def asy_004(ctx):
                         f"Column '{a.column}' holds two populations about {factor:,.0f}× apart ({minority:.0%} minority): units are probably mixed (e.g. ppb with ppm, or % with ppm).",
                         f"ستون «{a.column}» دو جامعه با اختلاف حدود {factor:,.0f} برابر دارد ({minority:.0%} اقلیت): احتمالاً واحدها مختلط‌اند (مثلاً ppb با ppm یا درصد با ppm).",
                         field=a.column, value=round(float(factor), 1), suggested_fix="Identify the batches in the minority population and convert them by a change set.")
+                continue
+            # (b) unit mix-ups arrive per lab job or per hole: medians of those groups split into separated clusters
+            for gcol in ("batch", "hole_id"):
+                if gcol not in t.df:
+                    continue
+                res = _group_shift(pd.Series(np.log10(v.to_numpy()), index=v.index), t.df.loc[v.index, gcol], p)
+                if res is None:
+                    continue
+                groups, factor, share = res
+                name = "batches" if gcol == "batch" else "holes"
+                name_fa = "بچ" if gcol == "batch" else "گمانه"
+                shown = ", ".join(map(str, groups[:12])) + (" …" if len(groups) > 12 else "")
+                ctx.add("ASY-004", "ERROR", t.name,
+                        f"Column '{a.column}': {len(groups)} {name} ({share:.0%} of values) have median values about {factor:,.0f}× those of the rest, with no {name[:-2] if gcol == 'batch' else 'hole'}s in between: units are probably mixed ({shown}).",
+                        f"ستون «{a.column}»: میانهٔ {len(groups)} {name_fa} ({share:.0%} مقادیر) حدود {factor:,.0f} برابر بقیه است و {name_fa}ی در میانه وجود ندارد: احتمالاً واحدها مختلط‌اند ({shown}).",
+                        field=a.column, value=round(float(factor), 1),
+                        suggested_fix=f"Check the certificates of these {name}; convert their values by a change set.")
+                for g in groups:
+                    if gcol == "hole_id":
+                        ctx.add("ASY-004", "ERROR", t.name, f"Hole {g}: {a.column} values about {factor:,.0f}× those of other holes (probable unit error).",
+                                f"گمانهٔ {g}: مقادیر {a.column} حدود {factor:,.0f} برابر سایر گمانه‌هاست (خطای احتمالی واحد).",
+                                hole_id=g, field=a.column, value=round(float(factor), 1))
+                break
 
 
 @rule("ASY-005", ("analytes",))

@@ -72,6 +72,43 @@ def assay_stats(res) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def grade_analysis_tables(res) -> dict[str, pd.DataFrame]:
+    """Grade versus logged geology: association, statistics per category, domain suggestions, contacts, two-way medians."""
+    from ..analysis import categorical as C
+    ctx = res.ctx
+    if not ctx.has("assay"):
+        return {}
+    smp, units, fields = C.sample_table(ctx)
+    if smp.empty or not fields:
+        return {}
+    cat = ctx.stats["categorical"]
+    assoc = cat.get("association")
+    if assoc is None:
+        assoc = cat["association"] = C.association(smp, fields, list(units))
+    out = {"Association": assoc.round(4)}
+    rows = []
+    for a in C.primary_analytes(assoc, units, ctx.params, 3):
+        cut = C.cutoff_for(smp, a, units[a], ctx.params)
+        for f in fields:
+            st = C.category_stats(smp, f, a, cut)
+            if not st.empty:
+                rows.append(st.assign(field=f, analyte=a, unit=units[a], cutoff=cut))
+    if rows:
+        st = pd.concat(rows, ignore_index=True)
+        out["Category_stats"] = st[["field", "analyte", "unit", "category", "n", "metres", "mean_lw", "median", "p10", "p90", "max", "cv",
+                                    "cutoff", "pct_above_cutoff"]].round(4)
+    if isinstance(cat.get("domains"), pd.DataFrame) and not cat["domains"].empty:
+        out["Domain_suggestions"] = cat["domains"]
+    if cat.get("contacts"):
+        out["Contacts"] = pd.DataFrame([{k: v for k, v in c.items() if k != "profile"} for c in cat["contacts"]]).round(2)
+    logging = [f for f, v in fields.items() if v[2] == "logging"]
+    if len(logging) >= 2:
+        a = C.primary_analytes(assoc, units, ctx.params, 1)[0]
+        med, cnt = C.two_way(smp, logging[0], logging[1], a)
+        out["Two_way_median"] = med.reset_index()
+    return out
+
+
 def flagged_table(res, inp) -> pd.DataFrame:
     df = inp.raw.df.copy()
     iss = res.issues
@@ -137,6 +174,18 @@ def write_outputs(res, out_dir: str, lang: str = "fa", progress=None) -> dict:
                 width = min(60, max(10, max(len(str(c.value or "")) for c in col[:200]) + 2))
                 ws.column_dimensions[col[0].column_letter].width = width
     files["issue_log_xlsx"] = xlsx
+    progress(96, "writing grade analysis")
+    ga = grade_analysis_tables(res)
+    if ga:
+        gx = run_dir / "grade_vs_geology.xlsx"
+        with pd.ExcelWriter(gx, engine="openpyxl") as xw:
+            for name, df in ga.items():
+                df.to_excel(xw, sheet_name=name[:31], index=False)
+            for ws in xw.book.worksheets:
+                ws.freeze_panes = "A2"
+                for col in ws.columns:
+                    ws.column_dimensions[col[0].column_letter].width = min(40, max(10, max(len(str(c.value or "")) for c in col[:200]) + 2))
+        files["grade_vs_geology_xlsx"] = gx
     progress(97, "writing flagged tables")
     for inp in res.spec.inputs:
         if inp.enabled and inp.kind != "ignore":
