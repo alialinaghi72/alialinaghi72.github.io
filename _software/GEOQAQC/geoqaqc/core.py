@@ -447,8 +447,11 @@ def fa_digits(s):
     return s.translate(_FA)
 
 
-def fa_num(v, decimals=None):
-    """Number for Persian prose: Persian digits, '٫' decimal, a true minus."""
+def fa_num(v, decimals=None, suffix=""):
+    """Number for Persian prose: Persian digits, '٫' decimal, a true minus.
+    A negative number (with its suffix, e.g. '٪') is wrapped in a left-to-right
+    embedding: in right-to-left text the bare minus would otherwise drift to
+    the far end of the number and read as a trailing sign."""
     if v is None:
         return "—"
     if decimals is None:
@@ -456,8 +459,10 @@ def fa_num(v, decimals=None):
     else:
         txt = f"{v:,.{decimals}f}".replace(",", "٬")
     if txt.startswith("-"):
-        txt = "−" + txt[1:]
-    return fa_digits(txt)
+        if txt.strip("-0.,٬") == "":
+            return fa_digits(txt[1:]) + suffix
+        return "\u202a" + "−" + fa_digits(txt[1:]) + suffix + "\u202c"
+    return fa_digits(txt) + suffix
 
 
 def gregorian_to_jalali(gy, gm, gd):

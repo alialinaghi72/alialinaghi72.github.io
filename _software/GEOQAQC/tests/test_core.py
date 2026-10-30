@@ -75,7 +75,11 @@ def test_jalali():
 
 def test_fa_num():
     assert fa_num(12.345, 2) == "۱۲٫۳۵"
-    assert fa_num(-3, 0) == "−۳"
+    # a negative number is wrapped in a left-to-right embedding so the minus
+    # stays in front of the digits inside Persian text
+    assert fa_num(-3, 0) == "\u202a−۳\u202c"
+    assert fa_num(-1.34, 2, suffix="٪") == "\u202a−۱٫۳۴٪\u202c"
+    assert fa_num(1.5, 1, suffix="٪") == "۱٫۵٪"
     assert fa_num(None) == "—"
 
 
