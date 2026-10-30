@@ -194,3 +194,39 @@ def test_carry_over_split():
     assert rec["fail_other_pct"] == pytest.approx(0.0)
     assert rec["rho"] > 0.5
     assert rec["btype"] == "COARSE BLANK"
+
+
+def test_pooled_drift_per_element():
+    # three CRMs interleaved, each falling 0 -> -6 % with noise of ~1 SD:
+    # each CRM alone is weak evidence, the pooled series is not
+    rng = random.Random(3)
+    rows = []
+    certs = {"OREAS-501b": (0.283, 0.009), "OREAS-504b": (1.052, 0.028),
+             "CDN-ME-1": (0.505, 0.015)}
+    for i in range(60):
+        code = list(certs)[i % 3]
+        c, sd = certs[code]
+        b = -6.0 * i / 59.0
+        v = c * (1 + b / 100) + rng.gauss(0, sd)
+        rows.append({"SAMPLE_ID": f"C{i}", "SAMPLE_TYPE": "CRM", "CRM_ID": code,
+                     "Cu_pct": f"{v:.5f}"})
+    _, R = analyse(rows, CU_CERTS, ("Cu_pct",))
+    d = R["drift"]["Cu_pct"]
+    assert d["n"] == 60
+    assert d["sig"] is True
+    # SE of the total is ~1.3 % here (60 points, noise 1 SD ~ 3 %)
+    assert d["total"] == pytest.approx(-6.0, abs=3.0)
+
+
+def test_carry_over_relative_grade():
+    # every predecessor is far above 10 x DL; only the richest ones carry over
+    rows = _dl()
+    for i in range(12):
+        hi = i < 3
+        rows.append({"SAMPLE_ID": f"N{i}", "Cu_pct": "3.5" if hi else f"{0.2 + i * 0.01:.2f}"})
+        rows.append({"SAMPLE_ID": f"BL{i}", "SAMPLE_TYPE": "COARSE BLANK",
+                     "Cu_pct": "0.05" if hi else "0.001"})
+    _, R = analyse(rows, None, ("Cu_pct",))
+    rec = R["blank"][("COARSE BLANK", "Cu_pct")]
+    assert rec["fail_after_high_pct"] == pytest.approx(100.0)
+    assert rec["fail_other_pct"] == pytest.approx(0.0)

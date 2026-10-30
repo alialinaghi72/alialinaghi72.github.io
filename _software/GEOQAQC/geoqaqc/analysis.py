@@ -236,7 +236,10 @@ def _analyse_blank_type(project, F, C, S, RB, btype, blanks, live, order_index):
                         if p["fail"] and p["carry_pct"] is not None
                         and p["prev_value"] is not None
                         and p["prev_value"] > S["carry_kdl"] * dl]
-        _blank_extras(rec, S)
+        routine = sorted(s.vals[el] for s in live if s.stype == T_NORMAL
+                         and usable(s, el) and s.flags.get(el) != "<")
+        hi_cut = max(pctile(routine, RB["carry_pctile"]) or 0.0, S["carry_kdl"] * dl)
+        _blank_extras(rec, hi_cut)
         out[(btype, el)] = rec
     return out
 
@@ -844,6 +847,7 @@ def run_analysis(project, F, C, S, RB, log=print):
     ins = analyse_insertion(project, F, C, S, pairs, log=log)
     log("Accuracy curve, grade coverage, error budget, batch acceptance ...")
     accuracy = analyse_accuracy_curve(crm)
+    drift = analyse_drift(crm, RB)
     coverage = analyse_coverage(project, RB)
     budget = analyse_error_budget(dup, S)
     batches = analyse_batches(project, crm, blank, S, RB)
@@ -875,6 +879,7 @@ def run_analysis(project, F, C, S, RB, log=print):
                        "insertion": ins, "pairs": pairs,
                        "clean_log": project.clean_log,
                        "accuracy": accuracy, "coverage": coverage,
+                       "drift": drift,
                        "budget": budget, "batches": batches,
                        "overall": overall, "score": score}
     project.analysed_at = _dt.datetime.now()
@@ -916,6 +921,32 @@ def _crm_extras(rec, S, RB):
     if rec.get("sd") and rec.get("cert") and rec.get("rsd_pct") is not None:
         cert_rsd = rec["sd"] / rec["cert"] * 100.0
         rec["rsd_ratio"] = rec["rsd_pct"] / cert_rsd if cert_rsd else None
+
+
+def analyse_drift(crm, RB):
+    """Laboratory drift per element: the bias of EVERY CRM of the element in
+    analytical sequence, regressed on rank. A laboratory drift moves all CRMs
+    together, so pooling them is both the right question and a far stronger
+    test than one CRM at a time, which also multiplies false alarms."""
+    out = {}
+    by_el = {}
+    for (label, el), rec in crm.items():
+        for p in rec["points"]:
+            if p["bias"] is not None:
+                by_el.setdefault(el, []).append(
+                    (p["order"] if p["order"] is not None else 0, p["bias"], label))
+    for el, pts in by_el.items():
+        pts.sort(key=lambda x: x[0])
+        st = linreg_stats(list(range(len(pts))), [b for _, b, _ in pts])
+        if st is None:
+            continue
+        total = st["b"] * (len(pts) - 1)
+        out[el] = {"n": len(pts), "slope": st["b"], "a": st["a"], "total": total,
+                   "p": st["p"], "n_crm": len({x[2] for x in pts}),
+                   "series": [(o, b, lab) for o, b, lab in pts],
+                   "sig": bool(st["p"] < RB["drift_p"]
+                               and abs(total) >= RB["drift_total"])}
+    return out
 
 
 def analyse_accuracy_curve(crm):
@@ -980,9 +1011,9 @@ def analyse_coverage(project, RB):
 # ===========================================================================
 #  2.0 -- blanks: carry-over evidence
 # ===========================================================================
-def _blank_extras(rec, S):
-    dl = rec["dl"]
+def _blank_extras(rec, hi_cut):
     pts = rec["points"]
+    rec["high_grade_cut"] = hi_cut
     pairs = [(p["prev_value"], p["value"]) for p in pts
              if p["prev_value"] is not None]
     sp = spearman([a for a, _ in pairs], [b for _, b in pairs])
@@ -991,7 +1022,7 @@ def _blank_extras(rec, S):
     ratios = sorted(p["ratio"] for p in pts if p["ratio"] is not None)
     rec["median_ratio"] = pctile(ratios, 50)
     high = [p for p in pts if p["prev_value"] is not None
-            and p["prev_value"] > S["carry_kdl"] * dl]
+            and p["prev_value"] >= hi_cut]
     other = [p for p in pts if p not in high]
     rec["n_after_high"] = len(high)
     rec["fail_after_high_pct"] = (100.0 * sum(p["fail"] for p in high) / len(high)

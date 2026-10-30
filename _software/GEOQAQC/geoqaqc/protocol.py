@@ -555,7 +555,7 @@ _r("unit_col_tol", "CLEANING", "C11 tolerance on the column ratio (%)", "float",
    "1000, 10000, 1/1000 or 1/10000 to be called a unit mismatch.", 1, 60)
 _r("unit_single_tol", "CLEANING", "C12 tolerance on a single ratio (%)",
    "float", 10.0, "A single result must lie within this much of 10, 100 or "
-   "1000 times (or a tenth, hundredth, thousandth of) its certificate.", 1, 40)
+   "1000 or 10000 times (or that fraction of) its certificate.", 1, 40)
 _r("swap_frac", "CLEANING", "C13/C15 share of elements that must agree",
    "float", 0.667, "Share of the certified elements in which the result must "
    "fail its own CRM and agree with the other one. Two thirds keeps a single "
@@ -614,6 +614,12 @@ _r("coverage_pcts", "CRM", "Grade percentiles the CRMs should cover", "list",
 _r("carry_frac", "BLANK", "Carry-over: share of failures after high grade",
    "float", 0.5, "If at least this share of blank failures follows a "
    "high-grade sample, carry-over is the cause.", 0.2, 1.0)
+_r("carry_pctile", "BLANK", "Carry-over: 'high grade' percentile", "float",
+   75.0, "A preceding routine sample at or above this percentile of the routine "
+   "grades (and above the high-grade multiple of the DL in Settings) counts as "
+   "high grade in the carry-over test. A fixed multiple of the DL alone means "
+   "nothing for an element where nearly every sample is far above it.",
+   50.0, 99.0)
 _r("blank_median_kdl", "BLANK", "Contaminated blank material (median x DL)",
    "float", 2.0, "A blank material whose median sits above this, without any "
    "link to the preceding sample, is itself not barren.", 1.0, 20.0)

@@ -222,3 +222,31 @@ def test_log_api():
     assert set(row) == {"Rule", "Sample", "Element", "Original", "Action",
                         "Reason", "Severity"}
     assert p.clean_log is log
+
+
+def test_C12_percent_typed_as_ppm():
+    # x 10000 is the commonest slip of all: a % column filled in ppm
+    rows = crm_rows("OREAS-501b", 0.283, 0.312)
+    rows[2]["Cu_pct"] = f"{0.2831 * 10000:.0f}"
+    p, log = run(rows)
+    assert p.samples[2].excl["Cu_pct"].startswith("C12")
+
+
+def test_C13_swap_found_despite_laboratory_bias():
+    # this laboratory reads every Au 12 % high: a swapped CRM carries the same
+    # bias, so it must be compared with what the lab reports for the other CRM,
+    # not only with that CRM's certificate
+    rows = []
+    for code, cu, au in (("OREAS-501b", 0.283, 0.312), ("OREAS-504b", 1.052, 0.905),
+                         ("CDN-ME-1", 0.505, 1.48)):
+        for i in range(8):
+            d = ((i * 7) % 5 - 2) * 0.006
+            rows.append({"SAMPLE_ID": f"{code}-{i}", "SAMPLE_TYPE": "CRM",
+                         "CRM_ID": code, "Cu_pct": f"{cu * (1 + d):.4f}",
+                         "Au_ppm": f"{au * 1.12 * (1 + d):.4f}"})
+    rows.append({"SAMPLE_ID": "X1", "SAMPLE_TYPE": "CRM", "CRM_ID": "OREAS-504b",
+                 "Cu_pct": "0.2850", "Au_ppm": f"{0.312 * 1.12 * 1.01:.4f}"})
+    p, log = run(rows)
+    assert by_id(p, "X1")[0].excl_all.startswith("C13")
+    # the biased but correctly labelled results are not swaps
+    assert rules_of(log).count("C13") == 1

@@ -361,6 +361,37 @@ def _z(project, key, el, v):
     return (v - c["cert"]) / sd
 
 
+# fewer results than this and a CRM's observed location is not trusted
+_MIN_OBSERVED = 5
+
+
+def _lab_view(project, key, el):
+    """(location, scale) of what THIS laboratory reports for CRM key.
+    Location: the median of its results (robust to the odd swap or slip), so a
+    laboratory-wide bias does not hide a swap. Scale: never tighter than the
+    certified SD. With too few results the certificate itself is used."""
+    c = project.certs.get((key, el))
+    if not c:
+        return None, None
+    sd = _eff_sd(project, key, el)
+    vals = sorted(s.vals[el] for s in _crm_results(project, key, el)
+                  if c["cert"] and 0.5 <= s.vals[el] / c["cert"] <= 2.0)
+    if len(vals) < _MIN_OBSERVED:
+        return c["cert"], sd
+    loc = vals[len(vals) // 2] if len(vals) % 2 else (
+        vals[len(vals) // 2 - 1] + vals[len(vals) // 2]) / 2.0
+    rsd = _robust_sd(vals)
+    scale = max(x for x in (sd, rsd) if x) if (sd or rsd) else None
+    return loc, scale
+
+
+def _zl(project, key, el, v):
+    loc, scale = _lab_view(project, key, el)
+    if loc is None or not scale:
+        return None
+    return (v - loc) / scale
+
+
 def _crm_keys(project):
     return sorted({k for k, _ in project.certs})
 
@@ -406,7 +437,8 @@ def _single_slips(project, S, RB, L):
             z = _z(project, key, el, s.vals[el])
             if z is not None and abs(z) <= S["k_fail"]:
                 continue
-            for k in (1, 2, 3, -1, -2, -3):
+            # 10^4 included: a % column filled in ppm is the commonest slip
+            for k in (1, 2, 3, 4, -1, -2, -3, -4):
                 if r > 0 and abs(r / 10.0 ** k - 1.0) <= tol:
                     s.excl[el] = f"C12 reads {r:.4g} x certificate (decimal/unit slip)"
                     L.add("C12", s.sid, el, s.raw.get(el), "excluded",
@@ -431,8 +463,8 @@ def _match_other(project, s, own_key, RB, S, require_own_fail=True):
                and (own_key is None or (own_key, el) in project.certs)]
         if not els:
             continue
-        z_alt = [_z(project, k2, el, s.vals[el]) for el in els]
-        z_own = ([_z(project, own_key, el, s.vals[el]) for el in els]
+        z_alt = [_zl(project, k2, el, s.vals[el]) for el in els]
+        z_own = ([_zl(project, own_key, el, s.vals[el]) for el in els]
                  if own_key is not None else [None] * len(els))
         if any(z is None for z in z_alt):
             continue
