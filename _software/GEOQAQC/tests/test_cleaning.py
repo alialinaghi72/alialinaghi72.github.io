@@ -107,6 +107,7 @@ def test_C10_unit_conversion():
     c = p.certs[("OREAS501B", "Au_ppm")]
     assert c["cert"] == pytest.approx(0.312)
     assert c["sd"] == pytest.approx(0.018)
+    assert c["unit"] == "ppm"            # the unit of the converted value
     assert p.certs[("OREAS501B", "Cu_pct")]["cert"] == pytest.approx(0.283)
     assert [(a.element, a.action) for a in log.actions if a.rule == "C10"] == [
         ("Au_ppm", "converted"), ("Cu_pct", "corrected")]

@@ -289,12 +289,14 @@ def _build_certs(project, RB, L):
             if col is None:
                 continue
             factor = 1.0
+            out_unit = unit
             if fuzzy_el:
                 cu = canonical_unit(unit) or element_unit(el)
                 au = element_unit(col)
                 f = unit_factor(cu, au) if cu and au else None
                 if f is not None and f != 1:
                     factor = float(f)
+                    out_unit = au
                     L.add("C10", label, col, f"{cv:g} {cu}", "converted",
                           f"certificate in {cu}, assay column in {au}: "
                           f"x {factor:g}")
@@ -303,7 +305,7 @@ def _build_certs(project, RB, L):
                           f"certificate element '{el}' matched to column '{col}'")
             certs[(key, col)] = {
                 "cert": cv * factor, "sd": sd * factor if sd is not None else None,
-                "unit": unit, "method": str(ct.get(r, "method") or "").strip(),
+                "unit": out_unit, "cert_unit": unit, "method": str(ct.get(r, "method") or "").strip(),
                 "label": label, "factor": factor}
     # labels for codes that only occur in the assay table
     for s in project.samples:
