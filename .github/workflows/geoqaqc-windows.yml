@@ -1,0 +1,55 @@
+name: GEOQAQC Windows build
+
+on:
+  push:
+    paths:
+      - "_software/GEOQAQC/**"
+      - ".github/workflows/geoqaqc-windows.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: _software/GEOQAQC
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller pytest
+
+      - name: Tests
+        run: python -m pytest -q -m "not ui" -p no:cacheprovider
+
+      - name: Self-test from source (HTML, PDF with Edge, Word)
+        run: python GEOQAQC.py --selftest selftest_out
+
+      - name: Build the executables
+        run: python -m PyInstaller --noconfirm --clean GEOQAQC.spec
+
+      - name: Self-test the executable
+        run: .\dist\GEOQAQC_console.exe --selftest exe_selftest
+
+      - name: Collect the release
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force release | Out-Null
+          Copy-Item dist\GEOQAQC.exe, dist\GEOQAQC_console.exe, README.md, CHANGELOG.md, requirements.txt release\
+          Copy-Item sample_data release\sample_data -Recurse
+          Copy-Item exe_selftest release\example_output -Recurse
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GEOQAQC-2.0-windows
+          path: _software/GEOQAQC/release
+          if-no-files-found: error
