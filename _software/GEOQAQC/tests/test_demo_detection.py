@@ -106,3 +106,22 @@ def test_mo_clean(pr):
         for key, rec in R[section].items():
             if key[1] == "Mo_ppm":
                 assert rec["rating"] in ok, (section, key, rec["rating"])
+
+
+@pytest.mark.parametrize("seed", [1, 7])
+def test_clean_elements_hold_across_seeds(seed, tmp_path):
+    # the clean-element assertions must not depend on the demo's chosen seed
+    import sys
+    sys.path.insert(0, DATA)
+    from make_demo import make_demo
+    from geoqaqc.diagnosis import diagnose
+    make_demo(str(tmp_path), seed=seed)
+    p = load_project(*(str(tmp_path / f) for f in (
+        "demo_assay.csv", "demo_crm_certificates.csv", "demo_umpire.csv")))
+    C = {k: dict(v) for k, v in DEFAULT_CRITERIA.items()}
+    S, rb = dict(DEFAULT_SETTINGS), RuleBook()
+    R = run_analysis(p, FormulaBook(DEFAULT_FORMULAS), C, S, rb, log=lambda m: None)
+    assert R["drift"]["Cu_pct"]["sig"] is True
+    for el in ("Au_ppm", "Ag_ppm", "Mo_ppm"):
+        assert R["drift"][el]["sig"] is False, el
+    assert diagnose(p, R, C, S, rb).verdict("Mo_ppm")[0] == "SUITABLE"

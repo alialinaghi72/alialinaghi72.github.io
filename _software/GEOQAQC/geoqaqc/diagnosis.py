@@ -178,7 +178,11 @@ def _crm(d, el, R, C, S, RB, sev):
     nocert = sorted({r["crm"] for (lab, e), r in R.get("crm", {}).items()
                      if e == el and r.get("cert") is None})
     if nocert:
-        d.add("CRM_NOCERT", el, "DATA", "MATERIAL" if not recs else "MINOR",
+        # with no certified CRM at all the accuracy of the element is unknown:
+        # a gap of the QC programme that limits the verdict, as a missing CRM
+        # class does; a few uncertified CRMs among certified ones are a data issue
+        d.add("CRM_NOCERT", el, "PROGRAMME" if not recs else "DATA",
+              "MATERIAL" if not recs else "MINOR",
               T.f_CRM_NOCERT(el, nocert, none_at_all=not recs), "DATABASE",
               "BEFORE_ESTIMATE")
     if not recs:

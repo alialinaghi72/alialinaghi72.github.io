@@ -111,3 +111,16 @@ def test_usable_and_detection_limit():
     # both '<' results are unusable, so the DL falls back to the smallest
     # positive usable value
     assert detection_limit(pr, "Au", {}) == pytest.approx(0.5)
+
+
+def test_detection_limit_ignores_zero_below_dl():
+    # a laboratory that writes below-DL as 0 (C07 turns it into '<' 0) must not
+    # give a detection limit of zero, which would switch the blank test off
+    pr = Project()
+    for i, (v, f) in enumerate([(0.0, "<"), (0.0, "<"), (0.01, ""), (0.25, "")]):
+        s = Sample(f"S{i}", i + 2)
+        s.vals, s.flags = {"Au": v}, {"Au": f}
+        pr.samples.append(s)
+    assert detection_limit(pr, "Au", {}) == pytest.approx(0.01)
+    pr.samples[1].vals["Au"] = 0.005               # a real '<0.005' is preferred
+    assert detection_limit(pr, "Au", {}) == pytest.approx(0.005)

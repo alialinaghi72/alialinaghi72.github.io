@@ -99,3 +99,35 @@ def test_texts_have_no_placeholders():
         assert len(out) == 4
         for txt in out[:3] + tuple(out[3]):
             assert txt and "{" not in txt and "}" not in txt, (fn.__name__, txt)
+
+
+def test_crms_without_any_certificate_restrict_the_verdict():
+    # CRMs inserted but no certificate for the element: accuracy is unknown,
+    # which is never "suitable" (no CRMs at all already gives RESTRICTED)
+    from conftest import make_project
+    from geoqaqc.analysis import run_analysis
+    from geoqaqc.protocol import DEFAULT_FORMULAS, FormulaBook
+    import random
+    rng = random.Random(3)
+    rows = []
+    for i in range(400):
+        v = rng.lognormvariate(-1.2, 0.6)
+        rows.append({"SAMPLE_ID": f"S{i}", "Cu_pct": f"{v:.4f}"})
+        if i % 20 == 0:                  # the laboratory reads 15 % high
+            rows.append({"SAMPLE_ID": f"C{i}", "SAMPLE_TYPE": "CRM", "CRM_ID": "CRM-A",
+                         "Cu_pct": f"{0.5 * 1.15 * (1 + rng.gauss(0, 0.02)):.4f}"})
+        if i % 20 == 10:
+            rows.append({"SAMPLE_ID": f"BL{i}", "SAMPLE_TYPE": "BLANK", "Cu_pct": "<0.001"})
+        if i % 20 == 5:
+            for t, cv in (("FIELD DUP", 0.08), ("COARSE DUP", 0.04), ("PULP DUP", 0.02)):
+                rows.append({"SAMPLE_ID": f"{t[0]}D{i}", "SAMPLE_TYPE": t,
+                             "PARENT_ID": f"S{i}",
+                             "Cu_pct": f"{v * (1 + rng.gauss(0, cv)):.4f}"})
+    p, S = make_project(rows, None, ("Cu_pct",))
+    C = {k: dict(v) for k, v in DEFAULT_CRITERIA.items()}
+    rb = RuleBook()
+    R = run_analysis(p, FormulaBook(DEFAULT_FORMULAS), C, S, rb, log=lambda m: None)
+    d = diagnose(p, R, C, S, rb)
+    f = [x for x in d.by_element("Cu_pct") if x.code == "CRM_NOCERT"]
+    assert f and f[0].severity == "MATERIAL"
+    assert d.verdict("Cu_pct")[0] != "SUITABLE"

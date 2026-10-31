@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 _WIN = [
@@ -23,6 +24,12 @@ _MAC = ["/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
         "/Applications/Chromium.app/Contents/MacOS/Chromium"]
 _PATH = ["msedge", "microsoft-edge", "google-chrome", "google-chrome-stable",
          "chromium", "chromium-browser", "chrome"]
+
+# Windows: a profile of its own for each print. On the user's shared profile an
+# Edge window that is already open (or Edge's startup boost) takes the job over
+# and prints nothing. Elsewhere the default profile is kept: a full Chromium in
+# a bare Linux container stalls on a fresh profile.
+PRIVATE_PROFILE = os.name == "nt"
 
 NO_BROWSER = ("Microsoft Edge, Google Chrome or Chromium was not found, so the PDF "
               "could not be made. Open the HTML report in any browser and print it "
@@ -55,9 +62,12 @@ def html_to_pdf(html_path, pdf_path, browser=None, timeout=240):
     pdf_path = str(Path(pdf_path).resolve())
     if os.path.exists(pdf_path):
         os.remove(pdf_path)
+    profile = tempfile.mkdtemp(prefix="geoqaqc_browser_") if PRIVATE_PROFILE else None
     args = [browser, "--headless=new", "--disable-gpu", "--no-pdf-header-footer",
-            "--no-first-run", "--disable-extensions", f"--print-to-pdf={pdf_path}",
-            Path(html_path).resolve().as_uri()]
+            "--no-first-run", "--no-default-browser-check", "--disable-extensions",
+            f"--print-to-pdf={pdf_path}", Path(html_path).resolve().as_uri()]
+    if profile:
+        args.insert(-2, f"--user-data-dir={profile}")
     if os.name != "nt":
         args.insert(1, "--no-sandbox")
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
@@ -66,6 +76,9 @@ def html_to_pdf(html_path, pdf_path, browser=None, timeout=240):
                        timeout=timeout, creationflags=flags, check=False)
     except (OSError, subprocess.TimeoutExpired) as ex:
         raise RuntimeError(f"The browser could not print the report: {ex}")
+    finally:
+        if profile:
+            shutil.rmtree(profile, ignore_errors=True)
     if not os.path.exists(pdf_path) or os.path.getsize(pdf_path) == 0:
         raise RuntimeError("The browser ran but wrote no PDF. " + NO_BROWSER)
     return pdf_path

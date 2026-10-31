@@ -363,6 +363,42 @@ def linreg_stats(xs, ys):
     return {"a": a, "b": b, "r": r, "se_b": se_b, "t": t, "p": p, "n": n}
 
 
+def common_slope(groups):
+    """One slope shared by several series, each with its own intercept
+    (analysis of covariance): x and y are centred within each group, so the
+    level of one group never reads as a trend across groups.
+    groups: iterable of (xs, ys). Returns {b, se_b, t, p, n, k, mx} or None."""
+    sxx = sxy = 0.0
+    cen, n, k, sx = [], 0, 0, 0.0
+    for xs, ys in groups:
+        pts = [(x, y) for x, y in zip(xs, ys) if x is not None and y is not None]
+        if not pts:
+            continue
+        gx = sum(p[0] for p in pts) / len(pts)
+        gy = sum(p[1] for p in pts) / len(pts)
+        for x, y in pts:
+            cen.append((x - gx, y - gy))
+            sx += x
+        n += len(pts)
+        k += 1
+    df = n - k - 1
+    if df < 1:
+        return None
+    sxx = sum(dx * dx for dx, _ in cen)
+    sxy = sum(dx * dy for dx, dy in cen)
+    if sxx == 0:
+        return None
+    b = sxy / sxx
+    sse = sum((dy - b * dx) ** 2 for dx, dy in cen)
+    se_b = math.sqrt(sse / df / sxx) if sse > 0 else 0.0
+    if se_b == 0:
+        t, p = (math.inf if b else 0.0), (0.0 if b else 1.0)
+    else:
+        t = b / se_b
+        p = t_two_tail_p(t, df)
+    return {"b": b, "se_b": se_b, "t": t, "p": p, "n": n, "k": k, "mx": sx / n}
+
+
 def _ranks(vals):
     order = sorted(range(len(vals)), key=lambda i: vals[i])
     ranks = [0.0] * len(vals)

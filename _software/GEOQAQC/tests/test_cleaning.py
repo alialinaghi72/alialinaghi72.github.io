@@ -84,6 +84,29 @@ def test_C03_exclude_all():
     assert [s.dropped for s in p.samples] == [True, True]
 
 
+def test_C03_spares_controls_named_by_code():
+    # laboratory-style files: every CRM row carries the CRM name as its ID and
+    # every blank is called BLANK; those are not re-assays
+    rows = crm_rows("OREAS-501b", 0.283, 0.312)
+    for r in rows:
+        r["SAMPLE_ID"] = "OREAS-501b"
+    rows += [{"SAMPLE_ID": "BLANK", "SAMPLE_TYPE": "BLANK", "Cu_pct": "<0.001",
+              "Au_ppm": "<0.005"} for _ in range(4)]
+    p, log = run(rows)
+    assert not any(s.dropped for s in p.samples)
+    assert "C03" not in rules_of(log)
+
+
+def test_C03_spares_duplicate_under_parent_id():
+    # a laboratory repeat listed under its parent's own sample number
+    rows = [{"SAMPLE_ID": "S1", "Cu_pct": "0.2", "Au_ppm": "0.1"},
+            {"SAMPLE_ID": "S1", "SAMPLE_TYPE": "PULP DUP", "PARENT_ID": "S1",
+             "Cu_pct": "0.21", "Au_ppm": "0.1"}]
+    p, log = run(rows)
+    assert [s.dropped for s in p.samples] == [False, False]
+    assert "C03" not in rules_of(log)
+
+
 # ---- C09-C12: certificates and units ----------------------------------------
 def test_norm_code():
     assert norm_code(" OREAS 501b ") == norm_code("oreas-501B") == "OREAS501B"
@@ -197,6 +220,63 @@ def test_C15_crm_inserted_as_blank():
     p, log = run(rows)
     assert by_id(p, "BSWAP")[0].excl_all.startswith("C15")
     assert by_id(p, "BDIRTY")[0].excl_all == ""          # contamination is kept
+
+
+def _two_crms(els):
+    a = {"Cu_pct": (0.50, 0.015), "Au_ppm": (1.00, 0.04), "Ag_ppm": (5.0, 0.2),
+         "Mo_ppm": (100, 4)}
+    b = {"Cu_pct": (0.80, 0.02), "Au_ppm": (0.30, 0.015), "Ag_ppm": (2.0, 0.1),
+         "Mo_ppm": (100, 4)}
+    certs = ([("CRM-A", e, a[e][0], a[e][1], "") for e in els]
+             + [("CRM-B", e, b[e][0], b[e][1], "") for e in els])
+    rows = []
+    for i in range(8):
+        j = (i % 3 - 1) * 0.004
+        rows.append(dict({"SAMPLE_ID": f"A{i}", "SAMPLE_TYPE": "CRM", "CRM_ID": "CRM-A"},
+                         **{e: f"{a[e][0] * (1 + j):.4f}" for e in els}))
+        rows.append(dict({"SAMPLE_ID": f"B{i}", "SAMPLE_TYPE": "CRM", "CRM_ID": "CRM-B"},
+                         **{e: f"{b[e][0] * (1 + j):.4f}" for e in els}))
+    return rows, certs
+
+
+def test_C13_counts_both_conditions_in_the_same_element():
+    # labelled A: Cu and Au read as B, Ag fails A and matches neither, Mo is
+    # the same in both. Only Cu and Au both fail A and agree with B: 2 of 4,
+    # short of two-thirds, so this is kept as a genuine failure
+    els = ("Cu_pct", "Au_ppm", "Ag_ppm", "Mo_ppm")
+    rows, certs = _two_crms(els)
+    rows.append({"SAMPLE_ID": "X1", "SAMPLE_TYPE": "CRM", "CRM_ID": "CRM-A",
+                 "Cu_pct": "0.80", "Au_ppm": "0.30", "Ag_ppm": "9.0", "Mo_ppm": "100"})
+    p, log = run(rows, certs, elements=els)
+    assert by_id(p, "X1")[0].excl_all == ""
+    assert "C13" not in rules_of(log, "X1")
+
+
+def test_C13_two_of_three_is_two_thirds():
+    els = ("Cu_pct", "Au_ppm", "Mo_ppm")
+    rows, certs = _two_crms(els)
+    rows.append({"SAMPLE_ID": "X1", "SAMPLE_TYPE": "CRM", "CRM_ID": "CRM-A",
+                 "Cu_pct": "0.80", "Au_ppm": "0.30", "Mo_ppm": "100"})
+    p, log = run(rows, certs, elements=els)
+    assert by_id(p, "X1")[0].excl_all.startswith("C13")
+
+
+def test_C15_single_element_only_flags():
+    # one element cannot tell a contaminated blank from a low-grade CRM
+    certs = [("OREAS-LOW", "Au_ppm", 0.10, 0.006, "ppm"),
+             ("OREAS-HI", "Au_ppm", 2.5, 0.08, "ppm")]
+    rows = [{"SAMPLE_ID": f"S{i}", "Au_ppm": f"{0.05 + i * 0.05:.3f}"} for i in range(60)]
+    rows += [{"SAMPLE_ID": f"L{i}", "SAMPLE_TYPE": "CRM", "CRM_ID": "OREAS-LOW",
+              "Au_ppm": f"{0.10 * (1 + (i % 3 - 1) * 0.03):.4f}"} for i in range(6)]
+    rows += [{"SAMPLE_ID": f"H{i}", "SAMPLE_TYPE": "CRM", "CRM_ID": "OREAS-HI",
+              "Au_ppm": f"{2.5 * (1 + (i % 3 - 1) * 0.02):.4f}"} for i in range(6)]
+    rows += [{"SAMPLE_ID": f"BL{i}", "SAMPLE_TYPE": "BLANK", "Au_ppm": "<0.005"}
+             for i in range(10)]
+    rows += [{"SAMPLE_ID": "BL-DIRTY", "SAMPLE_TYPE": "BLANK", "Au_ppm": "0.105"}]
+    p, log = run(rows, certs, elements=("Au_ppm",))
+    assert by_id(p, "BL-DIRTY")[0].excl_all == ""
+    acts = [a for a in log.actions if a.rule == "C15"]
+    assert [(a.sample, a.action) for a in acts] == [("BL-DIRTY", "flagged")]
 
 
 # ---- switches -------------------------------------------------------------------

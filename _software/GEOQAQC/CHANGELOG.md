@@ -28,6 +28,20 @@
 - Requires matplotlib and python-docx (bundled in the EXE).
 - Blanks are analysed per blank type; CRMs keyed by their certificate label.
 
+### Fixed after the independent review
+- Laboratory drift is fitted with one slope and a separate level for each CRM,
+  so replacing one CRM with another is no longer reported as drift.
+- A laboratory that writes below-detection results as 0 no longer switches the
+  blank test off (the detection limit ignores zero '<' values).
+- CRMs with no certificate for an element limit its verdict (accuracy unknown).
+- C03 no longer drops CRMs or blanks named by their code, or a repeat filed under
+  its parent's number; C08 keeps an over-range blank as a failure; C13 counts an
+  element only when it both fails its own CRM and matches the other; C15 only
+  flags on single-element evidence; "two-thirds" accepts 2 of 3.
+- The PDF is printed with a private browser profile, so an open Edge window no
+  longer stops it.
+- The Windows package unpacks into one folder, `GEOQAQC-2.0`.
+
 ### Compatibility
 - With every cleaning rule switched off, results equal GEOQAQC 1.1 on the 1.1
   sample data (checked by an automated test).

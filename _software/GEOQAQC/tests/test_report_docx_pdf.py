@@ -100,3 +100,24 @@ def test_non_ascii_paths(doc, tmp_path):
     dx = write_docx(doc, str(folder / "گزارش.docx"))
     for f in (html, pdf, dx):
         assert os.path.getsize(f) > 10_000, f
+
+
+def test_pdf_uses_its_own_browser_profile(monkeypatch, tmp_path):
+    # with Edge already open (or its startup boost), a headless run on the
+    # shared profile can hand the job to that window and print nothing
+    import geoqaqc.report.pdf as pdf
+    seen = {}
+
+    def fake_run(args, **kw):
+        seen["args"] = args
+        prof = [a for a in args if a.startswith("--user-data-dir=")]
+        seen["profile"] = prof[0].split("=", 1)[1] if prof else None
+        seen["existed"] = bool(prof) and os.path.isdir(seen["profile"])
+        out = [a for a in args if a.startswith("--print-to-pdf=")][0].split("=", 1)[1]
+        open(out, "wb").write(b"%PDF-1.4")
+    monkeypatch.setattr(pdf.subprocess, "run", fake_run)
+    monkeypatch.setattr(pdf, "PRIVATE_PROFILE", True)       # as on Windows
+    (tmp_path / "a.html").write_text("<p>x</p>", encoding="utf-8")
+    pdf.html_to_pdf(str(tmp_path / "a.html"), str(tmp_path / "a.pdf"), browser="edge")
+    assert seen["profile"] and seen["existed"]
+    assert not os.path.exists(seen["profile"])          # removed afterwards

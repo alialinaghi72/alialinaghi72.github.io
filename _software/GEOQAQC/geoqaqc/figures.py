@@ -290,8 +290,9 @@ def fig_crm_batch(rec, S, C=None):
 def fig_crm_drift(dr, el, S, C=None):
     good = _limits(C, "crm_bias")[2]
     f = Figure(f"Laboratory drift{SEP}{el}",
-               "Bias of every CRM in analytical order, with the fitted trend",
-               "rank in analytical sequence", "bias %")
+               "Bias of every CRM in analytical order, less that CRM's own mean "
+               "bias, with the common trend",
+               "rank in analytical sequence", "bias less the CRM's mean bias, %")
     f.band(-good, good, "okband")
     f.hline(0, "fg", 1.0)
     labels = []

@@ -15,10 +15,10 @@ import math
 from .cleaning import clean_pairs, clean_values, parse_value
 from .core import (BLANK_TYPES, DUP_TYPES, R_NA, R_VBAD, SAMPLE_TYPES,
                    SEV_ERROR, SEV_WARN, T_BLANK, T_CBLANK, T_CDUP, T_CRM, T_FDUP,
-                   T_NORMAL, T_PBLANK, T_PDUP, T_UMP, classify_type, cusum,
-                   linreg, linreg_stats, mean, paired_t, pctile, rma, spearman,
-                   stdev, t_two_tail_p, wilcoxon)
-from .model import build_samples, detection_limit, usable
+                   T_NORMAL, T_PBLANK, T_PDUP, T_UMP, classify_type, common_slope,
+                   cusum, linreg, linreg_stats, mean, paired_t, pctile, rma,
+                   spearman, stdev, t_two_tail_p, wilcoxon)
+from .model import build_samples, detection_limit, pairable, usable
 from .protocol import combine_ratings, rate
 
 # ===========================================================================
@@ -331,7 +331,7 @@ def analyse_duplicates(project, F, C, S, RB, pairs, log=print):
             dl = detection_limit(project, el, S)
             rows = []
             for so, sd_ in plist:
-                if not usable(so, el) or not usable(sd_, el):
+                if not pairable(so, el, RB) or not pairable(sd_, el, RB):
                     continue
                 a, b = so.vals.get(el), sd_.vals.get(el)
                 below = (so.flags.get(el) == "<" or sd_.flags.get(el) == "<"
@@ -660,7 +660,7 @@ def build_umpire(project, S, RB, log=print):
             if not lab:
                 lab = str(ut.get(r, "lab") or "").strip()
             for c, e in colmap.items():
-                if not usable(prim, e):
+                if not pairable(prim, e, RB):
                     continue
                 a = prim.vals.get(e)
                 b, flag, _ = parse_value(ut.col(r, c), RB, decimal_comma=udc)
@@ -679,7 +679,7 @@ def build_umpire(project, S, RB, log=print):
         if not lab:
             lab = smp.lab
         for e in project.elements:
-            if not usable(prim, e) or not usable(smp, e):
+            if not pairable(prim, e, RB) or not pairable(smp, e, RB):
                 continue
             a, b = prim.vals.get(e), smp.vals.get(e)
             pairs.setdefault(e, []).append(
@@ -925,9 +925,11 @@ def _crm_extras(rec, S, RB):
 
 def analyse_drift(crm, RB):
     """Laboratory drift per element: the bias of EVERY CRM of the element in
-    analytical sequence, regressed on rank. A laboratory drift moves all CRMs
-    together, so pooling them is both the right question and a far stronger
-    test than one CRM at a time, which also multiplies false alarms."""
+    analytical sequence, regressed on rank with one slope for all CRMs and
+    an intercept of its own for each. A laboratory drift moves all CRMs
+    together, so pooling them is a far stronger test than one CRM at a time;
+    the separate intercepts keep a change from one CRM to another (each with
+    its own small bias) from reading as a drift."""
     out = {}
     by_el = {}
     for (label, el), rec in crm.items():
@@ -937,13 +939,22 @@ def analyse_drift(crm, RB):
                     (p["order"] if p["order"] is not None else 0, p["bias"], label))
     for el, pts in by_el.items():
         pts.sort(key=lambda x: x[0])
-        st = linreg_stats(list(range(len(pts))), [b for _, b, _ in pts])
+        groups, level = {}, {}
+        for k, (_, b, lab) in enumerate(pts):
+            groups.setdefault(lab, ([], []))
+            groups[lab][0].append(k)
+            groups[lab][1].append(b)
+        for lab, (_, bs) in groups.items():
+            level[lab] = mean(bs)
+        st = common_slope(groups.values())
         if st is None:
             continue
         total = st["b"] * (len(pts) - 1)
-        out[el] = {"n": len(pts), "slope": st["b"], "a": st["a"], "total": total,
-                   "p": st["p"], "n_crm": len({x[2] for x in pts}),
-                   "series": [(o, b, lab) for o, b, lab in pts],
+        # the series as drawn: each bias less its CRM's own mean bias
+        series = [(o, b - level[lab], lab) for o, b, lab in pts]
+        out[el] = {"n": len(pts), "slope": st["b"], "a": -st["b"] * st["mx"],
+                   "total": total, "p": st["p"], "n_crm": len(groups),
+                   "series": series, "levels": level,
                    "sig": bool(st["p"] < RB["drift_p"]
                                and abs(total) >= RB["drift_total"])}
     return out

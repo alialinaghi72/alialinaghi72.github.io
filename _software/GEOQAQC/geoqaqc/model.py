@@ -452,13 +452,15 @@ def build_samples(project, S, log=print):
 
 def detection_limit(project, element, S):
     """Detection limit for an element: the declared value if the user gave one,
-    otherwise inferred from the smallest '<' value, otherwise the smallest
-    positive result in the dataset."""
+    otherwise inferred from the largest '<' value, otherwise the smallest
+    positive result in the dataset. A '<' of zero (a laboratory writing below
+    detection as 0) says nothing about the limit and is ignored."""
     t = project.assay
     if t is not None and t.dl.get(element) is not None:
         return t.dl[element]
     below = [s.vals[element] for s in project.samples
-             if s.flags.get(element) == "<" and usable(s, element)]
+             if s.flags.get(element) == "<" and usable(s, element)
+             and s.vals[element] > 0]
     if below:
         return max(below)
     pos = [s.vals[element] for s in project.samples
@@ -470,3 +472,9 @@ def usable(s, el):
     """True when sample s carries a result for el that may enter statistics."""
     return (not s.dropped and not s.excl_all and el not in s.excl
             and s.vals.get(el) is not None)
+
+
+def pairable(s, el, RB):
+    """usable, and not an over-range ('>') value when C08 is on: a censored
+    value says nothing about the precision of a pair."""
+    return usable(s, el) and not (RB["clean_C08"] and s.flags.get(el) == ">")

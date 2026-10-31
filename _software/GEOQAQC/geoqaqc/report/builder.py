@@ -16,6 +16,7 @@ from ..core import (BLANK_TYPES, DUP_TYPES, R_NA, RATING_ORDER, T_NORMAL, T_PDUP
                     fa_digits, fa_num)
 from ..diagnosis import SEVERITIES, STAGES
 from ..figures import figure_catalog
+from ..model import usable
 from ..protocol import DEFAULT_CRITERIA, DEFAULT_SETTINGS, RULES
 from . import texts_fa as T
 from .document import (Bullets, Callout, Cell, Cover, DocControl, Document,
@@ -328,7 +329,8 @@ def _el_contamination(ctx, doc, el):
     ctx.sub(doc, T.H["contamination"])
     recs = [(bt, R["blank"][(bt, el)]) for bt in BLANK_TYPES if (bt, el) in R.get("blank", {})]
     if not recs:
-        doc.add(Para(T.MISSING["blank"]))
+        have = any(s.stype in BLANK_TYPES and usable(s, el) for s in ctx.project.samples)
+        doc.add(Para(T.MISSING["blank_nodl" if have else "blank"]))
         return
     doc.add(Para(T.SECTION_INTRO["contamination"]))
     rows = [[T.TYPE_FA[bt], _n(r["n"], 0), _n(r["limit"]), _n(r["n_fail"], 0),

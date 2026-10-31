@@ -100,3 +100,19 @@ def test_split_runs():
     assert ("P90 HARD", True, False) in runs
     assert ("۱۲٪", False, True) in runs
     assert "".join(r[0] for r in runs) == "صدک P90 HARD برابر ۱۲٪ است"
+
+
+def test_blank_section_says_dl_unknown(tmp_path):
+    # blanks are present, but every result is 0: the report must not claim
+    # that there are no blanks
+    rows = [{"SAMPLE_ID": f"S{i}", "Cu_pct": "0"} for i in range(10)]
+    rows += [{"SAMPLE_ID": f"B{i}", "SAMPLE_TYPE": "BLANK", "Cu_pct": "0"} for i in range(6)]
+    p, S = make_project(rows, None, ("Cu_pct",))
+    R = run_analysis(p, FormulaBook(DEFAULT_FORMULAS),
+                     {k: dict(v) for k, v in DEFAULT_CRITERIA.items()}, S, RuleBook(),
+                     log=lambda m: None)
+    path = tmp_path / "r.html"
+    write_html(_run(p, R), str(path))
+    h = path.read_text(encoding="utf-8")
+    assert "حد تشخیص از داده‌ها قابل تعیین" in h
+    assert texts_fa.MISSING["blank"] not in h

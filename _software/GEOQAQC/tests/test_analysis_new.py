@@ -233,3 +233,72 @@ def test_carry_over_relative_grade():
     rec = R["blank"][("COARSE BLANK", "Cu_pct")]
     assert rec["fail_after_high_pct"] == pytest.approx(100.0)
     assert rec["fail_other_pct"] == pytest.approx(0.0)
+
+
+def test_pooled_drift_ignores_crm_changeover():
+    # a stable laboratory: CRM-A (+4 %) is replaced by CRM-B (-4 %) half way;
+    # the change of material is not a drift of the laboratory
+    rng = random.Random(11)
+    certs = [("CRM-A", "Cu_pct", 0.50, 0.02, "%"), ("CRM-B", "Cu_pct", 0.52, 0.02, "%")]
+    rows = []
+    for i in range(50):
+        code, c, f = ("CRM-A", 0.50, 1.04) if i < 25 else ("CRM-B", 0.52, 0.96)
+        rows.append({"SAMPLE_ID": f"C{i}", "SAMPLE_TYPE": "CRM", "CRM_ID": code,
+                     "Cu_pct": f"{c * f * (1 + rng.gauss(0, 0.02)):.4f}"})
+    _, R = analyse(rows, certs, ("Cu_pct",))
+    d = R["drift"]["Cu_pct"]
+    assert d["n"] == 50 and d["n_crm"] == 2
+    assert d["sig"] is False
+    assert abs(d["total"]) < 3.0
+
+
+def test_pooled_drift_detected_across_changeover():
+    # the same change-over, with the laboratory also falling 8 % over the run
+    certs = [("CRM-A", "Cu_pct", 0.50, 0.02, "%"), ("CRM-B", "Cu_pct", 0.52, 0.02, "%")]
+    rows = []
+    for i in range(50):
+        code, c, f = ("CRM-A", 0.50, 1.04) if i < 25 else ("CRM-B", 0.52, 0.96)
+        trend = 1 - 0.08 * i / 49.0
+        rows.append({"SAMPLE_ID": f"C{i}", "SAMPLE_TYPE": "CRM", "CRM_ID": code,
+                     "Cu_pct": f"{c * f * trend * (1 + 0.003 * (-1) ** i):.5f}"})
+    _, R = analyse(rows, certs, ("Cu_pct",))
+    d = R["drift"]["Cu_pct"]
+    assert d["sig"] is True
+    assert d["total"] == pytest.approx(-8.0, abs=1.5)
+
+
+def test_blanks_analysed_when_lab_writes_zero():
+    # below-DL written as 0; one blank in four contaminated at ~10 x DL
+    rows = []
+    for i in range(40):
+        rows.append({"SAMPLE_ID": f"N{i}", "Cu_pct": f"{0.01 + 0.02 * (i % 7):.3f}"})
+        rows.append({"SAMPLE_ID": f"BL{i}", "SAMPLE_TYPE": "BLANK",
+                     "Cu_pct": "0.1" if i % 4 == 0 else "0"})
+    _, R = analyse(rows, CU_CERTS, ("Cu_pct",))
+    rec = R["blank"][("BLANK", "Cu_pct")]
+    assert rec["dl"] == pytest.approx(0.01)
+    assert rec["n"] == 40 and rec["n_fail"] == 10
+
+
+def test_over_range_blank_is_a_failure():
+    rows = [{"SAMPLE_ID": f"S{i}", "Cu_pct": f"{0.1 + i * 0.01:.3f}", "Au_ppm": "<0.01"}
+            for i in range(40)]
+    rows += [{"SAMPLE_ID": f"B{i}", "SAMPLE_TYPE": "BLANK", "Cu_pct": "<0.001",
+              "Au_ppm": "<0.01"} for i in range(19)]
+    rows += [{"SAMPLE_ID": "BX", "SAMPLE_TYPE": "BLANK", "Cu_pct": ">10", "Au_ppm": "<0.01"}]
+    p, R = analyse(rows)
+    b = R["blank"][("BLANK", "Cu_pct")]
+    assert b["n"] == 20 and b["n_fail"] == 1
+    assert [x["sample"] for x in b["points"] if x["fail"]] == ["BX"]
+    assert [a.action for a in p.clean_log.actions if a.rule == "C08"] == ["flagged"]
+
+
+def test_over_range_routine_counts_for_grade_but_not_pairs():
+    rows = [{"SAMPLE_ID": f"S{i}", "Cu_pct": f"{0.1 + i * 0.01:.3f}"} for i in range(30)]
+    rows[0]["Cu_pct"] = ">10"
+    rows += [{"SAMPLE_ID": f"D{i}", "SAMPLE_TYPE": "PULP DUP", "PARENT_ID": f"S{i}",
+              "Cu_pct": f"{(0.1 + i * 0.01) * 1.01:.4f}"} for i in range(10)]
+    rows[30]["Cu_pct"] = "12.5"
+    _, R = analyse(rows, CU_CERTS, ("Cu_pct",))
+    assert R["coverage"]["Cu_pct"]["n"] == 30
+    assert R["dup"][("PULP DUP", "Cu_pct")]["n"] == 9

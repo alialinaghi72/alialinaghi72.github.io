@@ -16,9 +16,10 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 
-from .core import (BLANK_TYPES, T_CRM, canonical_unit, dl_flag, element_symbol,
-                   element_unit, fnum, to_latin_digits, unit_factor)
-from .model import detection_limit, usable
+from .core import (BLANK_TYPES, DUP_TYPES, T_CRM, canonical_unit, dl_flag,
+                   element_symbol, element_unit, fnum, to_latin_digits,
+                   unit_factor)
+from .model import detection_limit, pairable, usable
 
 # ---------------------------------------------------------------------------
 RULE_TITLES = {
@@ -175,11 +176,18 @@ def clean_values(project, S, RB, log=print):
                 seen[key] = s.row_n
 
     # ---- C03 duplicate IDs ----
+    # only rows of the same type compete for an ID. Controls are often named by
+    # their code (every CRM row 'OREAS-501b', every blank 'BLANK'), and a
+    # laboratory repeat may carry its parent's own number: neither is a re-assay
     if _on(RB, "C03"):
         groups = {}
         for s in samples:
-            if not s.dropped:
-                groups.setdefault(s.sid.strip().upper(), []).append(s)
+            if s.dropped or s.stype == T_CRM or s.stype in BLANK_TYPES:
+                continue
+            sid = s.sid.strip().upper()
+            if s.stype in DUP_TYPES and s.parent.strip().upper() == sid:
+                continue
+            groups.setdefault((sid, s.stype), []).append(s)
         policy = RB["dup_id_policy"]
         for sid, lst in groups.items():
             if len(lst) < 2:
@@ -209,16 +217,28 @@ def clean_values(project, S, RB, log=print):
                       else "excluded", _PARSE_REASON[rule])
 
     # ---- C08 over-range ----
+    # a censored value is left out of CRM statistics and of pairs (spec 4);
+    # an over-range blank stays in, as the plainest contamination there is,
+    # and an over-range routine sample still counts towards the grade range
     if _on(RB, "C08"):
         for s in samples:
             if s.dropped:
                 continue
             for el in elements:
-                if s.flags.get(el) == ">" and s.vals.get(el) is not None:
+                if s.flags.get(el) != ">" or s.vals.get(el) is None:
+                    continue
+                if s.stype == T_CRM or s.stype in DUP_TYPES:
                     s.excl[el] = "C08 over-range value (censored)"
                     L.add("C08", s.sid, el, s.raw.get(el), "excluded",
                           "over the upper limit of the method; the true value "
                           "is unknown")
+                elif s.stype in BLANK_TYPES:
+                    L.add("C08", s.sid, el, s.raw.get(el), "flagged",
+                          "over-range blank: kept, and counted as a failure")
+                else:
+                    L.add("C08", s.sid, el, s.raw.get(el), "flagged",
+                          "over the upper limit of the method; kept as a grade, "
+                          "left out of duplicate and check pairs")
 
     # ---- C09 / C10 certificates ----
     _build_certs(project, RB, L)
@@ -453,9 +473,17 @@ def _single_slips(project, S, RB, L):
 # ===========================================================================
 #  Swaps (C13, C14, C15)
 # ===========================================================================
+def _share(k, n, frac):
+    """k of n reaches the share frac, both read to two decimals as the rule is
+    written: two-thirds is entered as 0.667 and 2 of 3 must qualify."""
+    return n > 0 and round(k / n, 2) >= round(frac, 2)
+
+
 def _match_other(project, s, own_key, RB, S, require_own_fail=True):
     """Best other CRM a result agrees with, or None.
-    Returns (key, n_elements, n_agree, mean |z_alt|)."""
+    Returns (key, n_elements, n_agree, mean |z_alt|). For a labelled CRM
+    (C13) an element votes only when it both fails its own CRM and agrees
+    with the other one."""
     best = None
     for k2 in _crm_keys(project):
         if k2 == own_key:
@@ -475,13 +503,14 @@ def _match_other(project, s, own_key, RB, S, require_own_fail=True):
         if require_own_fail:
             if any(z is None for z in z_own):
                 continue
-            fail = sum(1 for z in z_own if abs(z) > S["k_fail"])
             if n >= 2:
-                ok = fail / n >= RB["swap_frac"] and agree / n >= RB["swap_frac"]
+                agree = sum(1 for zo, za in zip(z_own, z_alt)
+                            if abs(zo) > S["k_fail"] and abs(za) <= RB["swap_alt_z"])
+                ok = _share(agree, n, RB["swap_frac"])
             else:
                 ok = abs(z_own[0]) > RB["swap_single_z"] and agree == 1
         else:
-            ok = (agree / n >= RB["swap_frac"]) if n >= 2 else agree == 1
+            ok = _share(agree, n, RB["swap_frac"]) if n >= 2 else agree == 1
         if not ok:
             continue
         score = (agree, -sum(abs(z) for z in z_alt) / n)
@@ -547,13 +576,20 @@ def _blank_is_crm(project, S, RB, L):
         if not all(dls[el] and s.vals[el] > S["k_dl"] * dls[el] for el in els):
             continue
         other = project.crm_labels.get(k2, k2)
+        if n < 2:
+            # one element cannot tell a CRM in the blank's place from a blank
+            # contaminated to about the grade of a low CRM: keep the failure
+            L.add("C15", s.sid, "", s.stype, "flagged",
+                  f"matches the certificate of {other} on its one certified "
+                  f"element (|z| {zbar:.2f}); kept as a blank failure - check "
+                  f"the insertion sheet")
+            continue
         s.excl_all = f"C15 probably {other}, labelled blank"
         s.swap_to = k2
-        basis = (f"{agree} of {n} certified elements" if n >= 2
-                 else "single-element evidence")
         L.add("C15", s.sid, "", s.stype, "excluded",
-              f"matches the certificate of {other} ({basis}, mean |z| "
-              f"{zbar:.2f}): a CRM was inserted as a blank, not contamination")
+              f"matches the certificate of {other} ({agree} of {n} certified "
+              f"elements, mean |z| {zbar:.2f}): a CRM was inserted as a blank, "
+              f"not contamination")
 
 
 # ===========================================================================
@@ -611,7 +647,7 @@ def clean_pairs(project, pairs, S, RB, log=print):
         for so, sd_ in plist:
             voting, bad = [], []
             for el in project.elements:
-                if not usable(so, el) or not usable(sd_, el) or not dls[el]:
+                if not pairable(so, el, RB) or not pairable(sd_, el, RB) or not dls[el]:
                     continue
                 a, b = so.vals[el], sd_.vals[el]
                 if min(a, b) <= RB["mispair_kdl"] * dls[el]:
@@ -624,7 +660,7 @@ def clean_pairs(project, pairs, S, RB, log=print):
                 continue
             detail = ", ".join(f"{el} HARD {h:.0f}%" for el, h in bad)
             if (multi and len(voting) >= RB["mispair_min_el"]
-                    and len(bad) / len(voting) >= RB["mispair_frac"]):
+                    and _share(len(bad), len(voting), RB["mispair_frac"])):
                 project.excluded_pairs.add((so.sid, sd_.sid))
                 L.add("C16", sd_.sid, "", f"{dtype} of {so.sid}", "excluded",
                       f"disagrees with its parent in {len(bad)} of "

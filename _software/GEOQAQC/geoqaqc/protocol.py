@@ -486,7 +486,8 @@ _CLEAN_RULES = [
      "A true zero concentration does not exist; a reported 0 is below detection."),
     ("C08", "Over-range values (>)",
      "'>10000' is a censored value, not a result. It is excluded from CRM "
-     "statistics and from duplicate pairs."),
+     "statistics and from duplicate and check pairs; an over-range blank is "
+     "kept and counts as a failure."),
     ("C09", "Match CRM codes loosely",
      "'OREAS 501b', 'OREAS-501B' and 'oreas_501b' are the same material. "
      "Matching ignores case, spaces, dashes, dots and slashes."),

@@ -38,15 +38,21 @@ jobs:
         run: python -m PyInstaller --noconfirm --clean GEOQAQC.spec
 
       - name: Self-test the executable
-        run: .\dist\GEOQAQC_console.exe --selftest exe_selftest
+        shell: pwsh
+        run: |
+          .\dist\GEOQAQC_console.exe --selftest exe_selftest
+          foreach ($f in "demo_report.html", "demo_report.pdf", "demo_report.docx") {
+            if (-not (Test-Path "exe_selftest\$f")) { Write-Error "missing $f"; exit 1 }
+          }
 
       - name: Collect the release
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force release | Out-Null
-          Copy-Item dist\GEOQAQC.exe, dist\GEOQAQC_console.exe, README.md, CHANGELOG.md, requirements.txt release\
-          Copy-Item sample_data release\sample_data -Recurse
-          Copy-Item exe_selftest release\example_output -Recurse
+          $dst = "release\GEOQAQC-2.0"
+          New-Item -ItemType Directory -Force $dst | Out-Null
+          Copy-Item dist\GEOQAQC.exe, dist\GEOQAQC_console.exe, README.md, CHANGELOG.md, requirements.txt $dst
+          Copy-Item sample_data "$dst\sample_data" -Recurse
+          Copy-Item exe_selftest "$dst\example_output" -Recurse
 
       - uses: actions/upload-artifact@v4
         with:
