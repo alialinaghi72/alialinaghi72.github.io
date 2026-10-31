@@ -121,3 +121,15 @@ def test_pdf_uses_its_own_browser_profile(monkeypatch, tmp_path):
     pdf.html_to_pdf(str(tmp_path / "a.html"), str(tmp_path / "a.pdf"), browser="edge")
     assert seen["profile"] and seen["existed"]
     assert not os.path.exists(seen["profile"])          # removed afterwards
+
+
+def test_docx_survives_control_characters(tmp_path):
+    # a raw cell such as 'IS<vertical tab>' is quoted in the cleaning log;
+    # one such character must not stop the whole Word report
+    from geoqaqc.report.document import Cell, Document, Para, ReportMeta, Table
+    d = Document(ReportMeta(project="t"))
+    d.add(Para("کد IS\x0b در ردیف ۳ و \x01 و \x1f"))
+    d.add(Table(["a", "b"], [["IS\x0b", Cell("x\x0c")]]))
+    path = write_docx(d, str(tmp_path / "c.docx"))
+    body = _xml(path, "word/document.xml")
+    assert "\x0b" not in body and "IS" in body

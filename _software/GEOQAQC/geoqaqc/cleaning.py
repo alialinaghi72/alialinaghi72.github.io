@@ -14,6 +14,7 @@ RuleBook entry. With every switch off the values are exactly those of 1.1.
 
 from __future__ import annotations
 
+import weakref
 from dataclasses import asdict, dataclass
 
 from .core import (BLANK_TYPES, DUP_TYPES, T_CRM, canonical_unit, dl_flag,
@@ -242,20 +243,15 @@ def clean_values(project, S, RB, log=print):
 
     # ---- C09 / C10 certificates ----
     _build_certs(project, RB, L)
-
-    # ---- C11 / C12 units ----
-    if _on(RB, "C11"):
-        _column_units(project, S, RB, L)
-    if _on(RB, "C12"):
-        _single_slips(project, S, RB, L)
-
-    # ---- C13 / C14 / C15 swaps ----
-    if _on(RB, "C13"):
-        _crm_swaps(project, S, RB, L)
-    if _on(RB, "C14"):
-        _crm_is_blank(project, S, RB, L)
-    if _on(RB, "C15"):
-        _blank_is_crm(project, S, RB, L)
+    groups = {}
+    for s in samples:
+        if s.stype == T_CRM and s.crm_key:
+            groups.setdefault(s.crm_key, []).append(s)
+    _RUN[project] = {"groups": groups, "views": None}
+    try:
+        _crm_rules(project, S, RB, L)
+    finally:
+        _RUN.pop(project, None)
 
     # ---- C18 sequence ----
     if _on(RB, "C18"):
@@ -265,6 +261,25 @@ def clean_values(project, S, RB, log=print):
     log(f"Cleaning: {n} action(s)" + (": " + ", ".join(
         f"{k} {v}" for k, v in L.counts().items()) if n else ""))
     return L
+
+
+def _crm_rules(project, S, RB, L):
+    """C11-C15: units, slips and swaps, all judged against the CRMs."""
+    # ---- C11 / C12 units ----
+    if _on(RB, "C11"):
+        _column_units(project, S, RB, L)
+    if _on(RB, "C12"):
+        _single_slips(project, S, RB, L)
+
+    # ---- C13 / C14 / C15 swaps ----
+    _RUN[project]["views"] = {}
+    if _on(RB, "C13"):
+        _crm_swaps(project, S, RB, L)
+    if _on(RB, "C14"):
+        _crm_is_blank(project, S, RB, L)
+    if _on(RB, "C15"):
+        _blank_is_crm(project, S, RB, L)
+    _RUN[project]["views"] = None
 
 
 # ===========================================================================
@@ -350,8 +365,17 @@ def _build_certs(project, RB, L):
 # ===========================================================================
 #  Helpers for z-scores against a certificate
 # ===========================================================================
+# per-project working state of one cleaning run: the CRM rows grouped by code
+# (fixed once the certificates are matched) and, while the swap rules run, the
+# laboratory view of each CRM. Without them every z-score rescanned the whole
+# project and cleaning time grew with the square of its size.
+_RUN = weakref.WeakKeyDictionary()
+
+
 def _crm_results(project, key, el):
-    return [s for s in project.samples
+    run = _RUN.get(project)
+    group = run["groups"].get(key, ()) if run else project.samples
+    return [s for s in group
             if s.stype == T_CRM and s.crm_key == key and usable(s, el)]
 
 
@@ -383,32 +407,38 @@ def _z(project, key, el, v):
     return (v - c["cert"]) / sd
 
 
-# fewer results than this and a CRM's observed location is not trusted
-_MIN_OBSERVED = 5
-
-
-def _lab_view(project, key, el):
+def _lab_view(project, key, el, min_n):
     """(location, scale) of what THIS laboratory reports for CRM key.
     Location: the median of its results (robust to the odd swap or slip), so a
     laboratory-wide bias does not hide a swap. Scale: never tighter than the
-    certified SD. With too few results the certificate itself is used."""
+    certified SD. With fewer than min_n results (the CRM minimum of the
+    settings) the certificate itself is used. During the swap rules the view
+    is taken once, before any swap is excluded, so the outcome does not
+    depend on the order of the rows."""
+    run = _RUN.get(project)
+    views = run["views"] if run else None
+    if views is not None and (key, el) in views:
+        return views[(key, el)]
     c = project.certs.get((key, el))
     if not c:
         return None, None
     sd = _eff_sd(project, key, el)
     vals = sorted(s.vals[el] for s in _crm_results(project, key, el)
                   if c["cert"] and 0.5 <= s.vals[el] / c["cert"] <= 2.0)
-    if len(vals) < _MIN_OBSERVED:
-        return c["cert"], sd
-    loc = vals[len(vals) // 2] if len(vals) % 2 else (
-        vals[len(vals) // 2 - 1] + vals[len(vals) // 2]) / 2.0
-    rsd = _robust_sd(vals)
-    scale = max(x for x in (sd, rsd) if x) if (sd or rsd) else None
-    return loc, scale
+    if len(vals) < min_n:
+        out = (c["cert"], sd)
+    else:
+        loc = vals[len(vals) // 2] if len(vals) % 2 else (
+            vals[len(vals) // 2 - 1] + vals[len(vals) // 2]) / 2.0
+        rsd = _robust_sd(vals)
+        out = (loc, max(x for x in (sd, rsd) if x) if (sd or rsd) else None)
+    if views is not None:
+        views[(key, el)] = out
+    return out
 
 
-def _zl(project, key, el, v):
-    loc, scale = _lab_view(project, key, el)
+def _zl(project, key, el, v, min_n):
+    loc, scale = _lab_view(project, key, el, min_n)
     if loc is None or not scale:
         return None
     return (v - loc) / scale
@@ -493,8 +523,8 @@ def _match_other(project, s, own_key, RB, S, require_own_fail=True):
                and (own_key is None or (own_key, el) in project.certs)]
         if not els:
             continue
-        z_alt = [_zl(project, k2, el, s.vals[el]) for el in els]
-        z_own = ([_zl(project, own_key, el, s.vals[el]) for el in els]
+        z_alt = [_zl(project, k2, el, s.vals[el], S["min_crm"]) for el in els]
+        z_own = ([_zl(project, own_key, el, s.vals[el], S["min_crm"]) for el in els]
                  if own_key is not None else [None] * len(els))
         if any(z is None for z in z_alt):
             continue

@@ -331,3 +331,44 @@ def test_C13_swap_found_despite_laboratory_bias():
     assert by_id(p, "X1")[0].excl_all.startswith("C13")
     # the biased but correctly labelled results are not swaps
     assert rules_of(log).count("C13") == 1
+
+
+def _bulk(n):
+    import random
+    rng = random.Random(1)
+    els = ("Cu_pct", "Au_ppm")
+    crms = {f"CRM-{k}": {e: rng.uniform(0.2, 3) for e in els} for k in range(4)}
+    certs = [(c, e, v, v * 0.03, "") for c, d in crms.items() for e, v in d.items()]
+    rows = []
+    for i in range(n):
+        rows.append(dict({"SAMPLE_ID": f"S{i}"},
+                         **{e: f"{rng.lognormvariate(-1, .7):.4f}" for e in els}))
+        if i % 20 == 0:
+            c = rng.choice(list(crms))
+            rows.append(dict({"SAMPLE_ID": f"C{i}", "SAMPLE_TYPE": "CRM", "CRM_ID": c},
+                             **{e: f"{v * (1 + rng.gauss(0, .03)):.4f}"
+                                for e, v in crms[c].items()}))
+        if i % 20 == 10:
+            rows.append(dict({"SAMPLE_ID": f"B{i}", "SAMPLE_TYPE": "BLANK"},
+                             **{e: "<0.001" for e in els}))
+    return rows, certs, els
+
+
+def test_cleaning_work_grows_linearly(monkeypatch):
+    # the swap rules once rescanned every sample for each CRM result, so a
+    # 100 000-sample project took about a quarter of an hour
+    import geoqaqc.cleaning as cl
+    calls = {"n": 0}
+    real = cl.usable
+
+    def counting(s, el):
+        calls["n"] += 1
+        return real(s, el)
+    monkeypatch.setattr(cl, "usable", counting)
+    work = []
+    for n in (1000, 4000):
+        rows, certs, els = _bulk(n)
+        calls["n"] = 0
+        run(rows, certs, elements=els)
+        work.append(calls["n"])
+    assert work[1] / work[0] < 6                     # 4x the data, not 16x

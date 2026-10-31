@@ -21,8 +21,12 @@ from .core import (T_CRM, T_NORMAL, classify_type, dl_flag, fnum, is_blank,
 #  Reading files
 # ===========================================================================
 def sniff_and_read(path, max_rows=None):
-    """Read a delimited text file. Returns (header, rows, delimiter)."""
-    with open(path, "r", encoding="utf-8-sig", errors="replace", newline="") as fh:
+    """Read a delimited text file. Returns (header, rows, delimiter).
+    UTF-8 (with or without BOM), or UTF-16 with a BOM (Excel's "Unicode Text")."""
+    with open(path, "rb") as fh:
+        bom = fh.read(2)
+    enc = "utf-16" if bom in (b"\xff\xfe", b"\xfe\xff") else "utf-8-sig"
+    with open(path, "r", encoding=enc, errors="replace", newline="") as fh:
         sample = fh.read(64 * 1024)
         fh.seek(0)
         delim = ","

@@ -41,6 +41,19 @@
 - The PDF is printed with a private browser profile, so an open Edge window no
   longer stops it.
 - The Windows package unpacks into one folder, `GEOQAQC-2.0`.
+- Persian numbers: the Arabic thousands separator (٬) is no longer read as a
+  decimal comma (a silent x1000 error), the Iranian slash decimal (۰/۱۲۳) and the
+  Unicode minus are read; Excel "Unicode Text" (UTF-16) files are read.
+- Very small and very large numbers are printed in plain Persian digits; an
+  exponent such as 5.0e-04 broke apart in right-to-left text.
+- New rules: minimum blanks before contamination is judged (fewer give only a
+  minor warning), and the link between a blank and the sample before it, which
+  stops a laboratory carry-over from being blamed on the blank material.
+- Cleaning is linear in the size of the project (100 000 samples took about an
+  hour); the analysis runs behind a progress window instead of freezing it.
+- A control character in a data cell no longer stops the Word report; a Latin
+  name with parentheses ("Sungun Cu (Phase 2)") keeps its order on the cover;
+  verdict cards are no longer stretched.
 
 ### Compatibility
 - With every cleaning rule switched off, results equal GEOQAQC 1.1 on the 1.1

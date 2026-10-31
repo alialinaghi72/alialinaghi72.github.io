@@ -165,7 +165,8 @@ border-bottom:.6pt solid var(--line);flex-wrap:wrap}
 .card ol{margin-top:0}
 .vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(38mm,1fr));gap:7pt;
 margin:6pt 0 12pt}
-.vcard{border:.7pt solid var(--line);border-radius:10pt;padding:8pt 10pt;break-inside:avoid}
+.vcard{border:.7pt solid var(--line);border-radius:10pt;padding:8pt 10pt;break-inside:avoid;
+text-align:start}
 .vcard .nm{font-size:13pt;font-weight:800;color:var(--navy)}
 .vcard .cd{font-size:7.8pt;color:var(--muted)}
 .vcard .vc{display:block;border-radius:6pt;padding:2pt 7pt;margin:5pt 0;font-weight:700;

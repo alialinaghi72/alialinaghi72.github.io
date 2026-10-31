@@ -131,3 +131,48 @@ def test_crms_without_any_certificate_restrict_the_verdict():
     f = [x for x in d.by_element("Cu_pct") if x.code == "CRM_NOCERT"]
     assert f and f[0].severity == "MATERIAL"
     assert d.verdict("Cu_pct")[0] != "SUITABLE"
+
+
+def _blank_project(rows):
+    from conftest import make_project
+    from geoqaqc.analysis import run_analysis
+    from geoqaqc.protocol import DEFAULT_FORMULAS, FormulaBook
+    p, S = make_project(rows, None, ("Cu_pct",))
+    C = {k: dict(v) for k, v in DEFAULT_CRITERIA.items()}
+    rb = RuleBook()
+    R = run_analysis(p, FormulaBook(DEFAULT_FORMULAS), C, S, rb, log=lambda m: None)
+    return R, diagnose(p, R, C, S, rb)
+
+
+def test_few_blanks_do_not_drive_the_verdict():
+    # three blanks, one at 6 x DL: 33 % failures, but on three results
+    rows = [{"SAMPLE_ID": f"S{i}", "Cu_pct": f"{0.01 + 0.002 * i:.4f}"} for i in range(30)]
+    rows += [{"SAMPLE_ID": f"B{i}", "SAMPLE_TYPE": "BLANK",
+              "Cu_pct": "0.006" if i == 0 else "<0.001"} for i in range(3)]
+    R, d = _blank_project(rows)
+    assert R["blank"][("BLANK", "Cu_pct")]["n"] == 3
+    f = [x for x in d.by_element("Cu_pct") if x.code == "BLK_FAIL"]
+    assert f and f[0].severity == "MINOR"
+    assert "ناپایدار" in f[0].evidence_fa
+
+
+def test_blank_linked_to_preceding_sample_is_not_blamed_on_material():
+    # every blank reads about 1 % of the sample before it: a laboratory
+    # carry-over, even where the predecessor is not "high grade"
+    import random
+    rng = random.Random(5)
+    rows = []
+    for i in range(60):
+        v = rng.uniform(0.05, 1.0)
+        rows.append({"SAMPLE_ID": f"S{i}", "Cu_pct": f"{v:.4f}"})
+        rows.append({"SAMPLE_ID": f"S{i}x", "Cu_pct": "<0.001"})
+        if i % 2 == 0:
+            rows.pop()
+            rows.append({"SAMPLE_ID": f"B{i}", "SAMPLE_TYPE": "BLANK",
+                         "Cu_pct": f"{0.001 + 0.01 * v:.4f}"})
+    R, d = _blank_project(rows)
+    rec = R["blank"][("BLANK", "Cu_pct")]
+    assert rec["rho"] > 0.8 and rec["median_ratio"] > 2
+    codes_ = {x.code for x in d.by_element("Cu_pct")}
+    assert "BLK_FAIL" in codes_
+    assert "BLK_MATERIAL" not in codes_

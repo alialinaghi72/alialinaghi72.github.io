@@ -116,3 +116,14 @@ def test_blank_section_says_dl_unknown(tmp_path):
     h = path.read_text(encoding="utf-8")
     assert "حد تشخیص از داده‌ها قابل تعیین" in h
     assert texts_fa.MISSING["blank"] not in h
+
+
+def test_split_runs_keeps_a_latin_phrase_with_parentheses_whole():
+    # 'Demonstration dataset (synthetic)' split at the parentheses showed as
+    # '(synthetic) Demonstration dataset' on the cover
+    assert split_runs("Demonstration dataset (synthetic)") == [
+        ("Demonstration dataset (synthetic)", True, False)]
+    runs = split_runs("پروژهٔ Sungun Cu (Phase 2) در اهر")
+    assert ("Sungun Cu (Phase 2)", True, False) in runs
+    runs = split_runs("نتایج مس (Cu_pct) و طلا")            # Persian before '('
+    assert ("Cu_pct", True, False) in runs

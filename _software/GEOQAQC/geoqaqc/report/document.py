@@ -145,8 +145,13 @@ class Document:
 
 # ---- text runs ------------------------------------------------------------------
 _BOLD = re.compile(r"\*\*(.+?)\*\*")
-# parentheses stay outside a Latin run so the browser mirrors both of them
-_LATIN = re.compile(r"[A-Za-z][A-Za-z0-9_\-./+%']*(?:[ \t]+[A-Za-z0-9][A-Za-z0-9_\-./+%']*)*")
+# A Latin run starts at a Latin letter, so parentheses opened in Persian text
+# stay outside it and the browser mirrors both of them; a parenthesised group
+# inside a Latin phrase ('Sungun Cu (Phase 2)') stays in, or the phrase would
+# be broken in two and its halves reversed.
+_WORD = r"[A-Za-z0-9][A-Za-z0-9_\-./+%']*"
+_LATIN = re.compile(rf"[A-Za-z][A-Za-z0-9_\-./+%']*(?:[ \t]+{_WORD}"
+                    rf"|[ \t]*\([ \t]*{_WORD}(?:[ \t]+{_WORD})*[ \t]*\))*")
 
 
 def split_runs(text):

@@ -18,7 +18,7 @@ def app():
     a.load_files(os.path.join(DATA, "demo_assay.csv"),
                  os.path.join(DATA, "demo_crm_certificates.csv"),
                  os.path.join(DATA, "demo_umpire.csv"))
-    a.do_analyse(quiet=True)
+    a.do_analyse(quiet=True, wait=True)
     a.update()
     yield a
     a.destroy()
@@ -55,3 +55,19 @@ def test_report_generation(app, tmp_path):
     paths = app.generate_report(str(tmp_path), "demo", pdf=False, word=True, wait=True)
     assert any(p.endswith(".html") for p in paths)
     assert any(p.endswith(".docx") for p in paths)
+
+
+def test_analysis_runs_off_the_interface_thread(app):
+    # a large project must not freeze the window ('Not responding')
+    import time
+    app.R = {}
+    app.do_analyse(quiet=True)
+    assert app._busy                                 # returned at once, worker running
+    app.do_analyse(quiet=True)                       # a second start is refused
+    t0 = time.time()
+    while app._busy and time.time() - t0 < 120:
+        app.update()
+        time.sleep(0.05)
+    assert not app._busy
+    assert app.R and app.diag is not None
+    assert app.current_page == "Dashboard"

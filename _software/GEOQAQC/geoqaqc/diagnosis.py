@@ -297,10 +297,20 @@ def _blanks(d, el, R, C, S, RB, sev):
         if not rec:
             continue
         s = sev(rec["rating"])
-        sevs[bt] = s
         if not s:
+            sevs[bt] = None
             continue
         figs = [f"blank/{bt}/{el}"]
+        few = rec["n"] < RB["blank_min_n"]
+        if few:
+            # too few blanks for a stable rate: a warning, and no cause analysis
+            d.add("BLK_FAIL", el, "CONTAMINATION", "MINOR",
+                  T.f_BLK_FAIL(el, bt, rec["n_fail"], rec["n"], rec["fail_pct"],
+                               rec["limit"], S["k_dl"], rec["max_ratio"],
+                               min_n=RB["blank_min_n"]),
+                  "LAB", "IMMEDIATE", figs, subject=bt)
+            continue
+        sevs[bt] = s
         d.add("BLK_FAIL", el, "CONTAMINATION", s,
               T.f_BLK_FAIL(el, bt, rec["n_fail"], rec["n"], rec["fail_pct"],
                            rec["limit"], S["k_dl"], rec["max_ratio"]),
@@ -318,7 +328,8 @@ def _blanks(d, el, R, C, S, RB, sev):
                                 rec["fail_other_pct"] or 0.0, rec.get("rho"),
                                 batches),
                   "LAB", "IMMEDIATE", figs + [f"blankprev/{bt}/{el}"], subject=bt)
-        elif (rec.get("median_ratio") or 0) > RB["blank_median_kdl"]:
+        elif ((rec.get("median_ratio") or 0) > RB["blank_median_kdl"]
+              and not _linked_to_previous(rec, RB)):
             d.add("BLK_MATERIAL", el, "CONTAMINATION", s,
                   T.f_BLK_MATERIAL(el, bt, rec["median_ratio"], RB["blank_median_kdl"]),
                   "GEOLOGY", "BEFORE_ESTIMATE", figs, subject=bt)
@@ -328,6 +339,12 @@ def _blanks(d, el, R, C, S, RB, sev):
               T.f_BLK_PREP(el, cb["fail_pct"], pb["fail_pct"]),
               "LAB", "IMMEDIATE", [f"blank/{T_CBLANK}/{el}", f"blank/{T_PBLANK}/{el}"])
 
+
+
+def _linked_to_previous(rec, RB):
+    """The blank results rise and fall with the sample before them."""
+    rho, p = rec.get("rho"), rec.get("rho_p")
+    return rho is not None and p is not None and rho > 0 and p < RB["carry_rho_p"]
 
 
 # ---- precision ---------------------------------------------------------------

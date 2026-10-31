@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import io
 import os
+import re
 
 from docx import Document as DocxDocument
 from docx.enum.text import WD_BREAK
@@ -29,6 +30,9 @@ from . import texts_fa as T
 from .document import (Bullets, Callout, Cell, Cover, DocControl, FigureBlock,
                        FindingCard, Heading, PageBreak, Para, Signature, Table, TOC,
                        VerdictGrid, split_runs)
+
+# characters XML 1.0 does not allow
+_XML_BAD = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uffff]")
 
 NAVY, NAVY2, GOLD, GOLD2 = "0F2742", "1D3D63", "C8902F", "E7C27D"
 INK, INK2, MUTED, LINE, ZEBRA, HEAD = "16202B", "4B5563", "8A94A3", "E3E7ED", "F7F9FB", "EEF2F7"
@@ -282,12 +286,17 @@ class _DW:
         _field(fp, "PAGE", "۱", self, size=8, color=MUTED)
 
     # -- text ---------------------------------------------------------------
+    def add_run(self, p, text):
+        # control characters (a vertical tab pasted into a cell, say) are not
+        # allowed in XML and would stop the whole Word file
+        return p.add_run(_XML_BAD.sub("", text) if text else text)
+
     def fmt(self, run, latin, bold=False, size=None, color=None):
         _set_rpr(run, latin, bold, size, color, self.font_fa, self.font_latin)
 
     def runs(self, p, text, bold=False, size=None, color=None):
         for seg, latin, b in split_runs(text):
-            self.fmt(p.add_run(seg), latin, bold or b, size, color)
+            self.fmt(self.add_run(p, seg), latin, bold or b, size, color)
         return p
 
     def para(self, container, text="", style=None, size=None, color=None, bold=False,
@@ -300,7 +309,7 @@ class _DW:
         _spacing(p, before, after)
         if text:
             if ltr:
-                self.fmt(p.add_run(text), True, bold, size, color)
+                self.fmt(self.add_run(p, text), True, bold, size, color)
             else:
                 self.runs(p, text, bold, size, color)
         return p
@@ -319,7 +328,7 @@ class _DW:
         _spacing(p, 0, 0)
         p.paragraph_format.line_spacing = 1.1
         if ltr:
-            self.fmt(p.add_run(text), True, bold, size - 0.5, color)
+            self.fmt(self.add_run(p, text), True, bold, size - 0.5, color)
         else:
             self.runs(p, text, bold, size, color)
         return p

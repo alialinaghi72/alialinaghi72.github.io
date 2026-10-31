@@ -621,6 +621,14 @@ _r("carry_pctile", "BLANK", "Carry-over: 'high grade' percentile", "float",
    "high grade in the carry-over test. A fixed multiple of the DL alone means "
    "nothing for an element where nearly every sample is far above it.",
    50.0, 99.0)
+_r("blank_min_n", "BLANK", "Minimum blanks to judge contamination", "int", 10,
+   "With fewer blanks of a type the failure rate is unstable (one result in "
+   "three is 33 %): a failure is reported as a minor warning only, and the "
+   "carry-over and blank-material tests are not run.", 3, 100)
+_r("carry_rho_p", "BLANK", "Link to the preceding sample (p of Spearman rho)",
+   "float", 0.05, "A positive rank correlation between each blank and the sample "
+   "before it, significant at this level, ties the blank results to the "
+   "laboratory rather than to the blank material.", 0.001, 0.2)
 _r("blank_median_kdl", "BLANK", "Contaminated blank material (median x DL)",
    "float", 2.0, "A blank material whose median sits above this, without any "
    "link to the preceding sample, is itself not barren.", 1.0, 20.0)

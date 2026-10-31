@@ -88,10 +88,14 @@ _CLASSIFY_ORDER = (T_UMP, T_CBLANK, T_PBLANK, T_PDUP, T_CDUP, T_FDUP, T_BLANK,
 # ===========================================================================
 NULL_TOKENS = {"", "na", "n/a", "nan", "null", "none", "-", "--", "nd", "n.d."}
 
-# Persian and Arabic-Indic digits, Arabic decimal and thousands separators
-_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩٫٬", "01234567890123456789.,")
+# Persian and Arabic-Indic digits; the Arabic decimal separator is a dot, the
+# Arabic thousands separator is dropped, the Unicode minus is a hyphen. Neither
+# separator is ambiguous, unlike the Latin comma.
+_FA_DIGITS = "۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩"
+_DIGITS = str.maketrans(_FA_DIGITS + "٫\u2212", "01234567890123456789.-", "٬")
 _THOUSANDS = re.compile(r"^-?[1-9]\d{0,2}(,\d{3})+(\.\d+)?$")
 _DECIMAL_COMMA = re.compile(r"^-?\d*,\d+$")
+_SLASH_DECIMAL = re.compile(r"^-?\d+/\d+$")
 
 
 def to_latin_digits(s):
@@ -109,14 +113,20 @@ def fnum(v, decimal_comma=False):
     every comma is the decimal mark and dots are thousands separators."""
     if v is None:
         return None
-    s = to_latin_digits(v).strip()
+    raw = str(v)
+    s = to_latin_digits(raw).strip()
     if s.lower() in NULL_TOKENS:
         return None
     if s and s[0] in "<>":
         s = s[1:].strip()
-    if decimal_comma:
+    # written with the Persian separators (or the Iranian slash between
+    # Persian digits): the marks are already unambiguous
+    persian = "٫" in raw or "٬" in raw
+    if any(c in _FA_DIGITS for c in raw) and _SLASH_DECIMAL.match(s):
+        s, persian = s.replace("/", "."), True
+    if not persian and decimal_comma:
         s = s.replace(".", "").replace(",", ".")
-    elif "," in s:
+    elif not persian and "," in s:
         if _THOUSANDS.match(s):
             s = s.replace(",", "")
         elif _DECIMAL_COMMA.match(s):
@@ -483,6 +493,20 @@ def fa_digits(s):
     return s.translate(_FA)
 
 
+def _plain_num(v):
+    """fmt_num without exponents or Latin thousands commas, for Persian text:
+    an exponent such as '5.0e-04' breaks apart in right-to-left text."""
+    a = abs(v)
+    if a == 0 or a < 1e-12:
+        return "0"
+    if a >= 100:
+        return f"{v:,.0f}".replace(",", "٬")
+    if a < 1e-3:
+        places = -math.floor(math.log10(a)) + 1          # two significant figures
+        return f"{v:.{places}f}".rstrip("0").rstrip(".")
+    return fmt_num(v)
+
+
 def fa_num(v, decimals=None, suffix=""):
     """Number for Persian prose: Persian digits, '٫' decimal, a true minus.
     A negative number (with its suffix, e.g. '٪') is wrapped in a left-to-right
@@ -491,7 +515,7 @@ def fa_num(v, decimals=None, suffix=""):
     if v is None:
         return "—"
     if decimals is None:
-        txt = fmt_num(v)
+        txt = _plain_num(v)
     else:
         txt = f"{v:,.{decimals}f}".replace(",", "٬")
     if txt.startswith("-"):

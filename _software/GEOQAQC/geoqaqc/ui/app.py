@@ -64,6 +64,14 @@ def _f(v, d=2, sign=False):
     return f"{v:+.{d}f}" if sign else f"{v:.{d}f}"
 
 
+def _attempt(work, progress):
+    """{'value': work(progress)} or {'error': message and traceback}."""
+    try:
+        return {"value": work(progress)}
+    except Exception as ex:                              # noqa: BLE001
+        return {"error": f"{ex}\n{traceback.format_exc()}"}
+
+
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -91,6 +99,7 @@ class App(tk.Tk):
         self._svars, self._fvars, self._cvars = {}, {}, {}
         self.rule_vars, self.report_vars, self.el_vars = {}, {}, {}
         self._jobs = queue.Queue()
+        self._busy = False              # a worker thread is reading the project
         self._build_header()
         self._build_body()
         self._build_status()
@@ -700,27 +709,57 @@ class App(tk.Tk):
         self.report_vars["project"].set("Demonstration dataset (synthetic)")
         self.do_analyse()
 
-    def do_analyse(self, quiet=False):
+    def do_analyse(self, quiet=False, wait=False):
+        """Cleaning, analysis and diagnosis in a worker thread behind a progress
+        window, so a large project does not freeze the interface. wait=True
+        runs it in place (tests, scripts)."""
+        if self._busy:
+            return
         if not self.project.assay:
             if not quiet:
                 messagebox.showinfo(APP_NAME, "Import the assay table first.", parent=self)
             return
         self.log("=" * 60)
-        try:
-            self.R = run_analysis(self.project, self.F, self.C, self.S, self.RB, log=self.log)
-            self.diag = diagnose(self.project, self.R, self.C, self.S, self.RB)
-            self.cat = figure_catalog(self.project, self.R, self.diag, self.S, self.C, self.RB)
-        except Exception as ex:                          # noqa: BLE001
-            self.log(f"FAILED: {ex}\n{traceback.format_exc()}")
-            if not quiet:
-                messagebox.showerror(APP_NAME, f"Analysis failed:\n{ex}", parent=self)
+        project, F, C, S, RB = self.project, self.F, self.C, self.S, self.RB
+
+        def work(progress):
+            R = run_analysis(project, F, C, S, RB, log=progress)
+            return R, diagnose(project, R, C, S, RB)
+
+        def done(result):
+            if "error" in result:
+                self.log(f"FAILED: {result['error']}")
+                if not quiet:
+                    messagebox.showerror(APP_NAME, "Analysis failed:\n"
+                                         + result["error"].split("\n")[0], parent=self)
+                return
+            self.R, self.diag = result["value"]
+            self.cat = figure_catalog(self.project, self.R, self.diag, self.S, self.C,
+                                      self.RB)
+            for el in self.project.elements:
+                code, _ = self.diag.verdict(el)
+                self.log(f"  {el}: {VERDICT_EN[code]}")
+            self.render_all()
+            self._sync()
+            self.select_page("Dashboard")
+
+        if wait:
+            done(_attempt(work, self.log))
             return
-        for el in self.project.elements:
-            code, _ = self.diag.verdict(el)
-            self.log(f"  {el}: {VERDICT_EN[code]}")
-        self.render_all()
-        self._sync()
-        self.select_page("Dashboard")
+        self._start_job("analysis", "Cleaning, analysing and diagnosing the data",
+                        work, done, prefix="")
+
+    def _start_job(self, title, text, work, done, prefix="  "):
+        """Run work(progress) in a thread; done(result) runs on the interface
+        thread with {'value': ...} or {'error': ...}."""
+        self._busy = True
+        dlg = ProgressDialog(self, title, text)
+
+        def run():
+            result = _attempt(work, lambda m: self._jobs.put(("progress", dlg,
+                                                               prefix + str(m))))
+            self._jobs.put(("done", dlg, (result, done)))
+        threading.Thread(target=run, daemon=True).start()
 
     # =====================================================================
     #  rendering
@@ -1316,6 +1355,8 @@ class App(tk.Tk):
 
     def generate_report(self, folder=None, base=None, pdf=True, word=True, html=True,
                         wait=False):
+        if self._busy:
+            return []
         if not self.R or not self.diag:
             if not wait:
                 messagebox.showinfo(APP_NAME, "Run the analysis first.", parent=self)
@@ -1349,38 +1390,35 @@ class App(tk.Tk):
 
         if wait:
             return work(lambda m: None)
-        dlg = ProgressDialog(self, "report", "Generating the consultant report")
-        result = {}
-
-        def run():
-            try:
-                result["paths"] = work(lambda m: self._jobs.put(("progress", dlg, m)))
-            except Exception as ex:                      # noqa: BLE001
-                result["error"] = f"{ex}\n{traceback.format_exc()}"
-            self._jobs.put(("done", dlg, result))
-        threading.Thread(target=run, daemon=True).start()
+        self._start_job("report", "Generating the consultant report",
+                        work, self._report_done)
         return []
+
+    def _report_done(self, result):
+        if "error" in result:
+            self.log(f"Report failed: {result['error']}")
+            messagebox.showerror(APP_NAME, "The report could not be built:\n"
+                                 + result["error"].split("\n")[0], parent=self)
+            return
+        paths = result["value"]
+        self.rep_lbl.configure(text="Written:\n" + "\n".join(paths), fg=FG)
+        self.log(f"Report written: {', '.join(os.path.basename(p) for p in paths)}")
+        if paths and messagebox.askyesno(APP_NAME, "Report written.\n\nOpen it now?",
+                                         parent=self):
+            _open_path(next((p for p in paths if p.endswith(".pdf")), paths[0]))
 
     def _poll_jobs(self):
         try:
             while True:
                 kind, dlg, payload = self._jobs.get_nowait()
                 if kind == "progress":
-                    dlg.set(payload)
-                    self.log(f"  {payload}")
+                    dlg.set(payload.strip().split("\n")[0])
+                    self.log(payload)
                 else:
+                    result, done = payload
                     dlg.close()
-                    if "error" in payload:
-                        self.log(f"Report failed: {payload['error']}")
-                        messagebox.showerror(APP_NAME, "The report could not be built:\n"
-                                             + payload["error"].split("\n")[0], parent=self)
-                    else:
-                        paths = payload.get("paths", [])
-                        self.rep_lbl.configure(text="Written:\n" + "\n".join(paths), fg=FG)
-                        self.log(f"Report written: {', '.join(os.path.basename(p) for p in paths)}")
-                        if paths and messagebox.askyesno(APP_NAME, "Report written.\n\nOpen "
-                                                         "it now?", parent=self):
-                            _open_path(next((p for p in paths if p.endswith(".pdf")), paths[0]))
+                    self._busy = False
+                    done(result)
         except queue.Empty:
             pass
         self.after(150, self._poll_jobs)

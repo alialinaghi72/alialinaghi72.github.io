@@ -124,3 +124,23 @@ def test_detection_limit_ignores_zero_below_dl():
     assert detection_limit(pr, "Au", {}) == pytest.approx(0.01)
     pr.samples[1].vals["Au"] = 0.005               # a real '<0.005' is preferred
     assert detection_limit(pr, "Au", {}) == pytest.approx(0.005)
+
+
+def test_persian_thousands_do_not_vote_for_decimal_comma(tmp_path):
+    from geoqaqc.model import uses_decimal_comma
+    rows = [["S1", "۱٬۲۳۴"], ["S2", "۲٬۵۰۰"], ["S3", "۸۰۰"]]
+    assert uses_decimal_comma(rows, "\t") is False
+    path = tmp_path / "fa.txt"
+    path.write_text("SAMPLE_ID\tCu_ppm\nS1\t۱٬۲۳۴\nS2\t۲٬۵۰۰\n", encoding="utf-8")
+    header, body, delim = read_table(str(path))
+    from geoqaqc.model import uses_decimal_comma as udc
+    assert fnum(body[0][1], decimal_comma=udc(body, delim)) == 1234
+
+
+def test_read_utf16_unicode_text(tmp_path):
+    # Excel's "Unicode Text (*.txt)" is UTF-16 with a byte-order mark
+    path = tmp_path / "u16.txt"
+    path.write_bytes("SAMPLE_ID\tCu_pct\r\nS1\t0.25\r\nنمونه\t0.5\r\n".encode("utf-16"))
+    header, body, delim = read_table(str(path))
+    assert header == ["SAMPLE_ID", "Cu_pct"] and delim == "\t"
+    assert body[0] == ["S1", "0.25"] and body[1][0] == "نمونه"

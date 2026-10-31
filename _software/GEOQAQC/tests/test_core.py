@@ -103,3 +103,29 @@ def test_sample_types_order():
     assert st.index(T_CBLANK) == st.index(T_BLANK) + 1
     assert st.index(T_PBLANK) == st.index(T_BLANK) + 2
     assert core.BLANK_TYPES == [T_BLANK, T_CBLANK, T_PBLANK]
+
+
+def test_fnum_persian_separators():
+    # Arabic thousands separator, Arabic decimal separator, the Iranian slash
+    # decimal and the Unicode minus sign
+    assert fnum("۱٬۲۳۴") == 1234
+    assert fnum("۲٬۵۰۰٫۵") == 2500.5
+    assert fnum("۰٫۱۲۳") == pytest.approx(0.123)
+    assert fnum("۰٫۱۲۳", decimal_comma=True) == pytest.approx(0.123)
+    assert fnum("۱٬۲۳۴", decimal_comma=True) == 1234
+    assert fnum("۰/۱۲۳") == pytest.approx(0.123)
+    assert fnum("<۰/۰۱") == pytest.approx(0.01)
+    assert fnum("−0.5") == pytest.approx(-0.5)
+    assert fnum("1402/05/01") is None                # a date, not a number
+
+
+def test_fa_num_never_uses_exponents():
+    # '5.0e-04' breaks apart in right-to-left text; Persian prose and tables
+    # get plain digits with two significant figures
+    assert fa_num(0.0005) == "۰٫۰۰۰۵"
+    assert fa_num(0.000123) == "۰٫۰۰۰۱۲"
+    assert fa_num(123456) == "۱۲۳٬۴۵۶"
+    assert fa_num(1234.4) == "۱٬۲۳۴"
+    assert fa_num(-0.0005) == "‪−۰٫۰۰۰۵‬"
+    for v in (1e-7, 3.2e-5, 2.5e6, 7.7e9):
+        assert "e" not in fa_num(v) and "," not in fa_num(v)
