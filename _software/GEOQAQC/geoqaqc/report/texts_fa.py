@@ -587,6 +587,27 @@ def f_DATA_CODES(n04=5, n05=2, n06=0, n07=0):
 # ===========================================================================
 #  Verdicts
 # ===========================================================================
+def near_dl_note(kdl, dl, parts, method_kept=False, unknown=False):
+    """One sentence on the pairs left out below kdl x DL. parts: [(label, n)]."""
+    if not kdl:
+        return ""
+    if unknown:
+        return (f"حد تشخیص این عنصر در داده‌ها معلوم نیست (نه در نگاشت ستون‌ها وارد شده و نه "
+                f"نتیجهٔ «کمتر از» دارد)؛ بنابراین قاعدهٔ حذف جفت‌های کمتر از {num(kdl, 0)} برابر "
+                "حد تشخیص اجرا نشد.")
+    gone = [(lab, n) for lab, n in parts if n]
+    if not gone:
+        return ""
+    lst = "، ".join(f"{num(n, 0)} جفت {lab}" for lab, n in gone) if len(parts) > 1 else \
+        f"{num(gone[0][1], 0)} جفت"
+    txt = (f"طبق روال استاندارد، جفت‌هایی که میانگین آن‌ها کمتر از {num(kdl, 0)} برابر حد تشخیص "
+           f"({num(kdl * dl)}) است از این آمار کنار گذاشته شدند ({lst})؛ نزدیک حد تشخیص، "
+           "اختلاف نسبی دو نتیجه بیشتر نوفهٔ دستگاه است تا خطای نمونه.")
+    if method_kept:
+        txt += " روش تامپسون و هوارث همهٔ جفت‌ها را به کار می‌برد، چون دقت را بر حسب عیار مدل می‌کند."
+    return txt
+
+
 def verdict_text(code, el, reasons=()):
     r = _list(reasons) if reasons else ""
     if code == "SUITABLE":

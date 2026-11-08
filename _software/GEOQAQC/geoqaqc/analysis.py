@@ -319,7 +319,11 @@ def build_pairs(project, S, log=print):
     return pairs
 
 
-def analyse_duplicates(project, F, C, S, RB, pairs, log=print):
+def analyse_duplicates(project, F, C, S, RB, pairs, log=print, th_input=None):
+    """Precision of each duplicate class. Pairs whose mean is below
+    RB['dup_min_kdl'] x DL are left out of the statistics; th_input, when
+    given, receives every pair ({(type, element): {'rows', 'dl'}}) for the
+    Thompson-Howarth regression, which needs the low grades."""
     out = {}
     crit_key = {T_FDUP: "fdup_hard90", T_CDUP: "cdup_hard90", T_PDUP: "pdup_hard90"}
 
@@ -362,6 +366,16 @@ def analyse_duplicates(project, F, C, S, RB, pairs, log=print):
                 continue
             for r in rows:
                 r["prec95"] = F.calc("dup_precision95", cv=r["cv"] or 0.0)
+            if th_input is not None:
+                th_input[(dtype, el)] = {"rows": rows, "dl": dl}
+            kdl = RB["dup_min_kdl"]
+            kdl_dl = detection_limit(project, el, S, known_only=True)
+            n_all = len(rows)
+            if kdl and kdl_dl:
+                rows = [r for r in rows if r["mean"] >= kdl * kdl_dl]
+            if not rows:
+                log(f"  {dtype} {el}: all {n_all} pair(s) below {kdl:g} x DL")
+                continue
 
             hards = sorted(r["hard"] for r in rows if r["hard"] is not None)
             terms = [r["term"] for r in rows if r["term"] is not None]
@@ -370,7 +384,8 @@ def analyse_duplicates(project, F, C, S, RB, pairs, log=print):
             rma_a, rma_b = rma([r["a"] for r in rows], [r["b"] for r in rows])
 
             rec = {"type": dtype, "element": el, "n": len(rows), "rows": rows,
-                   "dl": dl,
+                   "dl": dl, "n_below_kdl": n_all - len(rows), "min_kdl": kdl,
+                   "kdl_dl": kdl_dl,
                    "hard_mean": mean(hards),
                    "hard_median": pctile(hards, 50),
                    "hard_p90": pctile(hards, S["hard_pct"]),
@@ -503,7 +518,7 @@ def _th_bins(rows, g):
     return out
 
 
-def analyse_th(project, F, C, S, dups, log=print):
+def analyse_th(project, F, C, S, dups, log=print, th_input=None):
     """Thompson & Howarth binned precision regression.
 
     The 1978 paper bins 11 pairs at a time, but that is a convention, not a
@@ -515,7 +530,7 @@ def analyse_th(project, F, C, S, dups, log=print):
     out = {}
     skipped = []
     g_req = max(MIN_TH_GROUP, int(S["th_group"]))
-    for (dtype, el), rec in dups.items():
+    for (dtype, el), rec in (th_input if th_input is not None else dups).items():
         rows = [r for r in rec["rows"] if r["mean"] is not None and r["mean"] > 0]
         g = g_req
         bins = _th_bins(rows, g)
@@ -695,13 +710,17 @@ def analyse_umpire(project, F, C, S, RB, log=print):
     pairs, lab = build_umpire(project, S, RB, log=log)
     for el, lst in pairs.items():
         dl = detection_limit(project, el, S)
-        rows = []
+        kdl_dl = detection_limit(project, el, S, known_only=True)
+        rows, n_low = [], 0
         for item in lst:
             sid, a, b = item[0], item[1], item[2]
             hole, batch, drilltype, plab = (list(item[3:]) + ["", "", "", ""])[:4]
             if a is None or b is None or a + b <= 0:
                 continue
             if dl and S["drop_below_dl"] and (a < dl or b < dl):
+                continue
+            if kdl_dl and RB["ump_min_kdl"] and (a + b) / 2.0 < RB["ump_min_kdl"] * kdl_dl:
+                n_low += 1
                 continue
             rows.append({
                 "sample": sid, "primary": a, "umpire": b,
@@ -745,6 +764,7 @@ def analyse_umpire(project, F, C, S, RB, log=print):
                       default=None)
 
         rec = {"element": el, "n": len(rows), "rows": rows, "lab": lab, "dl": dl,
+               "n_below_kdl": n_low, "min_kdl": RB["ump_min_kdl"], "kdl_dl": kdl_dl,
                "sum_primary": sp, "sum_umpire": su,
                "mean_primary": sp / len(rows), "mean_umpire": su / len(rows),
                "wbias": wbias, "pbias": mean(biases),
@@ -835,9 +855,10 @@ def run_analysis(project, F, C, S, RB, log=print):
     log("Analysing blanks ...")
     blank = analyse_blank(project, F, C, S, RB, log=log)
     log("Analysing duplicates ...")
-    dup = analyse_duplicates(project, F, C, S, RB, pairs, log=log)
+    th_input = {}
+    dup = analyse_duplicates(project, F, C, S, RB, pairs, log=log, th_input=th_input)
     log("Fitting Thompson-Howarth precision ...")
-    th = analyse_th(project, F, C, S, dup, log=log)
+    th = analyse_th(project, F, C, S, dup, log=log, th_input=th_input)
     th_skipped = th.pop("_skipped", [])
     for dt, el, why in th_skipped:
         log(f"  Thompson-Howarth not fitted for {dt} / {el}: {why}")

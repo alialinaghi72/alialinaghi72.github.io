@@ -358,6 +358,12 @@ def _el_precision(ctx, doc, el):
         doc.add(Para(T.MISSING["dup"]))
         return
     doc.add(Para(T.SECTION_INTRO["precision"]))
+    first = recs[0][1]
+    note = T.near_dl_note(first.get("min_kdl"), first.get("kdl_dl"),
+                          [(T.TYPE_FA[dt], r.get("n_below_kdl", 0)) for dt, r in recs],
+                          method_kept=True, unknown=first.get("kdl_dl") is None)
+    if note:
+        doc.add(Para(note))
     rows = []
     for dt, r in recs:
         crit = ctx.C[_DUP_CRIT[dt]]
@@ -415,6 +421,10 @@ def _el_interlab(ctx, doc, el):
         doc.add(Para(T.MISSING["umpire"]))
         return
     doc.add(Para(T.SECTION_INTRO["interlab"]))
+    note = T.near_dl_note(u.get("min_kdl"), u.get("kdl_dl"), [("", u.get("n_below_kdl", 0))],
+                          unknown=u.get("kdl_dl") is None)
+    if note:
+        doc.add(Para(note))
     tt = u.get("ttest") or {}
     ctx.table(doc, ["جفت", "بایاس وزنی", "میانگین بایاس جفت‌ها", "مقدار احتمال آزمون t",
                     "بدترین چارک عیار", "رتبه"],

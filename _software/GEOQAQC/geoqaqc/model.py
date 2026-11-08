@@ -454,11 +454,13 @@ def build_samples(project, S, log=print):
     return samples
 
 
-def detection_limit(project, element, S):
+def detection_limit(project, element, S, known_only=False):
     """Detection limit for an element: the declared value if the user gave one,
     otherwise inferred from the largest '<' value, otherwise the smallest
     positive result in the dataset. A '<' of zero (a laboratory writing below
-    detection as 0) says nothing about the limit and is ignored."""
+    detection as 0) says nothing about the limit and is ignored.
+    known_only=True stops before that last guess: a cut at a multiple of the
+    DL needs a real limit, not the lowest grade of the dataset."""
     t = project.assay
     if t is not None and t.dl.get(element) is not None:
         return t.dl[element]
@@ -467,6 +469,8 @@ def detection_limit(project, element, S):
              and s.vals[element] > 0]
     if below:
         return max(below)
+    if known_only:
+        return None
     pos = [s.vals[element] for s in project.samples
            if usable(s, element) and s.vals[element] > 0]
     return min(pos) if pos else None

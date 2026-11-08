@@ -89,6 +89,8 @@ def test_v11_parity_cleaning_off():
     for k in RULES:
         if k.startswith("clean_"):
             rb.set(k, False)
+    rb.set("dup_min_kdl", 0)                  # 1.1 kept every pair above the DL
+    rb.set("ump_min_kdl", 0)
     _, R = analyse(rb)
     got = _flat(R)
     missing, diff = [], []

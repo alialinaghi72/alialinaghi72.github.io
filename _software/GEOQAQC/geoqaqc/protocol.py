@@ -634,6 +634,18 @@ _r("blank_median_kdl", "BLANK", "Contaminated blank material (median x DL)",
    "link to the preceding sample, is itself not barren.", 1.0, 20.0)
 
 # ---- duplicates ----
+_r("dup_min_kdl", "DUPLICATE", "Duplicate precision: minimum pair mean (x DL)",
+   "float", 10.0, "Pairs whose mean is below this multiple of the detection "
+   "limit are left out of the precision statistics (HARD, RMA, max-min, "
+   "quartiles, splitting bias, error budget): near the limit the relative "
+   "difference is analytical noise. The pair mean is used so the cut does not "
+   "bias the result. Thompson-Howarth keeps every pair, since it models "
+   "precision against grade. 0 = keep every pair above the DL, as in 1.1.",
+   0.0, 100.0)
+_r("ump_min_kdl", "DUPLICATE", "Check laboratory: minimum pair mean (x DL)",
+   "float", 10.0, "Check / umpire pairs whose mean is below this multiple of "
+   "the detection limit are left out of the inter-laboratory comparison. "
+   "0 = keep every pair above the DL, as in 1.1.", 0.0, 100.0)
 _r("split_p", "DUPLICATE", "Splitting bias: significance level", "float", 0.05,
    "p-value of the paired t-test on ln(original/duplicate).", 0.001, 0.2)
 _r("budget_dominant", "DUPLICATE", "Error budget: dominant stage share (%)",
