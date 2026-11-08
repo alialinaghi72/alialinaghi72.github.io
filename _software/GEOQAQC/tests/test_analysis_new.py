@@ -302,3 +302,68 @@ def test_over_range_routine_counts_for_grade_but_not_pairs():
     _, R = analyse(rows, CU_CERTS, ("Cu_pct",))
     assert R["coverage"]["Cu_pct"]["n"] == 30
     assert R["dup"][("PULP DUP", "Cu_pct")]["n"] == 9
+
+
+# ---- pairs near the detection limit ----------------------------------------------
+def _near_dl_pairs(dtype):
+    # DL 0.001; pair means from 2 x DL to 100 x DL, with a 20 % difference that
+    # near the limit is mostly analytical noise
+    rows = [{"SAMPLE_ID": "LOW", "Cu_pct": "<0.001"}]
+    for i, m in enumerate([0.002, 0.004, 0.006, 0.008, 0.012, 0.02, 0.05, 0.1]):
+        rows.append({"SAMPLE_ID": f"S{i}", "Cu_pct": f"{m * 0.9:.5f}"})
+        rows.append({"SAMPLE_ID": f"D{i}", "SAMPLE_TYPE": dtype, "PARENT_ID": f"S{i}",
+                     "Cu_pct": f"{m * 1.1:.5f}"})
+    return rows
+
+
+def test_duplicate_pairs_below_ten_dl_left_out_of_precision():
+    _, R = analyse(_near_dl_pairs("PULP DUP"), CU_CERTS, ("Cu_pct",))
+    rec = R["dup"][("PULP DUP", "Cu_pct")]
+    assert rec["n"] == 4 and rec["n_below_kdl"] == 4      # means >= 0.010 only
+    assert min(r["mean"] for r in rec["rows"]) >= 0.010
+    rb = RuleBook()
+    rb.set("dup_min_kdl", 0)                              # off: as in 1.1
+    _, R = analyse(_near_dl_pairs("PULP DUP"), CU_CERTS, ("Cu_pct",), rb=rb)
+    assert R["dup"][("PULP DUP", "Cu_pct")]["n"] == 8
+
+
+def test_thompson_howarth_keeps_the_pairs_near_the_limit():
+    # the method models precision against grade; the low pairs fix its intercept
+    rows = [{"SAMPLE_ID": "LOW", "Cu_pct": "<0.001"}]
+    for i in range(40):
+        m = 0.002 * (1.15 ** i)
+        rows.append({"SAMPLE_ID": f"S{i}", "Cu_pct": f"{m * 0.95:.5f}"})
+        rows.append({"SAMPLE_ID": f"D{i}", "SAMPLE_TYPE": "PULP DUP", "PARENT_ID": f"S{i}",
+                     "Cu_pct": f"{m * 1.05:.5f}"})
+    _, R = analyse(rows, CU_CERTS, ("Cu_pct",))
+    rb = RuleBook()
+    rb.set("dup_min_kdl", 0)
+    _, R0 = analyse(rows, CU_CERTS, ("Cu_pct",), rb=rb)
+    th, th0 = R["th"][("PULP DUP", "Cu_pct")], R0["th"][("PULP DUP", "Cu_pct")]
+    assert R["dup"][("PULP DUP", "Cu_pct")]["n"] < R0["dup"][("PULP DUP", "Cu_pct")]["n"]
+    assert [b["n"] for b in th["bins"]] == [b["n"] for b in th0["bins"]]
+    assert th["bins"][0]["conc"] < 0.010                 # the low bin is still there
+
+
+def test_check_pairs_below_ten_dl_left_out():
+    rows = _near_dl_pairs("CHECK / UMPIRE")
+    _, R = analyse(rows, CU_CERTS, ("Cu_pct",))
+    assert len(R["umpire"]["Cu_pct"]["rows"]) == 4
+    rb = RuleBook()
+    rb.set("ump_min_kdl", 0)
+    _, R = analyse(rows, CU_CERTS, ("Cu_pct",), rb=rb)
+    assert len(R["umpire"]["Cu_pct"]["rows"]) == 8
+
+
+def test_ten_dl_rule_needs_a_real_detection_limit():
+    # no '<' result and no declared DL: the 'DL' is only the smallest result,
+    # and ten times it would throw away most of a low-grade halo
+    rows = []
+    for i in range(12):
+        m = 0.01 + 0.01 * i
+        rows.append({"SAMPLE_ID": f"S{i}", "Cu_pct": f"{m * 0.97:.4f}"})
+        rows.append({"SAMPLE_ID": f"D{i}", "SAMPLE_TYPE": "PULP DUP", "PARENT_ID": f"S{i}",
+                     "Cu_pct": f"{m * 1.03:.4f}"})
+    _, R = analyse(rows, CU_CERTS, ("Cu_pct",))
+    rec = R["dup"][("PULP DUP", "Cu_pct")]
+    assert rec["n"] == 12 and rec["n_below_kdl"] == 0 and rec["kdl_dl"] is None

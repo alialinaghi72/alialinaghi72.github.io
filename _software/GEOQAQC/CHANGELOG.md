@@ -55,9 +55,16 @@
   name with parentheses ("Sungun Cu (Phase 2)") keeps its order on the cover;
   verdict cards are no longer stretched.
 
+### Added after release
+- Duplicate pairs whose mean is below 10 x the detection limit are left out of
+  the precision statistics, and check-laboratory pairs likewise (rules
+  `dup_min_kdl` and `ump_min_kdl`, 0 = off). Thompson-Howarth keeps every
+  pair. The cut needs a real detection limit (declared, or read from '<'
+  results); the report states how many pairs were left out.
+
 ### Compatibility
-- With every cleaning rule switched off, results equal GEOQAQC 1.1 on the 1.1
-  sample data (checked by an automated test).
+- With every cleaning rule and the 10 x DL pair rules switched off, results
+  equal GEOQAQC 1.1 on the 1.1 sample data (checked by an automated test).
 - 1.1 session files still load.
 
 ## 1.1

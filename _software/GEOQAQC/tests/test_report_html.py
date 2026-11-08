@@ -127,3 +127,17 @@ def test_split_runs_keeps_a_latin_phrase_with_parentheses_whole():
     assert ("Sungun Cu (Phase 2)", True, False) in runs
     runs = split_runs("نتایج مس (Cu_pct) و طلا")            # Persian before '('
     assert ("Cu_pct", True, False) in runs
+
+
+def test_report_states_pairs_left_out_below_ten_dl(tmp_path):
+    from test_analysis_new import _near_dl_pairs
+    from conftest import CERTS
+    rows = _near_dl_pairs("PULP DUP")
+    p, S = make_project(rows, [c for c in CERTS if c[1] == "Cu_pct"], ("Cu_pct",))
+    R = run_analysis(p, FormulaBook(DEFAULT_FORMULAS),
+                     {k: dict(v) for k, v in DEFAULT_CRITERIA.items()}, S, RuleBook(),
+                     log=lambda m: None)
+    path = tmp_path / "r.html"
+    write_html(_run(p, R), str(path))
+    h = path.read_text(encoding="utf-8")
+    assert "کمتر از ۱۰ برابر حد تشخیص" in h and "۴ جفت" in h
