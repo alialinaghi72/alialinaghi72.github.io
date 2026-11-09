@@ -1,5 +1,47 @@
 # Changelog — GEOVALID PRO
 
+## 1.0.0 — v2 upgrade, Phase 3 (2026-11-09)
+
+Brief: `../docs/06_v2_upgrade_brief.md` (F10–F12). 109 → 113 rules. With Phases 1–3 the v2 upgrade brief is complete.
+
+**Profiles, projects and headless mode (F10)**
+- JSON rule profiles now also hold the column mappings (`column_mappings`, by table name, applied whenever tables of
+  that name are loaded) and the hole-ID merge table (`id_merge`, pre-fills the fix dialog; used only by the approved
+  ID_MAP fix). Profiles stay versioned and hashed.
+- Project files (`project_file.py`, `geovalid-project/1`): tables with their type, enabled flag and mapping; optional
+  inputs; embedded profile or profile path; output folder and language. Paths are relative to the project folder, so
+  a project can be moved or shared. Columns that disappeared are reported, never guessed.
+- Headless runs: `GEOVALID.exe --cli --project p.json [--profile x.json] [--out folder]`, and
+  `geovalid-cli.exe run --project … | --save-project … | --apply-fixes ID_MAP,AZ_360 --reviewer NAME`.
+  Exit codes 0 (no Major/Critical), 1 (Major), 2 (Critical), 3 (run failure).
+- Every run writes a log file (user folder `GEOVALID_PRO/logs/` and `geovalid_run.log` in the run folder); GUI runs
+  too. The separate console executable `geovalid-cli.exe` remains for scripts that need console output.
+- App: Open project / Save project; profile save carries the current mappings.
+
+**Spatial checks (F11)**
+- SUR-016 (SPA-02): exact minimum 3-D segment-to-segment distance between desurveyed traces (k-d tree candidates,
+  vectorised refinement), with the depth of closest approach on both holes.
+- CRS-006 (SPA-03 / SPA-04): twin candidates (collars within 10 m and within half the drill spacing, traces within
+  10°); composites matched by downhole depth or elevation; mean ratio, relative difference, Wilcoxon signed-rank and
+  QQ data per element; intercept thickness above the cut-off.
+- CRS-002 (SPA-05): drilling-method bias (e.g. RC vs DD): composites paired one-to-one within 10 m; mean ratio,
+  relative difference, Wilcoxon signed-rank and QQ data. Not applicable with a single drilling method.
+- Brief default severities (Info) through the profile; the catalogue's WARNING levels return if the override is removed.
+
+**Anomaly assist (F12, off by default, INFO only)**
+- IMP-021 code-mapping suggestions: raw codes missing from the code dictionary, with up to three dictionary codes
+  scored by character similarity, shared words, initials or prefix; the reason is shown.
+- ASY-031 unusual multi-element composition: centred log-ratio → isometric coordinates, MCD robust covariance,
+  robust Mahalanobis distance above χ²(0.999), with the elements that contribute most.
+
+**App and reports**
+- New page Spatial (clash map, twin and drilling-method QQ plots, twin and bias tables, anomaly-assist switch).
+- Evidence pack: spatial section (clashes, twins and their comparison, drilling-method bias).
+
+**Tests:** 145 (+19): project round trip with moved folders, stored mappings, headless exit codes and log, fixes from
+the profile's ID map; clash geometry, twins, drilling-method bias with positive and negative cases; anomaly assist on
+and off.
+
 ## 0.4.0 — v2 upgrade, Phase 2 (2026-11-09)
 
 Brief: `../docs/06_v2_upgrade_brief.md` (F6–F9, R1, R2). Laboratory format: `../docs/QAQC_FORMAT.md`. 90 → 109 rules.

@@ -242,6 +242,11 @@ def _draw(kind: str, c: str, p: QPainter):
         path = QPainterPath(QPointF(34, 22))
         path.cubicTo(34, 30, 14, 26, 14, 32)
         p.drawPath(path)
+    elif kind == "target":      # spatial: crossing traces in a ring
+        p.drawEllipse(QRectF(8, 8, 32, 32))
+        p.drawLine(14, 10, 34, 38)
+        p.drawLine(34, 10, 14, 38)
+        p.drawEllipse(QRectF(21, 21, 6, 6))
     elif kind == "lang":
         f = QFont()
         f.setPixelSize(22)

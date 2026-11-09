@@ -1094,3 +1094,51 @@ def reconciliation_bar(values: list, lang="en", theme=T.IVORY):
         _head(ax, _L("Database vs laboratory file", "پایگاه داده در برابر فایل آزمایشگاه", lang),
               _L("per assay column, matched by sample ID", "به تفکیک ستون، جفت‌شده با شناسهٔ نمونه", lang), lang, theme)
         return fig
+
+
+def qq_pairs(items: list, lang="en", theme=T.IVORY):
+    """QQ plots for twin or drilling-method comparisons (v2 F11): items = [(title, label_a, label_b, (qa, qb), unit)]."""
+    items = [it for it in items if it and it[3] and len(it[3][0]) > 2][:3]
+    if not items:
+        return None
+    with styled(theme):
+        fig, axs = _new(3.5 * len(items) + 0.6, 3.6, theme, ncols=len(items))
+        for k, (title, la, lb, (qa, qb), unit) in enumerate(items):
+            ax = axs[0, k]
+            qa, qb = np.asarray(qa, float), np.asarray(qb, float)
+            pos = (qa > 0) & (qb > 0)
+            log = pos.all() and qa.max() / max(qa[qa > 0].min(), 1e-12) > 20
+            lo, hi = float(min(qa.min(), qb.min())), float(max(qa.max(), qb.max()))
+            if log:
+                lo = float(min(qa[pos].min(), qb[pos].min())) * 0.8
+                ax.set_xscale("log")
+                ax.set_yscale("log")
+            g = np.linspace(lo, hi * 1.05, 50) if not log else np.geomspace(lo, hi * 1.25, 50)
+            ax.plot(g, g, color=theme.axis, lw=1)
+            ax.fill_between(g, g * 0.9, g * 1.1, color=T.CAT[0], alpha=0.10, lw=0)
+            ax.plot(qa, qb, marker="o", ms=3.5, lw=1.2, color=T.CAT[1])
+            ax.set_xlabel(f"{la} ({unit})" if unit else la)
+            ax.set_ylabel(f"{lb} ({unit})" if unit else lb)
+            _head(ax, title, _L("quantile–quantile; band ±10 %", "چندک–چندک؛ نوار ±۱۰ درصد", lang), lang, theme)
+        return fig
+
+
+def clash_map(ctx, pairs: list, lang="en", theme=T.IVORY):
+    """Plan view of desurveyed traces with the clashing pairs (SPA-02) highlighted."""
+    if not ctx.traces:
+        return None
+    hot = {h for p in pairs for h in p}
+    good = set(ctx.spatial_collars()[0].index) if ctx.has("collar") else set(ctx.traces)   # collars with location errors would distort the map
+    with styled(theme):
+        fig, ax = _new(6.6, 5.4, theme)
+        ax = ax[0, 0]
+        for h, tr in [(h, tr) for h, tr in ctx.traces.items() if h in good or h in hot][:3000]:
+            ax.plot(tr["x"], tr["y"], color=T.SEVERITY["ERROR"] if h in hot else theme.axis, lw=1.6 if h in hot else 0.6,
+                    alpha=1 if h in hot else 0.5, zorder=3 if h in hot else 1)
+            if h in hot:
+                ax.annotate(str(h), (tr["x"].iloc[0], tr["y"].iloc[0]), fontsize=7, color=theme.ink)
+        _equal(ax, lang)
+        _map_furniture(ax, theme)
+        _head(ax, _L("Drill traces in plan", "مسیر گمانه‌ها در پلان", lang),
+              _L(f"{len(pairs)} clashing pair(s) in red", f"{len(pairs)} جفت متداخل با رنگ قرمز", lang), lang, theme)
+        return fig

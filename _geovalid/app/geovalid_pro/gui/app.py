@@ -420,7 +420,7 @@ class MainWindow(P2Pages, V2Pages, QMainWindow):
         self.pages = {}
         for key, builder in (("data", self._page_data), ("dash", self._page_dash), ("issues", self._page_issues),
                              ("survey", self._page_survey), ("values", self._page_values), ("xtable", self._page_xtable),
-                             ("lab", self._page_lab), ("topo", self._page_topo), ("versions", self._page_versions), ("geo", self._page_geo),
+                             ("lab", self._page_lab), ("topo", self._page_topo), ("spatial", self._page_spatial), ("versions", self._page_versions), ("geo", self._page_geo),
                              ("rules", self._page_rules), ("profiles", self._page_profiles), ("evidence", self._page_evidence),
                              ("log", self._page_log)):
             self.pages[key] = self.stack.addWidget(builder())
@@ -466,7 +466,7 @@ class MainWindow(P2Pages, V2Pages, QMainWindow):
         self.nav_btns = {}
         for key, ic, tk in (("data", "data", "nav_data"), ("dash", "dash", "nav_dash"), ("issues", "issues", "nav_issues"),
                             ("survey", "compass", "nav_survey"), ("values", "sample", "nav_values"), ("xtable", "layers", "nav_xtable"),
-                            ("lab", "beaker", "nav_lab"), ("topo", "mountain", "nav_topo"), ("versions", "branch", "nav_versions"), ("geo", "geo", "nav_geo"),
+                            ("lab", "beaker", "nav_lab"), ("topo", "mountain", "nav_topo"), ("spatial", "target", "nav_spatial"), ("versions", "branch", "nav_versions"), ("geo", "geo", "nav_geo"),
                             ("rules", "rules", "nav_rules"), ("profiles", "sliders", "nav_profiles"),
                             ("evidence", "shield", "nav_evidence"), ("log", "log", "nav_log")):
             b = QPushButton()
@@ -1517,7 +1517,7 @@ def main() -> int:
                  ("geo", "strip", "gui_smoke_strip.png"), ("issues", None, "gui_smoke_issues.png"), ("data", None, "gui_smoke_data.png"),
                  ("survey", None, "gui_smoke_survey.png"), ("values", None, "gui_smoke_values.png"),
                  ("xtable", None, "gui_smoke_xtable.png"), ("lab", None, "gui_smoke_lab.png"), ("topo", None, "gui_smoke_topo.png"),
-                 ("versions", None, "gui_smoke_versions.png"), ("profiles", None, "gui_smoke_profiles.png"), ("evidence", None, "gui_smoke_evidence.png")]
+                 ("spatial", None, "gui_smoke_spatial.png"), ("versions", None, "gui_smoke_versions.png"), ("profiles", None, "gui_smoke_profiles.png"), ("evidence", None, "gui_smoke_evidence.png")]
 
         def step(i):
             if i >= len(steps):

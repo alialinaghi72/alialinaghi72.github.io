@@ -38,11 +38,18 @@ TR_P2 = {
     "chart_recon": ("تطبیق با آزمایشگاه", "Lab reconciliation"), "chart_crm": ("نمودار کنترل CRM", "CRM control chart"),
     "chart_ump": ("آزمایشگاه داور", "Umpire laboratory"), "chart_hard": ("دقت نمونه‌های تکراری", "Duplicate precision"),
     "chart_dz": ("اختلاف ارتفاع دهانه‌ها", "Collar ΔZ"), "chart_map": ("نقشهٔ دهانه‌ها و محدوده", "Collars and licence"),
+    "nav_spatial": ("مکانی: تداخل، دوقلو، اریبی", "Spatial: clash, twins, bias"),
+    "sub_spatial": ("تداخل مسیر گمانه‌ها، گمانه‌های دوقلو و مقایسهٔ آن‌ها، اریبی روش حفاری و دستیار ناهنجاری",
+                    "Hole clashes, twin holes and their comparison, drilling-method bias, and the anomaly assist"),
+    "assist": ("دستیار ناهنجاری (فقط پیشنهاد؛ در اجرای بعدی)", "Anomaly assist (suggestions only; next run)"),
+    "twins": ("گمانه‌های دوقلو", "Twin holes"), "bias": ("اریبی روش حفاری", "Drilling-method bias"), "issues_h": ("مسائل مکانی", "Spatial issues"),
+    "chart_clash": ("مسیر گمانه‌ها و تداخل", "Traces and clashes"), "chart_twinqq": ("QQ دوقلوها", "Twin QQ"), "chart_biasqq": ("QQ اریبی روش حفاری", "Drilling-method QQ"),
 }
 
 XT_RULES = ["ASY-008", "INT-011", "WTH-001", "CRS-001", "GEO-001", "GEO-002", "DEN-001"]
 LAB_RULES = ["SMP-004", "ASY-020", "ASY-009", "CRS-008", "QAQ-001", "QAQ-002", "QAQ-003", "QAQ-004", "QAQ-006", "QAQ-007", "QAQ-008", "QAQ-010", "SMP-002"]
 TOPO_RULES = ["COL-025", "COL-011", "COL-012", "COL-005", "SUR-016"]
+SPA_RULES = ["SUR-016", "CRS-006", "CRS-002", "COL-004", "ASY-031", "IMP-021"]
 
 
 class P2Pages:
@@ -510,8 +517,105 @@ class P2Pages:
         self.log(f"accepted snapshot: {path} ({len(m['locked_holes'])} holes locked)")
         self.paths["snapshot"].setText(path)
 
+    # ------------------------------------------------------------------ Spatial (v2 F11, F12)
+    def _page_spatial(self):
+        from PySide6.QtWidgets import QCheckBox
+        from .app import ChartView, PandasModel, card, label
+        page, lay = self._page_frame("nav_spatial", "sub_spatial")
+        bc, bl0 = card()
+        bl = QHBoxLayout()
+        bl0.addLayout(bl)
+        self.sp_sel = QComboBox()
+        self.sp_sel.currentIndexChanged.connect(lambda *_: self._draw_spatial())
+        bl.addWidget(self.sp_sel)
+        self.sp_assist = QCheckBox()
+        self.tr_(self.sp_assist, "assist")
+        self.sp_assist.setChecked(bool((self.params.get("anomaly_assist") or {}).get("enabled")))
+        self.sp_assist.toggled.connect(self._toggle_assist)
+        bl.addWidget(self.sp_assist)
+        self.sp_info = label("Muted", 9)
+        self.sp_info.setWordWrap(True)
+        bl.addWidget(self.sp_info, 1)
+        lay.addWidget(bc)
+        sp = QSplitter(Qt.Horizontal)
+        cc, cl = card()
+        self.sp_chart = ChartView()
+        cl.addWidget(self.sp_chart, 1)
+        sp.addWidget(cc)
+        rc, rl = card()
+        rl.addWidget(self.tr_(label("H2", 11), "twins"))
+        self.sp_twin_model = PandasModel()
+        self.sp_twin = self._table_view(self.sp_twin_model)
+        rl.addWidget(self.sp_twin, 1)
+        rl.addWidget(self.tr_(label("H2", 11), "bias"))
+        self.sp_bias_model = PandasModel()
+        self.sp_bias = self._table_view(self.sp_bias_model)
+        rl.addWidget(self.sp_bias, 1)
+        rl.addWidget(self.tr_(label("H2", 11), "issues_h"))
+        self.sp_iss_model = PandasModel()
+        self.sp_iss = self._table_view(self.sp_iss_model)
+        rl.addWidget(self.sp_iss, 2)
+        sp.addWidget(rc)
+        sp.setSizes([600, 600])
+        lay.addWidget(sp, 1)
+        return page
+
+    def _toggle_assist(self, on):
+        self.params.setdefault("anomaly_assist", {})["enabled"] = bool(on)
+        self.log(f"anomaly assist {'on' if on else 'off'} ({self.t('rerun_note')})")
+
+    def _fill_spatial(self):
+        res = self.result
+        if res is None:
+            return
+        st = res.ctx.stats
+        cur = self.sp_sel.currentData()
+        self.sp_sel.blockSignals(True)
+        self.sp_sel.clear()
+        for key in ("clash", "twinqq", "biasqq"):
+            self.sp_sel.addItem(self.t("chart_" + key), key)
+        if cur:
+            self.sp_sel.setCurrentIndex(max(self.sp_sel.findData(cur), 0))
+        self.sp_sel.blockSignals(False)
+        tw = pd.DataFrame(st.get("twin_pairs") or [])
+        if not tw.empty:
+            tw = tw.round(2)
+            tr = st.get("twin_results") or {}
+            tw["compared"] = [", ".join(f"{k[2]} {100 * v['median_rel_diff']:+.0f}% (n {v['n']})" for k, v in tr.items()
+                                        if k[0] == r.a and k[1] == r.b and v.get("n")) for r in tw.itertuples()]
+        self.sp_twin_model.set(tw)
+        self._fit(self.sp_twin, 300)
+        rows = [{"methods": f"{k[1]} vs {k[0]}", "analyte": k[2], "pairs": v.get("n"), "mean ratio": round(v["mean_ratio"], 3) if v.get("mean_ratio") else None,
+                 "median rel. diff %": round(100 * v["median_rel_diff"], 1) if "median_rel_diff" in v else None,
+                 "Wilcoxon p": f"{v['wilcoxon_p']:.2g}" if v.get("wilcoxon_p") is not None else None}
+                for k, v in (st.get("drill_bias") or {}).items()]
+        self.sp_bias_model.set(pd.DataFrame(rows))
+        self._fit(self.sp_bias, 200)
+        self.sp_iss_model.set(self._issue_subset(SPA_RULES))
+        self._fit(self.sp_iss)
+        self.sp_info.setText(f"clashes {len(st.get('clash_pairs') or [])} · twin candidates {len(st.get('twin_pairs') or [])}"
+                             + (f" (≤ {st['twin_limit_m']:.1f} m)" if st.get("twin_limit_m") is not None else "")
+                             + f" · drilling-method comparisons {len(st.get('drill_bias') or {})}")
+        self._draw_spatial()
+
+    def _draw_spatial(self):
+        from ..report import charts as K
+        res = self.result
+        if res is None:
+            return
+        st, key = res.ctx.stats, self.sp_sel.currentData() or "clash"
+        if key == "clash":
+            fig = K.clash_map(res.ctx, [(c["a"], c["b"]) for c in st.get("clash_pairs") or []], self.lang, self.chart_theme)
+        elif key == "twinqq":
+            items = [(f"{k[0]} / {k[1]} · {k[2]}", str(k[0]), str(k[1]), v.get("qq"), "") for k, v in (st.get("twin_results") or {}).items() if v.get("qq")]
+            fig = K.qq_pairs(items, self.lang, self.chart_theme)
+        else:
+            items = [(f"{k[1]} vs {k[0]} · {k[2]}", str(k[0]), str(k[1]), v.get("qq"), "") for k, v in (st.get("drill_bias") or {}).items() if v.get("qq")]
+            fig = K.qq_pairs(items, self.lang, self.chart_theme)
+        self.sp_chart.show_figure(fig, self.t("nodata"))
+
     def _refresh_p2(self):
-        for fn in (self._fill_xtable, self._fill_lab, self._fill_topo, self._fill_versions):
+        for fn in (self._fill_xtable, self._fill_lab, self._fill_topo, self._fill_versions, self._fill_spatial):
             try:
                 fn()
             except Exception as e:      # a page that cannot be filled must not stop the others

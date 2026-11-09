@@ -520,6 +520,8 @@ def sur_016(ctx):
             if frames:
                 f = pd.concat(frames).sort_values("d").drop_duplicates(["a", "b"])
                 best = {(int(r.a), int(r.b)): (float(r.d), float(r.da), float(r.db)) for r in f.itertuples()}
+            ctx.stats["clash_pairs"] = [{"a": names[a], "b": names[b], "distance_m": round(dist, 3), "depth_a_m": round(da, 2), "depth_b_m": round(db, 2)}
+                                        for (a, b), (dist, da, db) in sorted(best.items(), key=lambda kv: kv[1][0]) if dist < p["cross_dist_m"]]
             for (a, b), (dist, da, db) in sorted(best.items(), key=lambda kv: kv[1][0]):
                 if dist >= p["cross_dist_m"]:
                     continue

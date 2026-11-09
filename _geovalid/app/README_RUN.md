@@ -1,4 +1,4 @@
-# GEOVALID PRO 0.4.0 — راهنمای سریع / Quick start
+# GEOVALID PRO 1.0.0 — راهنمای سریع / Quick start
 
 ## فارسی
 
@@ -30,7 +30,9 @@
 12. **آزمایشگاه و QA/QC**: تطبیق پایگاه داده با فایل آزمایشگاه بر پایهٔ شناسهٔ نمونه: نمونهٔ گم‌شده در هر دو سو، مغایرت مقدار (رواداری ½ حد تشخیص یا ۰٫۱ درصد)، خطای واحد یا مقیاس، تفاوت کدگذاری زیر حد تشخیص، جابه‌جایی شناسهٔ نمونه هنگام ادغام، نتایج آنالیز مجدد (همه فهرست می‌شوند و برنامه انتخاب نمی‌کند)، نمونهٔ کنترلی ثبت‌شده به‌صورت بازهٔ درون‌چاهی، و نرخ خطای پروژه با حد بالای ۹۵ درصد. همچنین ماده مرجع با برچسب اشتباه، جابه‌جایی ماده مرجع و بلانک، و اریبی آزمایشگاه داور. **ممیزی تصادفی:** چک‌لیست با انتخاب تصادفی تکرارپذیر (بذر ثابت) خروجی بگیرید، با اسناد اصلی مقایسه کنید و نتیجه را وارد کنید تا در بستهٔ مستندات بیاید.
 13. **توپوگرافی و محدوده**: آنچه خوانده شد، و بررسی‌های اولیه پیش از هر مقایسه: نبود هم‌پوشانی (جابه‌جایی شرقی و شمالی، زون UTM دیگر، شرقی کاذب)، نسبت ارتفاع حدود ۳٫۲۸ (فوت در برابر متر) و دهانه‌های خارج از توپوگرافی («بررسی‌نشده»، نه «قبول»). توپوگرافی جغرافیایی (SRTM، KML) خودکار به UTM تبدیل می‌شود. گمانه‌های زیرزمینی یا ترانشه با فیلد انتخابی معاف می‌شوند و می‌توان توپوگرافی را بر پایهٔ تاریخ (پیش از معدن‌کاری / فعلی) برگزید.
 14. **نسخه‌ها**: مقایسه با نسخهٔ قبلی: گمانه‌های بدون تغییر با اثرانگشت کنار گذاشته می‌شوند. گونه‌های تغییر عبارت‌اند از گمانهٔ افزوده یا حذف‌شده، جابه‌جایی دهانه، تغییر انحراف‌سنجی (با جابه‌جایی انتهای گمانه)، بازهٔ افزوده یا حذف‌شده، تقسیم‌بندی دوباره، آنالیز مجدد، تغییر کد و تغییر فراداده. تغییر فلز Σ(طول × عیار) برای همهٔ گمانه‌ها و گمانه‌های مشترک محاسبه می‌شود. با «پذیرش این نسخه» تصویر پذیرفته‌شده (نام بازبین، تاریخ، یادداشت، گمانه‌های قفل‌شده) ذخیره می‌شود؛ هر تغییری در گمانهٔ قفل‌شده در اجرای بعدی **بحرانی** گزارش می‌شود.
-15. **دادهٔ نمونه**: یک پایگاه دادهٔ مصنوعی پورفیری با ۳۷ خطای عمدی بارگذاری می‌کند. فایل آزمایشگاه و فایل داور هم‌خوان با آن ساخته می‌شود و نسخهٔ بدون خطا به‌عنوان «نسخهٔ قبلی» تنظیم می‌شود. فهرست خطاها در `manifest.csv` است. عیار در این داده تابع سنگ میزبان، دگرسانی و هوازدگی است تا تحلیل‌ها معنادار باشند.
+15. **مکانی: تداخل، دوقلو، اریبی**: تداخل مسیر گمانه‌ها با کمینهٔ فاصلهٔ سه‌بعدی بین قطعه‌های مسیر (کمتر از ۱ متر = خطا)؛ گمانه‌های دوقلو (دهانه‌ها نزدیک‌تر از ۱۰ متر و نصف فاصلهٔ شبکهٔ حفاری، مسیرها با اختلاف کمتر از ۱۰ درجه) و مقایسهٔ عیار آن‌ها بر پایهٔ عمق یا ارتفاع؛ اریبی روش حفاری (مثلاً RC در برابر مغزه) با جفت‌کردن کامپوزیت‌های نزدیک، نسبت میانگین، آزمون ویلکاکسون و نمودار QQ. **دستیار ناهنجاری** (پیش‌فرض خاموش؛ فقط پیشنهاد): پیشنهاد نگاشت کدهای لاگ به فرهنگ‌نامه، و امتیاز ناهنجاری ترکیب چندعنصری همراه با عناصری که بیشترین سهم را دارند.
+16. **پروژه**: با «ذخیرهٔ پروژه…» همهٔ تنظیمات (جدول‌ها، نوع و نگاشت ستون‌ها، ورودی‌های اختیاری، پروفایل، پوشهٔ خروجی) در یک فایل JSON ذخیره می‌شود و با «باز کردن پروژه…» برمی‌گردد. مسیرها نسبت به پوشهٔ پروژه ذخیره می‌شوند و پوشه را می‌توان جابه‌جا کرد. پروفایل ذخیره‌شده نگاشت ستون‌ها و جدول ادغام شناسهٔ گمانه را هم نگه می‌دارد.
+17. **دادهٔ نمونه**: یک پایگاه دادهٔ مصنوعی پورفیری با ۳۷ خطای عمدی بارگذاری می‌کند. فایل آزمایشگاه و فایل داور هم‌خوان با آن ساخته می‌شود و نسخهٔ بدون خطا به‌عنوان «نسخهٔ قبلی» تنظیم می‌شود. فهرست خطاها در `manifest.csv` است. عیار در این داده تابع سنگ میزبان، دگرسانی و هوازدگی است تا تحلیل‌ها معنادار باشند.
 
 **خروجی‌ها** (در پوشهٔ `GEOVALID_<تاریخ>`؛ داده‌های اصلی هرگز تغییر نمی‌کنند)
 - `report_fa.html` و `report_en.html`: گزارش فنی با نمودارها، از جمله بخش «تحلیل عیار بر پایهٔ واحدهای توصیفی».
@@ -47,12 +49,13 @@
 **خط فرمان:** `geovalid-cli.exe run --files collar.csv survey.csv assay.xlsx --dem dem.tif --licence lic.kml --lab lab.csv --umpire ump.csv --crm crm.csv --baseline D:\old_version --snapshot accepted.json --out D:\out --lang both`
 گزینه‌های دیگر: `--accept-snapshot out.json --reviewer "نام" --note "یادداشت" --lock all`، `--audit-export checklist.xlsx`، `--audit-results filled.xlsx`، `--topo-format tif`.
 
+**اجرای بدون رابط گرافیکی (دسته‌ای):** `GEOVALID.exe --cli --project D:\proj\project.json --out D:\out` یا `geovalid-cli.exe run --project ...`. با `--save-project` پروژه از خط فرمان ساخته می‌شود و با `--apply-fixes ID_MAP --reviewer "نام"` اصلاحات تأییدشده (جدول شناسه از پروفایل) روی نسخه‌ای جداگانه اعمال می‌شود. کد خروج: ۰ بدون مسئلهٔ عمده یا بحرانی، ۱ مسئلهٔ عمده (ERROR)، ۲ مسئلهٔ بحرانی، ۳ خطای اجرا. هر اجرا یک فایل لاگ می‌نویسد (`GEOVALID_PRO\logs` و `geovalid_run.log` در پوشهٔ خروجی). برای اسکریپت‌هایی که خروجی کنسول لازم دارند، `geovalid-cli.exe` جداگانه در بسته هست.
+
 **عیار حد** تحلیل‌ها از بخش `analysis_cutoffs` پروفایل خوانده می‌شود (مثلاً Cu ۰٫۲ درصد، Au ۰٫۳ گرم بر تن)؛ برای عناصر دیگر صدک ۷۵ داده به کار می‌رود و در برنامه قابل تغییر است.
 
-**محدودیت‌های نسخهٔ ۰٫۴:**
-- ۱۰۹ قاعده اجرا می‌شود (فهرست کامل در `docs/RULE_CATALOGUE.md`).
+**محدودیت‌های نسخهٔ ۱٫۰:**
+- ۱۱۳ قاعده اجرا می‌شود (فهرست کامل در `docs/RULE_CATALOGUE.md`).
 - فقط مبنای WGS84 برای تبدیل مختصات پشتیبانی می‌شود؛ مبنای دیگر گزارش می‌شود ولی جابه‌جایی مبنا اعمال نمی‌شود. GeoTIFF با فشرده‌سازی JPEG و فرمت‌های اختصاصی (Vulcan `.00t`، Datamine `.dm`) پشتیبانی نمی‌شوند و برنامه همین را اعلام می‌کند.
-- پروژه‌های ذخیره‌شده، اجرای بی‌واسط با `--project`، تحلیل تداخل فضایی و گمانه‌های جفت در فاز ۳ می‌آیند.
 - روش برداشت دهانه (COL-010) نسخهٔ پیش‌نمایش است.
 
 این نرم‌افزار ابزار پشتیبان تصمیم است. پذیرش نهایی داده‌ها برای گزارش‌دهی عمومی بر عهدهٔ شخص صلاحیت‌دار (CP/QP) است.
@@ -82,7 +85,9 @@
 8. **Lab & QA/QC:** the database is reconciled with the laboratory file by sample ID: missing samples both ways, value mismatches (tolerance ½ DL or 0.1 %), unit or scale errors, below-detection coding differences, sample-ID offsets from a bad merge, re-assays (all listed; the program never chooses), QC samples stored as downhole intervals, and the project error rate with its 95 % upper bound. Also mislabelled CRMs, CRM/blank swaps and umpire bias. **Random audit:** export a reproducible (seeded) checklist, check it against the source documents and import it back into the evidence pack.
 9. **Topography & boundary:** what was read, and sanity checks before any comparison: no overlap (swapped E/N, another UTM zone, false easting), elevation ratio ≈ 3.28 (feet vs metres), collars outside the topography ("not checked", never "passed"). Geographic topography (SRTM, KML) is converted to UTM. Underground or trench holes can be exempted through a chosen field, and the topography can be chosen by date (pre-mining vs current).
 10. **Versions:** comparison with the previous version. Unchanged holes are skipped by hash. Change classes are hole added or deleted, collar moved, survey changed (with the end-of-hole shift), interval added or removed, re-segmented, re-assayed, code changed and metadata changed. Metal change Σ(length × grade) is given for all holes and for common holes. **Accept this version** saves a snapshot (reviewer, date, note, locked holes); any later change to a locked hole is reported as **CRITICAL**.
-11. **Sample data** loads a synthetic porphyry database with 37 deliberate errors, listed in `manifest.csv`. Matching laboratory and umpire files are generated, and the error-free twin is set as the previous version. Its grades depend on host rock, alteration and weathering, so the analyses have something to find.
+11. **Spatial (clash, twins, bias):** hole clashes by the minimum 3-D distance between trace segments (< 1 m = error); twin holes (collars closer than 10 m and half the drill spacing, traces within 10°) and their grade comparison by depth or elevation; drilling-method bias (e.g. RC vs core) from paired nearby composites with the mean ratio, Wilcoxon test and QQ plot. **Anomaly assist** (off by default; suggestions only): code-mapping suggestions to the dictionary, and a multi-element anomaly score with the elements that drive it.
+12. **Projects:** **Save project…** stores the whole set-up (tables, table types and mappings, optional inputs, profile, output folder) in one JSON file; **Open project…** restores it. Paths are relative to the project folder, so the folder can be moved. A saved profile also carries the column mappings and the hole-ID merge table.
+13. **Sample data** loads a synthetic porphyry database with 37 deliberate errors, listed in `manifest.csv`. Matching laboratory and umpire files are generated, and the error-free twin is set as the previous version. Its grades depend on host rock, alteration and weathering, so the analyses have something to find.
 
 **Outputs.** Source files are never modified; every run writes a new `GEOVALID_<timestamp>` folder containing:
 - HTML reports (fa/en), including the section "Grade versus logged geology", PASS/FAIL per rule and status by hole;
@@ -94,14 +99,15 @@
 - desurveyed traces;
 - run metadata with SHA-256 hashes of the inputs.
 
-**Command line:** `geovalid-cli.exe run --files ... [--dem dem.tif] [--licence lic.kml] [--crm crm.csv] [--lab lab.csv] [--umpire ump.csv] [--baseline old_folder] [--snapshot accepted.json] --out folder --lang fa|en|both`. Also `--accept-snapshot out.json --reviewer NAME --note TEXT --lock all|none|H1,H2`, `--audit-export checklist.xlsx`, `--audit-results filled.xlsx`, `--topo-format tif`. Exit codes: 0 = clean, 1 = ERROR issues found, 2 = CRITICAL issues found, 3 = the run itself failed.
+**Command line:** `geovalid-cli.exe run --files ... [--dem dem.tif] [--licence lic.kml] [--crm crm.csv] [--lab lab.csv] [--umpire ump.csv] [--baseline old_folder] [--snapshot accepted.json] --out folder --lang fa|en|both`. Also `--accept-snapshot out.json --reviewer NAME --note TEXT --lock all|none|H1,H2`, `--audit-export checklist.xlsx`, `--audit-results filled.xlsx`, `--topo-format tif`.
+
+**Headless (batch) runs:** `GEOVALID.exe --cli --project D:\proj\project.json --out D:\out`, or `geovalid-cli.exe run --project ...`. `--save-project` writes a project from the command line; `--apply-fixes ID_MAP --reviewer NAME` applies approved fixes (ID table from the profile) to separate corrected copies. Exit codes: 0 no Major/Critical, 1 Major (ERROR), 2 Critical, 3 run failure. Every run writes a log file (`GEOVALID_PRO\logs` and `geovalid_run.log` in the run folder). `geovalid-cli.exe` is included for scripts that need console output. Exit codes: 0 = clean, 1 = ERROR issues found, 2 = CRITICAL issues found, 3 = the run itself failed.
 
 **Cut-offs** for the analyses come from the profile's `analysis_cutoffs` (e.g. Cu 0.2 %, Au 0.3 g/t); other analytes use the 75th percentile, and the value can be changed in the program.
 
-**v0.4 limits:**
-- 109 rules run (see `docs/RULE_CATALOGUE.md`).
+**v1.0 limits:**
+- 113 rules run (see `docs/RULE_CATALOGUE.md`).
 - Coordinate conversion supports WGS 84 only; another declared datum is reported, never shifted. JPEG-compressed GeoTIFF and proprietary formats (Vulcan `.00t`, Datamine `.dm`) are not supported, and the program says so.
-- Saved projects, headless `--project` runs, spatial clash and twin-hole analysis come in Phase 3.
 - Collar-method inference (COL-010) is a preview.
 
 This is a decision-support tool. Final acceptance of data for public reporting rests with the Competent/Qualified Person.

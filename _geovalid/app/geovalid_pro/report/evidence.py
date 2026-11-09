@@ -81,6 +81,7 @@ def build(res) -> dict:
                                 "insertion_rates": {k: {"originals": n, **{kk: round(float(v), 3) for kk, v in r.items()}} for k, (n, r) in rates.items()},
                                 "lab_file_reconciliation": ctx.stats.get("lab_reconciliation") or {"status": "not run"}},
         "random_audit": ctx.stats.get("random_audit") or {"status": "not run"},
+        "spatial": _spatial(ctx),
         "qp_sections": {k: "" for k, _, _ in QP_SECTIONS},
     }
 
@@ -98,6 +99,16 @@ def _versions(ctx) -> dict:
                                     "note": snap.get("note"), "app_version": snap.get("app_version"), "dataset_hash": snap.get("dataset_hash"),
                                     "locked_holes": len(snap.get("locked_holes", [])), "locked_holes_changed": locked_changed}
     return out
+
+
+def _spatial(ctx) -> dict:
+    """v2 F11: hole clashes (SPA-02), twin pairs and their comparison (SPA-03/04), drilling-method bias (SPA-05)."""
+    def st(v):
+        return {k: (round(x, 6) if isinstance(x, float) else x) for k, x in v.items() if k != "qq"}
+    return {"clash_pairs": ctx.stats.get("clash_pairs") or [],
+            "twin_pairs": [{k: (round(v, 3) if isinstance(v, float) else v) for k, v in p.items()} for p in ctx.stats.get("twin_pairs") or []],
+            "twin_comparisons": [{"hole_a": k[0], "hole_b": k[1], "analyte": k[2], **st(v)} for k, v in (ctx.stats.get("twin_results") or {}).items()],
+            "drilling_method_bias": [{"method_a": k[0], "method_b": k[1], "analyte": k[2], **st(v)} for k, v in (ctx.stats.get("drill_bias") or {}).items()]}
 
 
 def _h(x) -> str:
@@ -227,6 +238,22 @@ def to_html(pack: dict, lang: str = "en") -> str:
                      f"{T('95 % Clopper–Pearson upper bound', 'حد بالای ۹۵ درصد کلاپر–پیرسون')} {er['upper95_pct']:.2f} %</p>")
     sec(n, T("QA/QC and laboratory reconciliation", "کنترل کیفیت و تطبیق آزمایشگاه"), body)
     n += 1
+    spx = pack.get("spatial") or {}
+    if any(spx.get(k) for k in ("clash_pairs", "twin_pairs", "drilling_method_bias")):
+        body = ""
+        if spx.get("clash_pairs"):
+            body += f"<h3>{T('Hole clashes (minimum 3-D segment distance)', 'تداخل مسیر گمانه‌ها (کمینهٔ فاصلهٔ سه‌بعدی)')}</h3>" + table(pd.DataFrame(spx["clash_pairs"]))
+        if spx.get("twin_pairs"):
+            body += f"<h3>{T('Twin holes', 'گمانه‌های دوقلو')}</h3>" + table(pd.DataFrame(spx["twin_pairs"]))
+        if spx.get("twin_comparisons"):
+            tc = pd.DataFrame(spx["twin_comparisons"])
+            body += table(tc[[c for c in ("hole_a", "hole_b", "analyte", "n", "mean_a", "mean_b", "mean_ratio", "median_rel_diff", "wilcoxon_p") if c in tc]].round(4))
+        if spx.get("drilling_method_bias"):
+            db = pd.DataFrame(spx["drilling_method_bias"])
+            body += f"<h3>{T('Drilling-method bias (paired composites)', 'اریبی روش حفاری (کامپوزیت‌های جفت‌شده)')}</h3>" + \
+                table(db[[c for c in ("method_a", "method_b", "analyte", "n", "pair_dist_median_m", "mean_ratio", "median_rel_diff", "wilcoxon_p") if c in db]].round(4))
+        sec(n, T("Spatial checks: clashes, twins, drilling-method bias", "بررسی‌های مکانی: تداخل، دوقلو، اریبی روش حفاری"), body)
+        n += 1
     ra = pack["random_audit"]
     body = f"<p>{_h(ra.get('status'))}</p>"
     keys = ["seed", "pct", "population", "selected", "checked", "verified", "discrepancies", "unchecked", "rate_pct", "upper95_pct", "selection_matches"]

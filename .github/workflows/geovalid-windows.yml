@@ -60,12 +60,12 @@ jobs:
       - name: Zip
         shell: pwsh
         run: |
-          Compress-Archive -Path dist/GEOVALID -DestinationPath GEOVALID_PRO_0.4.0_win64.zip
-          (Get-FileHash GEOVALID_PRO_0.4.0_win64.zip -Algorithm SHA256).Hash.ToLower() + "  GEOVALID_PRO_0.4.0_win64.zip" | Out-File -Encoding ascii GEOVALID_PRO_0.4.0_win64.zip.sha256
+          Compress-Archive -Path dist/GEOVALID -DestinationPath GEOVALID_PRO_1.0.0_win64.zip
+          (Get-FileHash GEOVALID_PRO_1.0.0_win64.zip -Algorithm SHA256).Hash.ToLower() + "  GEOVALID_PRO_1.0.0_win64.zip" | Out-File -Encoding ascii GEOVALID_PRO_1.0.0_win64.zip.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: GEOVALID_PRO_0.4.0_win64
-          path: _geovalid/app/GEOVALID_PRO_0.4.0_win64.zip
+          name: GEOVALID_PRO_1.0.0_win64
+          path: _geovalid/app/GEOVALID_PRO_1.0.0_win64.zip
           retention-days: 30
       - name: Publish pre-release
         if: github.ref == 'refs/heads/ccr-78119761-njo55d'
@@ -73,6 +73,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release delete geovalid-v0.4.0 --yes --cleanup-tag 2>$null
-          gh release create geovalid-v0.4.0 GEOVALID_PRO_0.4.0_win64.zip GEOVALID_PRO_0.4.0_win64.zip.sha256 `
-            --prerelease --target $env:GITHUB_SHA --title "GEOVALID PRO 0.4.0 (Windows x64)" --notes-file release_notes.md
+          gh release delete geovalid-v1.0.0 --yes --cleanup-tag 2>$null
+          gh release create geovalid-v1.0.0 GEOVALID_PRO_1.0.0_win64.zip GEOVALID_PRO_1.0.0_win64.zip.sha256 `
+            --prerelease --target $env:GITHUB_SHA --title "GEOVALID PRO 1.0.0 (Windows x64)" --notes-file release_notes.md

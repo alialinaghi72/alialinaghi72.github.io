@@ -1,9 +1,9 @@
-# GEOVALID PRO 0.4.0 — rule catalogue (generated)
+# GEOVALID PRO 1.0.0 — rule catalogue (generated)
 
 Generated from the rule registry by `tools/gen_rule_catalogue.py`; do not edit by hand. The design specification of every
 rule, including those not yet implemented, is `03_rule_catalogue.md`.
 
-109 rules run in this version. Severities: Critical = CRITICAL, Major = ERROR, Minor = WARNING, Info = INFO.
+113 rules run in this version. Severities: Critical = CRITICAL, Major = ERROR, Minor = WARNING, Info = INFO.
 
 ## Categories
 
@@ -49,7 +49,7 @@ rule, including those not yet implemented, is `03_rule_catalogue.md`.
 | SMP-001 | INT-07 | A | Sample ID not unique project-wide / شناسهٔ نمونه در کل پروژه یکتا نیست | CRITICAL (v2 INT-07) |  |  | JORC-T1-S3-DBIntegrity, JORC-T1-S1-Verification, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | COL-001 | SCH-03 | B | Duplicate HoleID / شمارهٔ گمانهٔ تکراری | CRITICAL |  |  | JORC-T1-S3-DBIntegrity, JORC-T1-S1-Verification, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | COL-002 | COL-01 | B | Missing, zero or non-numeric X, Y, Z or EOH / مختصات X، Y، Z یا عمق نهایی گمشده، صفر یا غیرعددی | ERROR | ERROR→CRITICAL | `z_zero_tol_m` 20, `dummy_values` [-99, -999, -9999, 9999, 99999] | JORC-T1-S1-Location, JORC-T1-S3-DBIntegrity, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
-| COL-004 | COL-02, SPA-03 | B | Duplicate or near-duplicate collar coordinates (twins, wedges, re-drills, true duplicates) / مختصات تکراری یا بسیار نزدیک دهانه (دوقلو، گُوِه، بازحفاری، تکرار واقعی) | WARNING; ↑ERROR for TRUE_DUPLICATE under different hole IDs (double counting) | WARNING→ERROR | `near_dup_distance_m` 1.0, `near_dup_dz_m` 2.0 | JORC-T1-S1-Verification, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
+| COL-004 | COL-02 | B | Duplicate or near-duplicate collar coordinates (twins, wedges, re-drills, true duplicates) / مختصات تکراری یا بسیار نزدیک دهانه (دوقلو، گُوِه، بازحفاری، تکرار واقعی) | WARNING; ↑ERROR for TRUE_DUPLICATE under different hole IDs (double counting) | WARNING→ERROR | `near_dup_distance_m` 1.0, `near_dup_dz_m` 2.0 | JORC-T1-S1-Verification, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | COL-006 | COL-03 | B | Swapped X/Y, wrong UTM zone, lat/long in UTM fields, wrong horizontal datum / جابجایی X و Y، زون UTM اشتباه، طول/عرض جغرافیایی در فیلد UTM، دیتوم افقی اشتباه | CRITICAL |  |  | JORC-T1-S1-Location, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | COL-007 | COL-07 | B | EOH shallower than the maximum depth in survey or interval tables / عمق نهایی کمتر از بیشینهٔ عمق جداول انحراف‌سنجی یا بازه‌ای | ERROR | ERROR→CRITICAL | `eoh_tol_m` 0.05 | JORC-T1-S3-DBIntegrity, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | COL-008 | SCH-04 | B | Collar without survey / دهانهٔ فاقد انحراف‌سنجی | WARNING |  |  | JORC-T1-S1-Location, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
@@ -109,6 +109,8 @@ rule, including those not yet implemented, is `03_rule_catalogue.md`.
 | ASY-028 | VAL-06 | E | Value above the mineral-stoichiometric cap / مقدار بیش از سقف استوکیومتری کانی | ERROR |  | `caps_pct` {'Cu': 79.9, 'Pb': 86.6, 'Zn': 67.1, 'Fe': 72.4, 'S': 53.4, 'Mo': 59.9, 'Ba': 58.8} | JORC-T1-S1-Verification, JORC-T1-S3-DBIntegrity, CIM2019-6.2, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | ASY-029 | VAL-09 | E | Downhole spike / جهش درون‌چاهی عیار | INFO |  | `factor` 10, `quantile` 0.95 | JORC-T1-S1-Verification, CIM2019-6.2, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | ASY-030 | VAL-10 | E | Repeated identical values downhole (copy-paste or fill-down) / تکرار مقادیر یکسان پشت سر هم (کپی یا پرکردن خودکار) | WARNING |  | `min_run` 5 | JORC-T1-S3-DBIntegrity, JORC-T1-S1-Verification, CIM2019-6.2, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
+| ASY-031 |  | E | Unusual multi-element composition (anomaly assist, off by default) / ترکیب چندعنصری نامعمول (دستیار ناهنجاری، پیش‌فرض خاموش) | INFO |  |  | JORC-T1-S1-Verification, CIM2019-6.2, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
+| IMP-021 |  | E | Code-mapping suggestion (anomaly assist, off by default) / پیشنهاد نگاشت کد (دستیار ناهنجاری، پیش‌فرض خاموش) | INFO |  |  | JORC-T1-S3-DBIntegrity, CIM2019-6.2, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | INT-015 | VAL-08 | E | Value outside controlled vocabulary / مقدار خارج از واژه‌نامهٔ کنترل‌شده | ERROR (v2 VAL-08) |  |  | JORC-T1-S3-DBIntegrity, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | LIT-001 |  | E | Lithology code not in the dictionary, or synonym variants / کد سنگ‌شناسی خارج از فرهنگ کدها یا گونه‌های هم‌معنا | WARNING; INFO (inventory) |  |  | JORC-T1-S3-DBIntegrity, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | LIT-002 |  | E | Thin interval or unmerged consecutive identical units / بازهٔ بسیار نازک یا واحدهای یکسان پیاپی ادغام‌نشده | INFO; ↑WARNING (over-splitting) |  | `thin_m` 0.5, `thin_share_frac` 0.2 | JORC-T1-S3-DBIntegrity, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
@@ -139,6 +141,8 @@ rule, including those not yet implemented, is `03_rule_catalogue.md`.
 | COL-005 | COL-05 | H | Collar outside licence boundary or project extent / دهانه خارج از محدودهٔ پروانه یا گسترهٔ پروژه | ERROR (INFO near boundary) |  | `edge_buffer_m` 25, `buffer_m` 0 | JORC-T1-S1-Location, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | COL-011 | COL-06 | H | Collar–topography \|ΔZ\| above threshold / اختلاف ارتفاع دهانه و توپوگرافی بیش از حد آستانه | WARNING/ERROR (banded) |  | `warn_m` 2.0, `error_m` 5.0, `handheld_warn_m` 10.0, `handheld_error_m` 20.0 | JORC-T1-S1-Location, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | COL-012 | COL-06b | H | Systematic ΔZ offset (datum suspicion) / جابجایی سیستماتیک ΔZ (احتمال اختلاف دیتوم) | WARNING |  | `min_n` 20, `offset_min_m` 1.0, `datum_median_m` 3.0, `datum_iqr_m` 2.0 | JORC-T1-S1-Location, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
+| CRS-002 | SPA-05 | H | Drilling-method grade bias / اریبی عیار وابسته به روش حفاری | WARNING; INFO | WARNING→INFO | `comp_len_m` 2, `pair_dist_m` 10, `min_pairs` 30, `thr_warn_frac` 0.1 | JORC-T1-S1-Verification, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
+| CRS-006 | SPA-03, SPA-04 | H | Twin-hole grade or thickness discrepancy / مغایرت عیار یا ضخامت در گمانه‌های دوقلو | WARNING; INFO | WARNING→INFO | `twin_collar_m` 10, `twin_rel_spacing` 0.5, `twin_angle_deg` 10, `twin_depth_m` 100, `comp_len_m` 2, `match_by` depth, `min_pairs` 10, `thr_warn_frac` 0.1, `thick_tol_frac` 0.3 | JORC-T1-S1-Verification, NI43101-F1-Item12, CIM2019-4.5, SK1300-601b96-iii-B-9 |
 | SUR-016 | SPA-01, SPA-02 | H | Trace crosses another trace, or exits above topography / تقاطع مسیر با گمانهٔ دیگر یا خروج مسیر از سطح زمین | ERROR |  | `cross_dist_m` 1.0, `collar_zone_m` 5, `exit_tol_m` 2.0, `step_m` 1.0 | JORC-T1-S1-Location, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | VER-001 |  | I | Holes added or removed between versions / گمانه‌های افزوده یا حذف‌شده بین نسخه‌ها | INFO; WARNING |  |  | JORC-T1-S1-Verification, CIM2019-4.2, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | VER-002 |  | I | Collar coordinates or EOH changed / تغییر مختصات یا عمق نهایی دهانهٔ گمانه | INFO; WARNING |  | `tol_xy_m` 0.05, `tol_z_m` 0.05, `tol_eoh_m` 0.01, `shift_min_frac` 0.5 | JORC-T1-S1-Location, CIM2019-4.2, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
@@ -301,6 +305,17 @@ lowest reported value (a reporting floor without `<` codes). WARNING (Minor). Bl
 
 Catalogue logic: `min_run` or more consecutive original samples in one hole with exactly the same preferred value above the largest detection limit. Block copies between holes are INT-009.
 
+### ASY-031 — Unusual multi-element composition (anomaly assist, off by default)
+
+*ترکیب چندعنصری نامعمول (دستیار ناهنجاری، پیش‌فرض خاموش)* · category E (Values)
+
+Robust Mahalanobis distance of each routine sample's composition. Analytes with ≥ `min_valid_frac` measured
+values are used (≥ `min_elements`); below-detection values at ½ DL. Centred log-ratio, isometric coordinates, MCD
+covariance; samples with D² above χ²(`chi2_q`) are listed (at most `max_listed`, largest first) with the elements
+whose robust clr z-scores contribute most. INFO only: an anomaly can be mineralisation, contamination or a swap.
+
+Catalogue logic: Routine samples; analytes with ≥ `min_valid_frac` measured values (≥ `min_elements`), below-detection values at ½ DL, all in one scale. Centred log-ratio, isometric log-ratio coordinates, robust covariance by minimum covariance determinant (FastMCD C-steps, reweighted at χ²(0.975)). Robust Mahalanobis D² > χ²(`chi2_q`) → INFO, listing the `top_elements` with the largest robust clr z-scores (explainable). At most `max_listed` samples are listed, largest first. An anomaly may be mineralisation, contamination or a swap: never a verdict.
+
 ### COL-001 — Duplicate HoleID
 
 *شمارهٔ گمانهٔ تکراری* · category B (Collars) · v2 SCH-03
@@ -326,7 +341,7 @@ Catalogue logic: (a) **Collisions under three normalisations**: exact; case-fold
 
 ### COL-004 — Duplicate or near-duplicate collar coordinates (twins, wedges, re-drills, true duplicates)
 
-*مختصات تکراری یا بسیار نزدیک دهانه (دوقلو، گُوِه، بازحفاری، تکرار واقعی)* · category B (Collars) · v2 COL-02, SPA-03
+*مختصات تکراری یا بسیار نزدیک دهانه (دوقلو، گُوِه، بازحفاری، تکرار واقعی)* · category B (Collars) · v2 COL-02
 
 Catalogue logic: ⟦`kdtree`, `drv_trace`⟧ Pairs with 2D distance < `near_dup_distance_m` and |ΔZ| < `near_dup_dz_m` are classified as: **TRUE_DUPLICATE** (identical surveys and intervals); **WEDGE** (shared collar and upper trace, divergence at depth; `parent_hole_id` or ID pattern); **REDRILL** (parent abandoned or EOH short of plan, later date); **TWIN** (separation at the mineralised pierce point ≤ `twin_max_distance_m`, declared or inferred). Divergence is measured on `drv_trace` at +50 m. Wedge pairs go to SUR-025 and CRS-010; twin pairs go to CRS-006.
 
@@ -438,6 +453,18 @@ length-weighted grade is below `lo_factor` × cut-off → INFO.
 
 Catalogue logic: Per sample in `drv_interval_master`: a code with `mineralisation_class = BARREN` (post-mineral dyke, cover, barren host) and grade > `hi_factor` × cut-off, or above the mineralised-domain P95 → INFO. A MINERALISED interval ≥ `min_len_m` whose length-weighted grade < `lo_factor` × cut-off → INFO. ≥ `cluster_n` consecutive such samples in one hole → WARNING (systematic mislogging, or a hole or sample mismatch).
 
+### CRS-002 — Drilling-method grade bias
+
+*اریبی عیار وابسته به روش حفاری* · category H (Spatial, topography and boundary) · v2 SPA-05
+
+SPA-05. Composites (`comp_len_m`) of holes drilled by different methods (collar drilling method), paired one to
+one within `pair_dist_m` (3-D, closest first). For each method pair and key analyte: n, means, mean ratio, median
+relative difference, Wilcoxon signed-rank on the log ratio and QQ data. |median relative difference| ≥
+`thr_warn_frac` with p < 0.01 and ≥ `min_pairs` pairs → WARNING; otherwise INFO with the numbers; too few pairs →
+INFO recommending twin holes. The profile maps WARNING to INFO by default (brief: Info).
+
+Catalogue logic: Spatially comparable composites of different `drill_method` (RC vs DD, and others) in the same domain, paired within d ≤ min(`pair_dist_m`, `frac_spacing` × drill spacing). Paired relative difference, Q-Q plot, Wilcoxon on log, two-sample KS on the domain distributions, declustered means by method with bootstrap CIs. |median relative difference| ≥ `thr_warn_frac` with p < 0.01 and ≥ `min_pairs` → WARNING. Fewer pairs → INFO recommending twin holes (CRS-006). MDE §1.9.
+
 ### CRS-004 — Candidate estimation domains not statistically separated
 
 *عدم تفکیک آماری دامنه‌های پیشنهادی تخمین* · category F (Cross-table consistency)
@@ -449,6 +476,18 @@ Catalogue logic: On composites of each key analyte: Kruskal–Wallis across the 
 *رفتار همبری (مرز سخت یا نرم)* · category F (Cross-table consistency)
 
 Catalogue logic: Grade against signed distance along the hole to each contact between candidate domains, binned at composite length up to ± `max_dist_m`. A step model and a linear-ramp (gradational) model are fitted and compared by AIC. A transition width ≥ 2 composite lengths → INFO "soft boundary: share samples across the contact in estimation"; otherwise "hard boundary". Informs domaining; not an error test.
+
+### CRS-006 — Twin-hole grade or thickness discrepancy
+
+*مغایرت عیار یا ضخامت در گمانه‌های دوقلو* · category H (Spatial, topography and boundary) · v2 SPA-03, SPA-04
+
+SPA-03 / SPA-04. Twin candidates → INFO each. For each pair with assays: composites (`comp_len_m`) matched by
+downhole depth (`match_by` depth) or by elevation (`match_by` elevation, bins of `comp_len_m`); per key analyte the
+paired statistics. |median relative difference| ≥ `thr_warn_frac` with Wilcoxon p < 0.01 and ≥ `min_pairs` pairs →
+WARNING; intercept thickness above the cut-off differing by more than `thick_tol_frac` → WARNING; otherwise INFO
+with the numbers. The profile maps WARNING to INFO by default (brief: Info).
+
+Catalogue logic: Twin pairs from COL-004 (≤ `twin_max_distance_m` at the mineralised pierce point). Composites are matched by relative position along the mineralised intercept. Paired relative difference, Q-Q, mean difference, and intercept thickness and position. |median relative difference| ≥ `thr_warn_frac` with p < 0.01 → WARNING. Intercept thickness differing by > `thick_tol_frac` → WARNING. Reported by method pair (e.g. RC vs DD). Fewer than `min_pairs` matched composites → INFO.
 
 ### CRS-008 — QC sample carried as a downhole interval
 
@@ -557,6 +596,15 @@ Catalogue logic: N11 cases: format, CRS or zone set by a PROPOSED inference; a d
 *ابهام قالب تاریخ، تشخیص تقویم جلالی یا تقویم‌های مختلط* · category A (Schema and identifiers)
 
 Catalogue logic: After N04 digit folding, N08 applies. (a) Jalali values (year 1300–1499 or a Persian month name) are converted by `jalali_to_gregorian` (33-year arithmetic cycle) with month-length validation (1–6: 31 d; 7–11: 30 d; 12: 29/30 by leap rule). (b) Jalali and Gregorian mixed in one column. (c) DMY/MDY unresolved, or two-digit years. Corrected dates feed COL-014, SMP-008, SUR-014 and QA/QC time series.
+
+### IMP-021 — Code-mapping suggestion (anomaly assist, off by default)
+
+*پیشنهاد نگاشت کد (دستیار ناهنجاری، پیش‌فرض خاموش)* · category E (Values)
+
+Raw codes absent from the code dictionary of their field, with up to three suggested dictionary codes scoring at
+least `min_score`. INFO only; the mapping is the user's decision (INT-015 reports the code itself).
+
+Catalogue logic: For each coded field with a code dictionary, raw codes absent from it get up to three suggested dictionary codes, scored by the best of: character similarity (difflib ratio, case-folded), token-set similarity (shared words / words of the shorter), initials (first letters of the raw words equal the code) and prefix. Only suggestions ≥ `min_score` are shown, with the measure that produced them. Suggestion only; INT-015 reports the code itself.
 
 ### INT-001 — From ≥ To, zero-length or negative depth
 

@@ -4,7 +4,7 @@ Read first: `06_v2_upgrade_brief.md` (the brief) and `07_v2_gap_analysis.md` (ga
 
 ## Current phase
 
-**Phase 3 (P3) — in progress.** Phase 2 (GEOVALID PRO 0.4.0) was approved by the owner on 2026-11-09; Phase 1 (0.3.0) earlier the same day. Target after P3: 1.0.0.
+**Phase 3 (P3) — complete (GEOVALID PRO 1.0.0); awaiting the owner's approval.** Phase 2 (0.4.0) was approved on 2026-11-09; Phase 1 (0.3.0) earlier the same day. With P3 the v2 brief is fully implemented.
 
 ## Decisions
 
@@ -49,9 +49,15 @@ Read first: `06_v2_upgrade_brief.md` (the brief) and `07_v2_gap_analysis.md` (ga
   - App pages Cross-table, Lab & QA/QC, Topography & boundary, Versions; evidence-pack sections; CLI options.
   - Tests: 126 (69 new). Rules: 109.
 
+- **Phase 3 (1.0.0):**
+  - F10: profiles carry column mappings and the hole-ID merge table; project files (`geovalid-project/1`); headless `GEOVALID.exe --cli --project … --profile … --out …` and `run --project / --save-project / --apply-fixes`; exit codes 0/1/2/3; a log file for every run (CLI and GUI). Brief question "is a separate console build needed?": `geovalid-cli.exe` is already shipped beside `GEOVALID.exe`; the windowed exe also runs headless and always writes a log.
+  - F11: SUR-016 exact segment distance (SPA-02); CRS-006 twin candidates and comparison (SPA-03/04); CRS-002 drilling-method bias (SPA-05); Spatial app page with QQ plots; evidence-pack spatial section.
+  - F12: anomaly assist, off by default, INFO only: IMP-021 code-mapping suggestions, ASY-031 robust compositional anomaly score.
+  - Tests: 145 (19 new). Rules: 113.
+
 ## Pending
 
-- **P3:** project files and headless `--project`, log file; spatial clash / twins / drill-type bias (SPA-02…05); anomaly assist (F12).
+- None from the v2 brief. Candidates for later work, if wanted: the catalogue rules not yet implemented (e.g. SPA-001 local Moran outliers, ASY-025 downhole swap detection, COL-024 terrain-gradient offset), a DOCX/PDF report, map and section viewer.
 
 ## Open questions
 
