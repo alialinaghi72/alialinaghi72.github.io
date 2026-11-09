@@ -23,6 +23,8 @@ severity_overrides:
   ASY-005: {WARNING: ERROR}      # VAL-02
   ASY-015: {WARNING: ERROR}      # VAL-07
   WTH-001: {WARNING: INFO}       # XTB-06 is Info in the brief (catalogue: WARNING)
+  CRS-006: {WARNING: INFO}       # SPA-03/04 are Info in the brief (catalogue: WARNING)
+  CRS-002: {WARNING: INFO}       # SPA-05 is Info in the brief (catalogue: WARNING)
 disabled_rules: []               # rule IDs to skip (shown as DISABLED in the rule matrix)
 # Code dictionaries (VAL-08 / INT-015): {field: [codes]} for lith_code, alt_type, weathering, drill_method, …
 # A CSV or XLSX with columns `field, code[, description]` can also be loaded in the program or with --codes.
@@ -104,6 +106,8 @@ rules:
   INT-011: {cov_warn_frac: 0.90, min_cov_mineralised_frac: 0.95, expected_tables: [lithology, assay]}   # XTB-05
   WTH-001: {min_inversion_m: 2, fault_buffer_m: 5}                 # XTB-06
   CRS-001: {hi_factor: 2, lo_factor: 0.25, min_len_m: 2, cluster_n: 3}   # XTB-07
+  CRS-006: {twin_collar_m: 10, twin_rel_spacing: 0.5, twin_angle_deg: 10, twin_depth_m: 100, comp_len_m: 2, match_by: depth, min_pairs: 10, thr_warn_frac: 0.10, thick_tol_frac: 0.30}   # SPA-03/04
+  CRS-002: {comp_len_m: 2, pair_dist_m: 10, min_pairs: 30, thr_warn_frac: 0.10}   # SPA-05
   VER-002: {tol_xy_m: 0.05, tol_z_m: 0.05, tol_eoh_m: 0.01, shift_min_frac: 0.5}
   VER-003: {pos_tol_m: 1.0}
   VER-005: {upward_share: 0.75, min_n: 20}

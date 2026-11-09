@@ -27,7 +27,7 @@ _BY_FAMILY = {"IMP": "A", "COL": "B", "SUR": "C", "INT": "D", "SMP": "D", "ASY":
               "MAG": "E", "MIN": "E", "GEO": "F", "DEN": "F", "WTH": "F", "CRS": "F", "QAQ": "G", "SPA": "H", "VER": "I"}
 _BY_RULE = {"COL-003": "A", "SMP-001": "A", "SUR-016": "H", "COL-005": "H", "COL-011": "H", "COL-012": "H",
             "CRS-002": "H", "CRS-006": "H", "ASY-009": "G", "ASY-020": "G", "SMP-004": "G", "ASY-008": "F", "INT-011": "F",
-            "CRS-004": "F", "CRS-005": "F", "INT-015": "E"}
+            "CRS-004": "F", "CRS-005": "F", "INT-015": "E", "IMP-020": "E", "ASY-031": "E"}
 
 # v2 brief rule IDs (§7) carried by catalogue rules (decision D3).
 ALIASES = {
@@ -36,14 +36,14 @@ ALIASES = {
     "SUR-008": ["SRV-10"], "SUR-012": ["SRV-11"], "SUR-014": ["SRV-12"], "SUR-027": ["SRV-13"], "SUR-015": ["SRV-14"],
     "SUR-009": ["SRV-15"], "COL-003": ["SCH-05"], "SUR-001": ["SCH-04", "SCH-04b"], "INT-006": ["SCH-04", "SCH-04b"],
     "COL-008": ["SCH-04"], "COL-009": ["SCH-04"], "IMP-010": ["SCH-01"], "IMP-005": ["SCH-02"], "COL-001": ["SCH-03"],
-    "INT-003": ["SCH-03"], "IMP-006": ["SCH-06"], "COL-002": ["COL-01"], "COL-004": ["COL-02", "SPA-03"], "COL-006": ["COL-03"],
+    "INT-003": ["SCH-03"], "IMP-006": ["SCH-06"], "COL-002": ["COL-01"], "COL-004": ["COL-02"], "COL-006": ["COL-03"],
     "IMP-012": ["COL-04"], "COL-007": ["COL-07"], "COL-014": ["COL-08"], "INT-001": ["INT-01", "INT-02"], "INT-002": ["INT-03"],
     "INT-004": ["INT-04"], "INT-012": ["INT-03", "INT-04"], "INT-005": ["INT-05"], "INT-007": ["INT-06"], "SMP-001": ["INT-07"], "SMP-002": ["INT-07"],
     "ASY-002": ["VAL-01"], "ASY-005": ["VAL-02"], "ASY-001": ["VAL-03"], "ASY-004": ["VAL-03"], "ASY-010": ["VAL-04"],
     "ASY-019": ["VAL-04"], "ASY-003": ["VAL-05"], "ASY-028": ["VAL-06"], "ASY-015": ["VAL-07"], "INT-015": ["VAL-08"],
     "ASY-029": ["VAL-09"], "ASY-030": ["VAL-10"], "COL-011": ["COL-06"], "COL-012": ["COL-06b"], "COL-005": ["COL-05"],
     "SUR-016": ["SPA-01", "SPA-02"], "GEO-001": ["XTB-02"], "GEO-002": ["XTB-03"], "DEN-001": ["XTB-04"],
-    "ASY-008": ["XTB-01"], "INT-011": ["XTB-05"], "WTH-001": ["XTB-06"], "CRS-001": ["XTB-07"], "CRS-006": ["SPA-04"],
+    "ASY-008": ["XTB-01"], "INT-011": ["XTB-05"], "WTH-001": ["XTB-06"], "CRS-001": ["XTB-07"], "CRS-006": ["SPA-03", "SPA-04"],
     "CRS-002": ["SPA-05"], "SMP-004": ["REC-01"], "ASY-020": ["REC-02", "REC-03", "REC-04"], "ASY-009": ["REC-05"],
     "CRS-008": ["REC-06"], "VER-009": ["VER-01"],
 }

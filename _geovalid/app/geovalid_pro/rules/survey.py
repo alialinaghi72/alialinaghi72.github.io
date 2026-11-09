@@ -493,19 +493,39 @@ def sur_016(ctx):
     P, H, D = np.vstack(pts), np.concatenate(hid), np.concatenate(dep)
     names = list(ctx.traces)
     if len(P) > 1:
-        pairs = cKDTree(P).query_pairs(p["cross_dist_m"], output_type="ndarray")
+        # v2 SPA-02: candidate point pairs from a k-d tree (radius widened by one step so close segments are not missed),
+        # then the exact minimum 3-D distance between the trace segments around them
+        from ..analysis.spatial3d import seg_seg_distance
+        pairs = cKDTree(P).query_pairs(p["cross_dist_m"] + p["step_m"], output_type="ndarray")
         if len(pairs):
             pairs = pairs[H[pairs[:, 0]] != H[pairs[:, 1]]]
-            seen = set()
-            for i, j in pairs:
-                a, b = sorted((H[i], H[j]))
-                if (a, b) in seen:
+            nxt = np.arange(1, len(P) + 1)
+            last = np.r_[H[1:] != H[:-1], True]           # last point of each hole has no following segment
+            frames = []
+            for di in (-1, 0):
+                for dj in (-1, 0):
+                    i0, j0 = pairs[:, 0] + di, pairs[:, 1] + dj
+                    ok = (i0 >= 0) & (j0 >= 0) & ~last[np.clip(i0, 0, None)] & ~last[np.clip(j0, 0, None)]
+                    ok &= (H[np.clip(i0, 0, None)] == H[pairs[:, 0]]) & (H[np.clip(j0, 0, None)] == H[pairs[:, 1]])
+                    i0, j0 = i0[ok], j0[ok]
+                    if not len(i0):
+                        continue
+                    d, sa, sb = seg_seg_distance(P[i0], P[nxt[i0]], P[j0], P[nxt[j0]])
+                    a, b = H[i0], H[j0]
+                    da, db = D[i0] + sa * p["step_m"], D[j0] + sb * p["step_m"]
+                    sw = a > b
+                    frames.append(pd.DataFrame({"a": np.where(sw, b, a), "b": np.where(sw, a, b), "d": d,
+                                                "da": np.where(sw, db, da), "db": np.where(sw, da, db)}))
+            best = {}
+            if frames:
+                f = pd.concat(frames).sort_values("d").drop_duplicates(["a", "b"])
+                best = {(int(r.a), int(r.b)): (float(r.d), float(r.da), float(r.db)) for r in f.itertuples()}
+            for (a, b), (dist, da, db) in sorted(best.items(), key=lambda kv: kv[1][0]):
+                if dist >= p["cross_dist_m"]:
                     continue
-                seen.add((a, b))
-                dist = float(np.linalg.norm(P[i] - P[j]))
-                ctx.add("SUR-016", "ERROR", tn, f"Traces of {names[a]} and {names[b]} pass within {dist:.2f} m of each other (depth {D[i]:.0f} m / {D[j]:.0f} m): probable survey or collar error.",
-                        f"مسیر گمانه‌های {names[a]} و {names[b]} در فاصلهٔ {dist:.2f} متری از هم می‌گذرند (عمق {D[i]:.0f} و {D[j]:.0f} متر): احتمال خطای انحراف‌سنجی یا مختصات.",
-                        hole_id=names[a], from_m=float(D[i]), field="trace", value=names[b])
+                ctx.add("SUR-016", "ERROR", tn, f"Traces of {names[a]} and {names[b]} pass within {dist:.2f} m of each other (minimum segment distance at {da:.1f} m / {db:.1f} m depth): hole clash, probable survey or collar error.",
+                        f"مسیر گمانه‌های {names[a]} و {names[b]} در فاصلهٔ {dist:.2f} متری از هم می‌گذرند (عمق {da:.1f} و {db:.1f} متر): احتمال خطای انحراف‌سنجی یا مختصات.",
+                        hole_id=names[a], from_m=round(da, 2), field="trace", value=f"{names[b]} @ {dist:.2f} m", alias="SPA-02")
     if ctx.dem is not None:
         zt = ctx.dem.sample(P[:, 0], P[:, 1])
         out = np.isfinite(zt) & (P[:, 2] > zt + p["exit_tol_m"])
@@ -516,7 +536,7 @@ def sur_016(ctx):
             done.add(H[k])
             ctx.add("SUR-016", "ERROR", tn, f"Trace exits above the topographic surface at {D[k]:.0f} m depth ({P[k, 2] - zt[k]:.1f} m above).",
                     f"مسیر گمانه در عمق {D[k]:.0f} متر از سطح توپوگرافی بالاتر می‌رود ({P[k, 2] - zt[k]:.1f} متر).",
-                    hole_id=names[H[k]], from_m=float(D[k]), field="trace", value=round(float(P[k, 2] - zt[k]), 2))
+                    hole_id=names[H[k]], from_m=float(D[k]), field="trace", value=round(float(P[k, 2] - zt[k]), 2), alias="SPA-01")
 
 
 @rule("SUR-017", ("survey",))
