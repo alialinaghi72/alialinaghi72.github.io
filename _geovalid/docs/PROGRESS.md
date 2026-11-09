@@ -4,7 +4,7 @@ Read first: `06_v2_upgrade_brief.md` (the brief) and `07_v2_gap_analysis.md` (ga
 
 ## Current phase
 
-**Phase 2 (P2) — complete (GEOVALID PRO 0.4.0); awaiting the owner's approval.** Phase 1 (0.3.0) was approved on 2026-11-09.
+**Phase 3 (P3) — in progress.** Phase 2 (GEOVALID PRO 0.4.0) was approved by the owner on 2026-11-09; Phase 1 (0.3.0) earlier the same day. Target after P3: 1.0.0.
 
 ## Decisions
 
@@ -27,6 +27,7 @@ Read first: `06_v2_upgrade_brief.md` (the brief) and `07_v2_gap_analysis.md` (ga
 | D15 | Topography: scipy (an existing library) provides the local Delaunay triangulation and k-d tree; the brief's "pure Python" applies to formats, which have no third-party readers (no GDAL). Points and contours never form a full-area TIN. | P2 |
 | D16 | A geographic surface or boundary is converted to the declared UTM zone, or to the zone of its own location when none is declared; the inference is reported (COL-025). Only WGS 84 is converted; other datums are reported. | P2 |
 | D17 | A gross topography sanity failure (no overlap, feet vs metres) stops the per-collar ΔZ rules (COL-011/012) for the run and is reported once by COL-025, instead of one ΔZ error per collar. | P2 |
+| D19 | Phase 3 rule IDs: SPA-02 clash stays in SUR-016 (now exact segment-to-segment distance); SPA-03 twin candidates and SPA-04 twin comparison are CRS-006 (COL-004 keeps near-duplicate collars, COL-02); SPA-05 drill-type bias is CRS-002. F12 anomaly assist uses two new IDs, IMP-020 (code-mapping suggestions) and ASY-031 (multivariate anomaly score), both off by default and INFO only. CRS-002 and CRS-006 emit the catalogue severities; the profile maps them to the brief's Info. | P3 |
 | D18 | The brief's VER-01 is catalogue VER-009 (VER-001…008 were already defined). Version comparison runs on a previous-version folder (or file list); accepted snapshots are separate JSON manifests. | P2 |
 
 ## Done

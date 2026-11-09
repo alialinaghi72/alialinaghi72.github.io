@@ -15,7 +15,7 @@ def _attach_console() -> None:
 
 
 def main() -> int:
-    if len(sys.argv) > 1 and sys.argv[1] in ("run", "sample", "--help", "-h", "--version"):
+    if len(sys.argv) > 1 and sys.argv[1] in ("run", "sample", "--cli", "--help", "-h", "--version"):
         _attach_console()
         from .cli import main as cli_main
         return cli_main(sys.argv[1:])

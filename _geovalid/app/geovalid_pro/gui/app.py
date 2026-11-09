@@ -28,6 +28,7 @@ TR = {
     "nav_geo": ("تحلیل عیار و نمودارها", "Grade analysis & charts"), "nav_rules": ("قواعد", "Rules"), "nav_log": ("گزارش اجرا", "Run log"),
     "add": ("افزودن فایل…", "Add files…"), "remove": ("حذف", "Remove"), "mapping": ("نگاشت فیلدها…", "Field mapping…"),
     "sample": ("دادهٔ نمونه", "Sample data"), "run": ("اجرای اعتبارسنجی", "Run validation"),
+    "open_project": ("باز کردن پروژه…", "Open project…"), "save_project": ("ذخیرهٔ پروژه…", "Save project…"),
     "report": ("باز کردن گزارش", "Open report"), "folder": ("پوشهٔ خروجی", "Output folder"),
     "lang": ("English", "فارسی"), "about": ("دربارهٔ نرم‌افزار", "About"), "thresholds": ("آستانه‌ها…", "Thresholds…"),
     "theme": ("پوسته", "Theme"),
@@ -544,6 +545,12 @@ class MainWindow(P2Pages, V2Pages, QMainWindow):
             self.tr_(b, k)
             bl.addWidget(b)
         bl.addStretch(1)
+        self.b_open_proj, self.b_save_proj = QPushButton(), QPushButton()
+        for b, fn, k in ((self.b_open_proj, self.open_project, "open_project"), (self.b_save_proj, self.save_project_file, "save_project")):
+            b.clicked.connect(fn)
+            b.setCursor(Qt.PointingHandCursor)
+            self.tr_(b, k)
+            bl.addWidget(b)
         l1.addLayout(bl)
         row.addWidget(c1, 3)
         right = QVBoxLayout()
@@ -917,7 +924,58 @@ class MainWindow(P2Pages, V2Pages, QMainWindow):
                 n.name += "_2"
         self.inputs += new
         self.log(f"+ {len(new)} " + ", ".join(f"{i.name} [{i.kind}]" for i in new))
+        from ..project_file import apply_profile_mappings
+        for m in apply_profile_mappings(new, self.params):       # mappings saved in the profile (v2 F10)
+            self.log("  " + m)
         self.refresh_table()
+
+    # ================================================================ project files (v2 F10)
+    def save_project_file(self):
+        from ..project_file import save_project
+        if not self.inputs:
+            QMessageBox.information(self, APP_NAME, self.t("noinput"))
+            return
+        f, _ = QFileDialog.getSaveFileName(self, self.t("save_project"), str(Path.home() / "GEOVALID_PRO" / "project.json"), "GEOVALID project (*.json)")
+        if not f:
+            return
+        paths = {k: self.paths[k].text().strip() or None for k in ("dem", "licence", "crm", "lab", "umpire", "baseline", "snapshot")}
+        params = dict(self.params)
+        from ..project_file import store_mappings
+        store_mappings(self.inputs, params)
+        save_project(f, self.inputs, paths, params, self.e_name.text().strip() or "GEOVALID project",
+                     self.paths["out"].text().strip() or None, self.c_rlang.currentText())
+        self.log(f"project saved: {f}")
+
+    def open_project(self):
+        from ..engine import _merge, default_params, load_params
+        from ..project_file import load_project, project_inputs
+        f, _ = QFileDialog.getOpenFileName(self, self.t("open_project"), str(Path.home() / "GEOVALID_PRO"), "GEOVALID project (*.json)")
+        if not f:
+            return
+        try:
+            doc = load_project(f)
+            inputs, msgs = project_inputs(doc)
+        except Exception as e:
+            QMessageBox.critical(self, APP_NAME, str(e))
+            return
+        self.inputs = inputs
+        self.params = _merge(default_params(), doc["profile"]) if doc.get("profile") else load_params(doc.get("profile_path"))
+        for k in ("dem", "licence", "crm", "lab", "umpire", "baseline", "snapshot"):
+            self.paths[k].setText((doc.get("optional") or {}).get(k) or "")
+        out = (doc.get("output") or {})
+        if out.get("folder"):
+            self.paths["out"].setText(out["folder"])
+        if out.get("lang"):
+            self.c_rlang.setCurrentText(out["lang"])
+        self.e_name.setText(doc.get("name") or "GEOVALID project")
+        for m in msgs:
+            self.log("  ! " + m)
+        self.log(f"project opened: {f} ({len(inputs)} tables)")
+        self.refresh_table()
+        try:
+            self._fill_profiles()
+        except Exception:
+            pass
 
     def remove_selected(self):
         rows = sorted({i.row() for i in self.tbl.selectedIndexes()}, reverse=True)
@@ -1025,6 +1083,11 @@ class MainWindow(P2Pages, V2Pages, QMainWindow):
         for e in res.errors:
             self.log("! " + e.splitlines()[0] if e.strip() else "")
         self.status.showMessage(f"{self.t('done')}  {res.outputs.get('folder')}")
+        if res.outputs.get("folder"):                       # v2 F10: every run leaves a log file with its outputs
+            try:
+                (Path(res.outputs["folder"]) / "geovalid_run.log").write_text(self.logbox.toPlainText(), encoding="utf-8")
+            except (OSError, AttributeError):
+                pass
         self.go("dash")
 
     def on_failed(self, tb):

@@ -308,13 +308,20 @@ class V2Pages:
             QMessageBox.critical(self, "Profile", str(e))
             return
         self.paths["profile"].setText("")
+        from ..project_file import apply_profile_mappings
+        for m in apply_profile_mappings(self.inputs, self.params):
+            self.log("  " + m)
+        self.refresh_table()
         self._fill_profiles()
         self.log(f"profile loaded: {f}")
 
     def _save_profile(self):
         from ..engine import save_profile
+        from ..project_file import store_mappings
         f, _ = QFileDialog.getSaveFileName(self, self.t("save_profile"), "geovalid_profile.json", "JSON (*.json)")
         if f:
+            if self.inputs:
+                store_mappings(self.inputs, self.params)        # column mappings travel with the profile (v2 F10)
             h = save_profile(self.params, f)
             self.log(f"profile saved: {f}  (hash {h[:16]})")
 
@@ -431,6 +438,10 @@ class V2Pages:
             v.addWidget(d)
             boxes[fc.id] = cb
         idm = fixes.suggested_id_map(res)
+        saved = {str(r.get("raw_id")): r for r in (self.params.get("id_merge") or [])}      # ID-merge table from the profile
+        if saved and not idm.empty:
+            idm["target_id"] = [saved[str(r)]["target_id"] if str(r) in saved else t for r, t in zip(idm["raw_id"], idm["target_id"])]
+            idm["approved"] = [bool(saved[str(r)].get("approved")) if str(r) in saved else False for r in idm["raw_id"]]
         tbl = None
         if "ID_MAP" in boxes and not idm.empty:
             v.addWidget(QLabel(self.t("idmap")))
@@ -441,7 +452,7 @@ class V2Pages:
                 tbl.setItem(i, 1, QTableWidgetItem(str(r.target_id)))
                 ok = QTableWidgetItem()
                 ok.setFlags(ok.flags() | Qt.ItemIsUserCheckable)
-                ok.setCheckState(Qt.Unchecked)
+                ok.setCheckState(Qt.Checked if bool(getattr(r, "approved", False)) else Qt.Unchecked)
                 tbl.setItem(i, 2, ok)
                 tbl.setItem(i, 3, QTableWidgetItem(str(r.tables)))
                 tbl.setItem(i, 4, QTableWidgetItem(str(r.rows)))
@@ -468,6 +479,7 @@ class V2Pages:
         if tbl is not None:
             id_map = pd.DataFrame([{"raw_id": tbl.item(i, 0).text(), "target_id": tbl.item(i, 1).text(),
                                     "approved": tbl.item(i, 2).checkState() == Qt.Checked} for i in range(tbl.rowCount())])
+            self.params["id_merge"] = id_map.to_dict("records")      # saved with the profile (v2 F10)
         out = Path(res.outputs.get("folder") or Path(self.paths["out"].text())) / "corrected"
         r = fixes.apply_fixes(res, approved, str(out), id_map, user.text().strip() or None)
         self._rebuild_evidence()

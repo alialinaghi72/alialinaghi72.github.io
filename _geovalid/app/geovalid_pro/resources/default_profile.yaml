@@ -38,6 +38,8 @@ weathering_rank: {}              # XTB-06 project codes, 0 = most weathered ... 
 topography: {format: null, max_dist_m: null}
 topographies: []                 # dated surfaces, e.g. [{path: premining.tif, date: 2019-01-01, label: pre-mining}]
 topo_exempt: {field: null, values: []}   # collars without a ΔZ check, e.g. {field: hole_type, values: [UG, TRENCH]}
+column_mappings: {}             # v2 F10: table name -> {kind, fields, analytes}; applied when tables of that name are loaded
+id_merge: []                     # v2 F10: hole-ID merge table [{raw_id, target_id, approved}] (used only by the approved ID_MAP fix)
 random_audit: {pct: 5, min_n: 100, seed: 20261109}   # REC-07: seeded, reproducible selection
 crm_id_aliases: {}               # explicit CRM ID spellings, e.g. {DEMO-501: DEMO 501} (QAQ-008)
 lab_sample_types: {}             # extra GEOQAQC sample-type codes: {code: CRM|BLANK|FIELD_DUP|COARSE_DUP|PULP_DUP|ORIGINAL}
