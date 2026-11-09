@@ -62,7 +62,8 @@ class IssueLog:
 
     def add(self, rule_id: str, severity: str, table: str, message_en: str, message_fa: str, *,
             hole_id=None, from_m=None, to_m=None, field=None, value=None, expected=None,
-            suggested_fix=None, src_row=None, fix_class=None) -> None:
+            suggested_fix=None, src_row=None, fix_class=None, alias=None) -> None:
+        """`alias`: the brief check ID this particular issue answers, when a rule covers several (e.g. ASY-020 → REC-03)."""
         if severity not in SEV_RANK:
             raise ValueError(f"bad severity {severity} for {rule_id}")
         emitted = severity
@@ -85,7 +86,7 @@ class IssueLog:
             "suggested_fix": suggested_fix, "status": "open", "reviewer": None, "reason": None,
             "timestamp": self.timestamp, "src_row": src_row,
             "fingerprint": fingerprint(rule_id, table, hole_id, from_m, to_m, field, value),
-            "run_id": self.run_id, "fix_class": fix_class, "severity_default": emitted,
+            "run_id": self.run_id, "fix_class": fix_class, "severity_default": emitted, "alias_hint": alias,
         })
 
     def count(self, rule_id: str) -> int:
@@ -100,10 +101,12 @@ class IssueLog:
                 "timestamp": self.timestamp, "run_id": self.run_id,
                 "fingerprint": fingerprint(rule_id, table, "OVERFLOW", None, None, None, n)})
         self._overflow = {}
-        df = pd.DataFrame(self.rows, columns=[c for c in ISSUE_COLUMNS if c != "issue_id"])
+        df = pd.DataFrame(self.rows, columns=[c for c in ISSUE_COLUMNS if c != "issue_id"] + ["alias_hint"])
         if df.empty:
             return pd.DataFrame(columns=ISSUE_COLUMNS)
         df = df.drop_duplicates("fingerprint").copy()
+        if df["alias_hint"].isna().all():
+            df = df.drop(columns="alias_hint")
         df["_rank"] = df["severity"].map(SEV_RANK)
         df = df.sort_values(["_rank", "rule_id", "table", "hole_id", "from_m"], na_position="last", kind="stable")
         df = df.drop(columns="_rank").reset_index(drop=True)

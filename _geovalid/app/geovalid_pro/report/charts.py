@@ -418,11 +418,16 @@ def crm_chart(s: pd.DataFrame, lang="en", theme=T.IVORY):
             ax.axhline(y, color=c, lw=0.9, ls="--")
         ax.axhline(0, color=theme.axis, lw=0.8)
         for k, (key, g) in enumerate(s.groupby(["crm", "analyte"])):
-            z = g["z"].to_numpy()
-            ax.plot(range(len(g)), z, marker="o", ms=3.2, lw=0.9, color=T.CAT[k % len(T.CAT)], label=f"{key[0]} · {key[1]}", alpha=0.9)
-            bad = np.abs(z) > 3
+            z0 = g["z"].to_numpy(float)
+            z = np.clip(z0, -8, 8)                  # gross failures (unit errors, swaps) are drawn at the edge
+            name = g["label"].iloc[0] if "label" in g else key[0]
+            ax.plot(range(len(g)), z, marker="o", ms=3.2, lw=0.9, color=T.CAT[k % len(T.CAT)], label=f"{name} · {key[1]}", alpha=0.9)
+            bad = np.abs(z0) > 3
             if bad.any():
                 ax.scatter(np.arange(len(g))[bad], z[bad], s=60, facecolor="none", edgecolor=T.SEVERITY["CRITICAL"], lw=1.4, zorder=5)
+            clip = np.abs(z0) > 8
+            if clip.any():
+                ax.scatter(np.arange(len(g))[clip], z[clip], marker="^", s=34, color=T.SEVERITY["CRITICAL"], zorder=6)
         ax.set_xlabel(_L("Insertion sequence", "ترتیب درج", lang))
         ax.set_ylabel("z = (value − certified) / SD")
         ax.legend(fontsize=7, ncol=4, loc="upper left")

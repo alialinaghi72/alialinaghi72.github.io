@@ -1,6 +1,7 @@
 """Command line (01 §11, v0.1 subset).
 
   GEOVALID.exe run --files collar.csv survey.csv assay.xlsx [--dem dem.asc] [--licence lic.csv] [--crm crm.csv]
+                   [--lab lab.csv] [--umpire umpire.csv] [--audit-export checklist.xlsx] [--audit-results filled.xlsx]
                    [--profile my.json|my.yaml] [--codes codes.csv] [--out folder] [--lang fa|en|both] [--name "Project"]
   GEOVALID.exe run --sample [--out folder]          validate the bundled synthetic database
   GEOVALID.exe sample --out folder [--clean]        write the synthetic database (with or without injected errors)
@@ -45,9 +46,14 @@ def cmd_run(a) -> int:
         from .io.codes import read_code_dictionary
         for k, v in read_code_dictionary(a.codes).items():
             params.setdefault("code_dictionaries", {})[k] = sorted(set(params.get("code_dictionaries", {}).get(k, [])) | set(v))
-    spec = ProjectSpec([t for t in inputs if t.kind != "ignore"], a.dem, a.licence, a.crm, a.profile, a.name, params)
+    spec = ProjectSpec([t for t in inputs if t.kind != "ignore"], a.dem, a.licence, a.crm, a.profile, a.name, params,
+                       lab_path=a.lab, umpire_path=a.umpire, audit_path=a.audit_results)
     res = run(spec, lambda p, m: print(f"\r  [{p:3d}%] {m:<30}", end="", flush=True))
     out = write_outputs(res, a.out, a.lang)
+    if a.audit_export:
+        from .audit import export
+        m = export(res.ctx, params, a.audit_export)
+        out["audit_checklist"] = f"{m['path']} ({m['selected']} of {m['population']} samples, seed {m['seed']})"
     print()
     counts = res.issues["severity"].value_counts().to_dict() if not res.issues.empty else {}
     print(f"  issues: {counts}")
@@ -70,7 +76,11 @@ def main(argv=None) -> int:
     r.add_argument("--sample", action="store_true")
     r.add_argument("--dem")
     r.add_argument("--licence")
-    r.add_argument("--crm")
+    r.add_argument("--crm", help="CRM certificates: CRM_ID, ELEMENT, CERTIFIED, SD[, UNIT]")
+    r.add_argument("--lab", help="laboratory / QA-QC file in the GEOQAQC format (reconciliation REC-01…06)")
+    r.add_argument("--umpire", help="check / umpire laboratory file (SAMPLE_ID, elements)")
+    r.add_argument("--audit-export", help="write the seeded random-audit checklist (.xlsx or .csv) (REC-07)")
+    r.add_argument("--audit-results", help="import a filled random-audit checklist into the evidence pack")
     r.add_argument("--profile")
     r.add_argument("--codes", help="code dictionary file (field, code[, description])")
     r.add_argument("--out", default=str(Path.home() / "GEOVALID_PRO" / "output"))

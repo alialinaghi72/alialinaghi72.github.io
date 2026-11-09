@@ -91,6 +91,9 @@ class ProjectSpec:
     profile_path: str | None = None
     project_name: str = "GEOVALID project"
     params: dict | None = None
+    lab_path: str | None = None            # laboratory / QA-QC file, GEOQAQC format (R1)
+    umpire_path: str | None = None         # check / umpire laboratory file
+    audit_path: str | None = None          # filled random-audit checklist to import (REC-07)
 
 
 @dataclass
@@ -107,19 +110,9 @@ class Result:
 
 
 def _read_crm(path: str) -> pd.DataFrame:
-    df = read_file(path)[0].df
-    keys = {c: header_key(c) for c in df.columns}
-    def pick(*cands):
-        for c, k in keys.items():
-            if any(k == x or k.startswith(x) for x in cands):
-                return c
-        return None
-    c_id, c_el = pick("crm", "standard", "std", "crmid"), pick("analyte", "element", "el")
-    c_v, c_sd = pick("certified", "expected", "value", "mean", "cert"), pick("sd", "std1", "stdev", "1sd", "sd1")
-    if None in (c_id, c_el, c_v, c_sd):
-        raise ValueError("CRM file needs columns: crm_id, analyte, certified, sd")
-    return pd.DataFrame({"crm_id": df[c_id].str.strip(), "analyte": df[c_el].str.strip(),
-                         "certified": parse_numbers(df[c_v])[0], "sd": parse_numbers(df[c_sd])[0]}).dropna()
+    """CRM certificates: CRM_ID, ELEMENT (column name or symbol), CERTIFIED, SD[, UNIT] (QAQC_FORMAT.md §5)."""
+    from .io.lab import read_crm_certificates
+    return read_crm_certificates(path)
 
 
 def run(spec: ProjectSpec, progress=None) -> Result:
@@ -167,6 +160,13 @@ def run(spec: ProjectSpec, progress=None) -> Result:
             ctx.crm_values = _read_crm(spec.crm_path)
         except Exception as e:
             res.errors.append(f"CRM table: {e}")
+    from .io.lab import read_lab_file, read_umpire_file
+    for attr, path, fn in (("lab", spec.lab_path, read_lab_file), ("umpire", spec.umpire_path, read_umpire_file)):
+        if path:
+            try:
+                setattr(ctx, attr, fn(path, params))
+            except Exception as e:
+                res.errors.append(f"{attr} file: {e}")
     if ctx.dem is not None and ctx.has("collar"):
         c = ctx.collar_u
         zt = pd.Series(ctx.dem.sample(c["x"].to_numpy(float), c["y"].to_numpy(float)), index=c.index)
@@ -211,6 +211,12 @@ def run(spec: ProjectSpec, progress=None) -> Result:
     res.matrix = matrix
     progress(95, "fingerprints")
     _fingerprints(ctx, spec, params)
+    from . import audit
+    try:
+        ctx.stats["random_audit"] = audit.summarise(ctx, params, spec.audit_path) if spec.audit_path else audit.pending(ctx, params)
+    except Exception as e:  # reported, never silent
+        res.errors.append(f"random audit: {e}")
+        ctx.stats["random_audit"] = {"status": f"audit file not read: {e}"}
     res.finished = datetime.now().isoformat(timespec="seconds")
     progress(96, "done")
     return res
@@ -243,6 +249,9 @@ def _decorate(iss: pd.DataFrame, ctx: Ctx) -> pd.DataFrame:
     src = _source_files(ctx)
     iss["category"] = iss["rule_id"].map(category)
     iss["rule_alias"] = iss["rule_id"].map(lambda r: ", ".join(aliases(r)))
+    if "alias_hint" in iss:                      # an issue that answers one specific brief check of a multi-check rule
+        iss["rule_alias"] = iss["alias_hint"].where(iss["alias_hint"].notna(), iss["rule_alias"])
+        iss = iss.drop(columns="alias_hint")
     iss["source_file"] = iss["table"].map(lambda t: "; ".join(dict.fromkeys(src.get(p, "") for p in str(t).split("+") if src.get(p))) if isinstance(t, str) else None)
     iss["standards_refs"] = iss["rule_id"].map(lambda r: "; ".join(standards_refs(r)))
     return iss
@@ -252,7 +261,8 @@ def _fingerprints(ctx: Ctx, spec: ProjectSpec, params: dict) -> None:
     """v2 brief §5.5: file SHA-256, per-hole canonical hashes, dataset hash and profile hash."""
     ctx.stats["file_hashes"] = [{"file": Path(i.raw.source).name, "sheet": i.raw.sheet or "", "sha256": i.raw.sha256,
                                  "table": i.name, "kind": i.kind} for i in spec.inputs]
-    for k, path in (("dem", spec.dem_path), ("licence", spec.licence_path), ("crm", spec.crm_path)):
+    for k, path in (("dem", spec.dem_path), ("licence", spec.licence_path), ("crm", spec.crm_path), ("lab", spec.lab_path),
+                    ("umpire", spec.umpire_path)):
         if path and Path(path).is_file():
             ctx.stats["file_hashes"].append({"file": Path(path).name, "sheet": "", "sha256": sha256_of(path), "table": k, "kind": k})
     try:

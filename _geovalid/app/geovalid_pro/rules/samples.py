@@ -24,6 +24,16 @@ def _sample_rows(ctx) -> pd.DataFrame:
     return pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
 
 
+def _lab_numbers(ctx) -> pd.DataFrame:
+    """Sample IDs issued in the laboratory file (routine and QC): numbers the database is not expected to hold as
+    routine samples, so they never count as gaps in SMP-002."""
+    if ctx.lab is None:
+        return pd.DataFrame()
+    df = ctx.lab.df
+    return pd.DataFrame({"table": ctx.lab.name, "sample_id": df["sample_id"].astype("string").str.strip(), "hole_id": df["hole_id"],
+                         "from_m": df.get("from_m"), "qc": df["qc_class"] != "ORIGINAL", "src_row": df["src_row"], "lab": True})
+
+
 @rule("SMP-001", ("assay",))
 def smp_001(ctx):
     """INT-07: a sample ID used by more than one row anywhere in the assay tables (QC samples included). CRITICAL: two
@@ -50,6 +60,10 @@ def smp_002(ctx):
     s = _sample_rows(ctx)
     if s.empty:
         return
+    lab = _lab_numbers(ctx)
+    if not lab.empty:      # QC inserts known only from the laboratory file also count as used numbers (R1)
+        lab = lab[~lab["sample_id"].isin(set(s["sample_id"].dropna()))].drop_duplicates("sample_id")
+        s = pd.concat([s.assign(lab=False), lab], ignore_index=True)
     m = s["sample_id"].fillna("").str.extract(_ID)
     s["prefix"], s["num"] = m[0], pd.to_numeric(m[1], errors="coerce")
     s = s[s["num"].notna()]
@@ -72,7 +86,8 @@ def smp_002(ctx):
         if blocks:
             ctx.add("SMP-002", "INFO", g["table"].iloc[0], f"Prefix '{pre}': {blocks} jumps of more than {p['max_gap_n']} numbers (separate ticket books or blocks).",
                     f"پیشوند «{pre}»: {blocks} جهش بیش از {p['max_gap_n']} شماره (دفترچه یا بلوک جداگانه).", field="sample_id", value=blocks)
-    o = s[~s["qc"] & s["hole_id"].notna() & s["from_m"].notna()]
+    from_lab = s["lab"].fillna(False).astype(bool) if "lab" in s else pd.Series(False, index=s.index)
+    o = s[~s["qc"].astype(bool) & ~from_lab & s["hole_id"].notna() & s["from_m"].notna()]
     for h, g in o.sort_values(["hole_id", "from_m"]).groupby("hole_id"):
         if len(g) < 3:
             continue

@@ -22,6 +22,8 @@ class Ctx:
     dem: object | None = None
     licence: np.ndarray | None = None
     crm_values: pd.DataFrame | None = None
+    lab: Canon | None = None                                  # laboratory / QA-QC file (GEOQAQC format)
+    umpire: Canon | None = None                               # check / umpire laboratory file
     traces: dict = field(default_factory=dict)               # hole_id -> DataFrame (MIN_CURV)
     traces_tan: dict = field(default_factory=dict)
     traces_bt: dict = field(default_factory=dict)            # balanced tangential (SUR-015 sensitivity)
@@ -89,6 +91,16 @@ class Ctx:
         if need == "qaqc":
             return any(t.kind == "assay" and t.df["sample_type"].notna().any() for t in self.by_kind("assay")
                        if "sample_type" in t.df)
+        if need == "lab":
+            return self.lab is not None
+        if need == "umpire":
+            return self.umpire is not None and (self.lab is not None or bool(self.by_kind("assay")))
+        if need == "assay_or_lab":
+            return bool(self.by_kind("assay")) or self.lab is not None
+        if need == "lab_db":
+            return self.lab is not None and any("sample_id" in t.df for t in self.by_kind("assay"))
+        if need == "qc_any":
+            return self.has("qaqc") or self.lab is not None
         if need == "crm_values":
             return self.crm_values is not None and not self.crm_values.empty
         return True

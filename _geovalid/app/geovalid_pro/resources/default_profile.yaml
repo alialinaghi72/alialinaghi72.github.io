@@ -28,6 +28,9 @@ disabled_rules: []               # rule IDs to skip (shown as DISABLED in the ru
 code_dictionaries: {}
 dip_convention: auto             # auto | negative_down | positive_down (v2 SRV-03)
 crs: {epsg: null, utm_zone: null, hemisphere: N}   # declared CRS (IMP-012); e.g. {epsg: 32640}
+random_audit: {pct: 5, min_n: 100, seed: 20261109}   # REC-07: seeded, reproducible selection
+crm_id_aliases: {}               # explicit CRM ID spellings, e.g. {DEMO-501: DEMO 501} (QAQ-008)
+lab_sample_types: {}             # extra GEOQAQC sample-type codes: {code: CRM|BLANK|FIELD_DUP|COARSE_DUP|PULP_DUP|ORIGINAL}
 north_reference: null            # MAGNETIC | TRUE | GRID when the survey files do not say (SUR-014)
 # Cut-offs for the grade analyses (box plots, grade-length curve, grade x thickness). [value, unit]; other analytes use P75.
 analysis_cutoffs: {Cu: [0.2, "%"], Au: [0.3, "g/t"], Zn: [1.0, "%"], Pb: [1.0, "%"], Ag: [20, "g/t"], Mo: [100, "ppm"],
@@ -83,6 +86,10 @@ rules:
   QAQ-001: {target_crm_pct: 5, target_blank_pct: 3, target_field_dup_pct: 2, target_coarse_dup_pct: 2, target_pulp_dup_pct: 2, min_originals_n: 100}
   QAQ-002: {sd_warn: 2, sd_fail: 3, bias_warn_pct: 3, bias_err_pct: 5, min_n_bias: 10}
   QAQ-003: {blank_warn_x_dl: 5, blank_fail_x_dl: 10}
+  QAQ-006: {match_sd: 2, min_analytes_match: 2, blank_x_dl: 5}
+  QAQ-007: {min_pairs: 20, warn_pct: 5, err_pct: 10, alpha: 0.01}
+  SMP-004: {suggest_cutoff: 0.85, max_suggestions: 200}          # REC-01
+  ASY-020: {dl_frac: 0.5, rel_tol: 0.001, scale_tol: 0.03, min_scale_pairs: 5, offset_max: 3, offset_run_min: 5, err_warn_pct: 0.5, err_err_pct: 1.0}   # REC-02/03/04
   QAQ-004: {hard_limit_pct: {FIELD_DUP: 30, COARSE_DUP: 20, PULP_DUP: 10}, max_fail_frac: 0.10, min_mean_x_dl: 10}
   LIT-002: {thin_m: 0.5, thin_share_frac: 0.20}
   LIT-003: {cover_codes: [OB, OVB, OVBD, ALL, ALLUV, ALV, SOIL, SOL, COLL, QAL, QT, CV, COVER, TILL, SCREE, FILL]}
