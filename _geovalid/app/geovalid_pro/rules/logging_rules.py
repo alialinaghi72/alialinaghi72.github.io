@@ -110,7 +110,16 @@ def geo_001(ctx):
             sev = "ERROR" if v < 0 or v > 100 + tol else "INFO"
             ctx.add("GEO-001", sev, t.name, f"Core recovery {v:.1f} % is outside 0–100 %.", f"بازیافت مغزه {v:.1f} درصد خارج از بازهٔ ۰ تا ۱۰۰ است.",
                     hole_id=df.at[i, "hole_id"], from_m=df.at[i, "from_m"], to_m=df.at[i, "to_m"], field="cr_pct", value=round(float(v), 2),
-                    src_row=int(df.at[i, "src_row"]))
+                    src_row=int(df.at[i, "src_row"]), alias="XTB-02")
+        # XTB-02: recovered length longer than the logged interval (when CR is computed from a separate run length)
+        if "recovered_length_m" in df and "run_length_m" in df and df["run_length_m"].notna().any():
+            iv = df["to_m"] - df["from_m"]
+            bad = df["recovered_length_m"].notna() & (df["recovered_length_m"] > iv * (1 + tol / 100.0) + ctx.eps)
+            for i in df.index[bad & ~(used > 100 + tol).fillna(False)]:
+                ctx.add("GEO-001", "ERROR", t.name, f"Recovered length {df.at[i, 'recovered_length_m']:g} m exceeds the interval length {iv[i]:g} m.",
+                        f"طول مغزهٔ بازیافتی {df.at[i, 'recovered_length_m']:g} متر از طول بازه ({iv[i]:g} متر) بیشتر است.",
+                        hole_id=df.at[i, "hole_id"], from_m=df.at[i, "from_m"], to_m=df.at[i, "to_m"], field="recovered_length_m",
+                        value=float(df.at[i, "recovered_length_m"]), expected=f"<= {iv[i]:g}", src_row=int(df.at[i, "src_row"]), alias="XTB-02")
 
 
 @rule("GEO-002", ("geotech",))
@@ -123,7 +132,7 @@ def geo_002(ctx):
         for i in ru.index[bad]:
             ctx.add("GEO-002", "ERROR", t.name, f"RQD {ru[i]:.1f} % exceeds core recovery {cu[i]:.1f} % or 100 %.",
                     f"RQD برابر {ru[i]:.1f} درصد از بازیافت مغزه ({cu[i]:.1f} درصد) یا ۱۰۰ درصد بیشتر است.", hole_id=df.at[i, "hole_id"],
-                    from_m=df.at[i, "from_m"], to_m=df.at[i, "to_m"], field="rqd_pct", value=round(float(ru[i]), 2), src_row=int(df.at[i, "src_row"]))
+                    from_m=df.at[i, "from_m"], to_m=df.at[i, "to_m"], field="rqd_pct", value=round(float(ru[i]), 2), src_row=int(df.at[i, "src_row"]), alias="XTB-03")
 
 
 @rule("GEO-003", ("geotech",))
@@ -188,8 +197,29 @@ def geo_004(ctx):
                         field=a.column, value=f"p={pv:.1e}")
 
 
+def _density_lith(ctx, df: pd.DataFrame) -> tuple[pd.Series, str | None]:
+    """Logged code at each density sample (mid-point of From–To, or the point depth): the first field of the profile's
+    `density_ranges`, else the lithology code."""
+    from ..analysis.categorical import _assign
+    fields = list((ctx.params.get("density_ranges") or {}).keys()) or ["lith_code"]
+    mid = ((df["from_m"] + df["to_m"]) / 2) if "from_m" in df and "to_m" in df and df["from_m"].notna().any() else df.get("depth_m")
+    if mid is None:
+        return pd.Series(pd.NA, index=df.index, dtype="object"), None
+    s = pd.DataFrame({"hole_id": df["hole_id"], "mid_m": mid})
+    for f in fields:
+        for t in ctx.tables:
+            if t.is_interval and t.kind not in ("assay", "density") and f in t.df:
+                v = _assign(s, t.df, f)
+                if v.notna().any():
+                    return v.astype("string").str.strip().str.upper(), f
+    return pd.Series(pd.NA, index=df.index, dtype="object"), None
+
+
 @rule("DEN-001", ("density",))
 def den_001(ctx):
+    """XTB-04. Outside the absolute bounds → ERROR. Outside the user's range for the logged code (profile
+    `density_ranges` {field: {code: [lo, hi]}}) → ERROR (brief: Major). Otherwise beyond median ± `k_mad`·1.4826·MAD
+    of the same code (n ≥ 20), or of all samples when the code is unknown or rare → WARNING."""
     p = ctx.p("DEN-001")
     lo, hi = p["abs_bounds_gcm3"]
     for t in ctx.by_kind("density"):
@@ -198,15 +228,44 @@ def den_001(ctx):
             d = d / 1000.0
         med = d.median()
         mad = 1.4826 * (d - med).abs().median()
+        lith, fld = _density_lith(ctx, t.df)
+        ranges = {str(k).strip().upper(): v for k, v in ((ctx.params.get("density_ranges") or {}).get(fld) or {}).items()} if fld else {}
+        # robust fence per logged code, split by weathering when logged (oxidised rock is lighter: one population per
+        # code × weathering state); groups under 20 samples fall back to the fence of all samples
+        grp = lith.copy()
+        from ..analysis.categorical import _assign
+        mid = ((t.df["from_m"] + t.df["to_m"]) / 2) if "from_m" in t.df and t.df["from_m"].notna().any() else t.df.get("depth_m")
+        if mid is not None:
+            for wt in ctx.tables:
+                if wt.is_interval and wt.kind not in ("assay", "density") and "weathering" in wt.df:
+                    w = _assign(pd.DataFrame({"hole_id": t.df["hole_id"], "mid_m": mid}), wt.df, "weathering")
+                    if w.notna().any():
+                        grp = lith.astype("string") + " · " + w.astype("string").str.strip().str.upper()
+                        break
+        stats = {}
+        for c, g in d.groupby(grp):
+            g = g.dropna()
+            if len(g) >= 20:
+                m = g.median()
+                stats[c] = (m, 1.4826 * (g - m).abs().median())
         for i in d.index[d.notna()]:
             v = d[i]
+            c = lith[i] if pd.notna(lith[i]) else None
+            cg = grp[i] if pd.notna(grp[i]) else None
             if v < lo or v > hi:
                 sev, en, fa = "ERROR", f"outside the physical range {lo}–{hi} g/cm³", f"خارج از بازهٔ فیزیکی {lo} تا {hi} گرم بر سانتی‌متر مکعب"
-            elif mad > 0 and abs(v - med) > p["k_mad"] * mad:
+            elif c in ranges and not (ranges[c][0] <= v <= ranges[c][1]):
+                sev, en, fa = "ERROR", f"outside the range {ranges[c][0]}–{ranges[c][1]} g/cm³ set for {c}", f"خارج از بازهٔ {ranges[c][0]} تا {ranges[c][1]} تعیین‌شده برای {c}"
+            elif cg in stats and stats[cg][1] > 0:
+                m, sd = stats[cg]
+                if abs(v - m) <= p["k_mad"] * sd:
+                    continue
+                sev, en, fa = "WARNING", f"far from the {cg} median {m:.2f} g/cm³", f"دور از میانهٔ {cg} ({m:.2f} گرم بر سانتی‌متر مکعب)"
+            elif cg not in stats and mad > 0 and abs(v - med) > p["k_mad"] * mad:
                 sev, en, fa = "WARNING", f"far from the median {med:.2f} g/cm³", f"دور از میانهٔ {med:.2f} گرم بر سانتی‌متر مکعب"
             else:
                 continue
             r = t.df.loc[i]
             ctx.add("DEN-001", sev, t.name, f"Density {v:.2f} g/cm³ is {en}.", f"چگالی {v:.2f} گرم بر سانتی‌متر مکعب {fa} است.",
                     hole_id=r["hole_id"], from_m=r.get("from_m", r.get("depth_m")), field="density", value=round(float(v), 3),
-                    src_row=int(r["src_row"]))
+                    expected=f"{c}" if c else None, src_row=int(r["src_row"]), alias="XTB-04")

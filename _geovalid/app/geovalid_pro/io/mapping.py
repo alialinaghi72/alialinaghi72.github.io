@@ -174,24 +174,24 @@ def propose_mapping(df: pd.DataFrame, kind: str) -> TableMapping:
     keys = {c: header_key(c) for c in df.columns}
     used: set[str] = set()
     tm = TableMapping(kind)
-    for f in req + opt:
-        if kind == "collar" and f == "eoh_m":
-            pass
-        best_c, best_s = None, 0.0
-        for c, k in keys.items():
-            if c in used:
-                continue
+    # best matches first across all fields, so an exact synonym ("RecM" = recovered length) is never taken by an
+    # earlier field's partial match ("rec…" = recovery %); ties keep the field order (required fields first)
+    order = req + opt
+    cands = []
+    for fi, f in enumerate(order):
+        for ci, (c, k) in enumerate(keys.items()):
             s = _score(k, SYN[f])
             if f == "depth_m" and kind == "survey" and s == 0 and k in SYN["eoh_m"]:
                 s = 0.6
-            if s > best_s:
-                best_c, best_s = c, s
-        if best_c is not None and best_s > 0:
-            tm.fields[f] = best_c
-            tm.confidence[f] = best_s
-            used.add(best_c)
-        else:
-            tm.fields[f] = None
+            if s > 0:
+                cands.append((-s, fi, ci, f, c))
+    for f in order:
+        tm.fields[f] = None
+    for negs, _, _, f, c in sorted(cands):
+        if tm.fields[f] is None and c not in used:
+            tm.fields[f] = c
+            tm.confidence[f] = -negs
+            used.add(c)
     if kind in ("assay", "interval", "density"):
         for c in df.columns:
             if c in used:

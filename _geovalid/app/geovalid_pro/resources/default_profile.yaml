@@ -22,12 +22,18 @@ severity_overrides:
   ASY-003: {ERROR: CRITICAL}     # VAL-05
   ASY-005: {WARNING: ERROR}      # VAL-02
   ASY-015: {WARNING: ERROR}      # VAL-07
+  WTH-001: {WARNING: INFO}       # XTB-06 is Info in the brief (catalogue: WARNING)
 disabled_rules: []               # rule IDs to skip (shown as DISABLED in the rule matrix)
 # Code dictionaries (VAL-08 / INT-015): {field: [codes]} for lith_code, alt_type, weathering, drill_method, …
 # A CSV or XLSX with columns `field, code[, description]` can also be loaded in the program or with --codes.
 code_dictionaries: {}
 dip_convention: auto             # auto | negative_down | positive_down (v2 SRV-03)
 crs: {epsg: null, utm_zone: null, hemisphere: N}   # declared CRS (IMP-012); e.g. {epsg: 32640}
+# Cross-table checks (v2 F8): codes are the project's own, compared case-insensitively.
+mineralised_codes: {}            # XTB-01/05/07, e.g. {lith_code: [QMP, BXH], alt_type: [POT]}
+barren_codes: {}                 # XTB-07, e.g. {lith_code: [ALLUV, DYKE]}
+density_ranges: {}               # XTB-04, e.g. {lith_code: {QMP: [2.5, 2.75], TUF: [2.2, 2.6]}} (g/cm3)
+weathering_rank: {}              # XTB-06 project codes, 0 = most weathered ... 5 = fresh, e.g. {CAP: 0, OXS: 1}
 random_audit: {pct: 5, min_n: 100, seed: 20261109}   # REC-07: seeded, reproducible selection
 crm_id_aliases: {}               # explicit CRM ID spellings, e.g. {DEMO-501: DEMO 501} (QAQ-008)
 lab_sample_types: {}             # extra GEOQAQC sample-type codes: {code: CRM|BLANK|FIELD_DUP|COARSE_DUP|PULP_DUP|ORIGINAL}
@@ -88,6 +94,10 @@ rules:
   QAQ-003: {blank_warn_x_dl: 5, blank_fail_x_dl: 10}
   QAQ-006: {match_sd: 2, min_analytes_match: 2, blank_x_dl: 5}
   QAQ-007: {min_pairs: 20, warn_pct: 5, err_pct: 10, alpha: 0.01}
+  ASY-008: {min_len_m: 1.0}                                       # XTB-01
+  INT-011: {cov_warn_frac: 0.90, min_cov_mineralised_frac: 0.95, expected_tables: [lithology, assay]}   # XTB-05
+  WTH-001: {min_inversion_m: 2, fault_buffer_m: 5}                 # XTB-06
+  CRS-001: {hi_factor: 2, lo_factor: 0.25, min_len_m: 2, cluster_n: 3}   # XTB-07
   SMP-004: {suggest_cutoff: 0.85, max_suggestions: 200}          # REC-01
   ASY-020: {dl_frac: 0.5, rel_tol: 0.001, scale_tol: 0.03, min_scale_pairs: 5, offset_max: 3, offset_run_min: 5, err_warn_pct: 0.5, err_err_pct: 1.0}   # REC-02/03/04
   QAQ-004: {hard_limit_pct: {FIELD_DUP: 30, COARSE_DUP: 20, PULP_DUP: 10}, max_fail_frac: 0.10, min_mean_x_dl: 10}

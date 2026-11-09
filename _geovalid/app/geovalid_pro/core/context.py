@@ -95,6 +95,10 @@ class Ctx:
             return self.lab is not None
         if need == "umpire":
             return self.umpire is not None and (self.lab is not None or bool(self.by_kind("assay")))
+        if need == "mineralised_codes":
+            return any((self.params.get("mineralised_codes") or {}).values())
+        if need == "barren_or_mineralised_codes":
+            return any((self.params.get("barren_codes") or {}).values()) or self.has("mineralised_codes")
         if need == "assay_or_lab":
             return bool(self.by_kind("assay")) or self.lab is not None
         if need == "lab_db":
