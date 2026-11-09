@@ -8,3 +8,6 @@ _geovalid/app/.venv/
 
 # GEOQAQC sample files from the owner: kept local, not published (public repository)
 _geovalid/reference/qaqc_samples/
+
+# Downloaded release builds (published as GitHub release assets, too large for the repository)
+_geovalid/dist_*/
