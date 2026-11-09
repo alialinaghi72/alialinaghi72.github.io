@@ -95,6 +95,8 @@ class Ctx:
             return self.lab is not None
         if need == "umpire":
             return self.umpire is not None and (self.lab is not None or bool(self.by_kind("assay")))
+        if need == "anomaly_assist":
+            return bool((self.params.get("anomaly_assist") or {}).get("enabled"))
         if need == "drill_methods":
             cu = self.collar_u if self.collar is not None else None
             return cu is not None and "drill_method" in cu and cu["drill_method"].dropna().astype(str).str.strip().str.upper().nunique() >= 2

@@ -27,7 +27,7 @@ _BY_FAMILY = {"IMP": "A", "COL": "B", "SUR": "C", "INT": "D", "SMP": "D", "ASY":
               "MAG": "E", "MIN": "E", "GEO": "F", "DEN": "F", "WTH": "F", "CRS": "F", "QAQ": "G", "SPA": "H", "VER": "I"}
 _BY_RULE = {"COL-003": "A", "SMP-001": "A", "SUR-016": "H", "COL-005": "H", "COL-011": "H", "COL-012": "H",
             "CRS-002": "H", "CRS-006": "H", "ASY-009": "G", "ASY-020": "G", "SMP-004": "G", "ASY-008": "F", "INT-011": "F",
-            "CRS-004": "F", "CRS-005": "F", "INT-015": "E", "IMP-020": "E", "ASY-031": "E"}
+            "CRS-004": "F", "CRS-005": "F", "INT-015": "E", "IMP-021": "E", "ASY-031": "E"}
 
 # v2 brief rule IDs (§7) carried by catalogue rules (decision D3).
 ALIASES = {

@@ -42,6 +42,8 @@ topographies: []                 # dated surfaces, e.g. [{path: premining.tif, d
 topo_exempt: {field: null, values: []}   # collars without a ΔZ check, e.g. {field: hole_type, values: [UG, TRENCH]}
 column_mappings: {}             # v2 F10: table name -> {kind, fields, analytes}; applied when tables of that name are loaded
 id_merge: []                     # v2 F10: hole-ID merge table [{raw_id, target_id, approved}] (used only by the approved ID_MAP fix)
+# Anomaly assist (v2 F12): off by default; suggestions only, INFO only (IMP-021 code mapping, ASY-031 composition)
+anomaly_assist: {enabled: false, min_score: 0.6, min_elements: 4, min_valid_frac: 0.7, chi2_q: 0.999, max_listed: 100, top_elements: 3}
 random_audit: {pct: 5, min_n: 100, seed: 20261109}   # REC-07: seeded, reproducible selection
 crm_id_aliases: {}               # explicit CRM ID spellings, e.g. {DEMO-501: DEMO 501} (QAQ-008)
 lab_sample_types: {}             # extra GEOQAQC sample-type codes: {code: CRM|BLANK|FIELD_DUP|COARSE_DUP|PULP_DUP|ORIGINAL}
