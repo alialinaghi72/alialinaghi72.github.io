@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import traceback
 import uuid
 from dataclasses import dataclass, field
@@ -15,7 +16,9 @@ import yaml
 
 from . import __version__
 from .core.context import Ctx
-from .core.issues import IssueLog, rules_meta
+from .core.fingerprint import dataset_hash, hole_hashes
+from .core.issues import SEV_RANK, IssueLog, rules_meta
+from .core.registry import aliases, category, is_enabled, profile_hash, standards_refs
 from .core.normalise import header_key, parse_numbers
 from .core.project import TableInput, build_canonical
 from .io.mapping import propose_mapping, detect_kind
@@ -39,11 +42,28 @@ def _merge(a: dict, b: dict) -> dict:
     return out
 
 
+PROFILE_FORMAT = "geovalid-profile/1"
+
+
 def load_params(profile_path: str | None) -> dict:
+    """Default profile merged with a user profile: JSON (v2, preferred) or YAML (v0.1–0.2 profiles keep working)."""
     p = default_params()
     if profile_path:
-        p = _merge(p, yaml.safe_load(Path(profile_path).read_text(encoding="utf-8")) or {})
+        text = Path(profile_path).read_text(encoding="utf-8")
+        user = json.loads(text) if str(profile_path).lower().endswith(".json") else yaml.safe_load(text)
+        user = {k: v for k, v in (user or {}).items() if k not in ("profile_format", "saved_utc", "profile_hash", "software")}
+        p = _merge(p, user)
     return p
+
+
+def save_profile(params: dict, path: str) -> str:
+    """Write a versioned JSON rule profile (v2 brief F10): enabled rules, thresholds, severities, dictionaries, ID map."""
+    from datetime import timezone
+    body = {k: v for k, v in params.items() if k not in ("profile_format", "saved_utc", "profile_hash", "software")}
+    doc = {"profile_format": PROFILE_FORMAT, "software": f"GEOVALID PRO {__version__}",
+           "saved_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "profile_hash": profile_hash(body), **body}
+    Path(path).write_text(json.dumps(doc, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
+    return doc["profile_hash"]
 
 
 def load_inputs(paths: list[str]) -> list[TableInput]:
@@ -107,7 +127,7 @@ def run(spec: ProjectSpec, progress=None) -> Result:
     run_id = str(uuid.uuid4())
     started = datetime.now().isoformat(timespec="seconds")
     params = spec.params or load_params(spec.profile_path)
-    log = IssueLog(run_id)
+    log = IssueLog(run_id, severity_overrides=params.get("severity_overrides"))
     ctx = Ctx(params=params, log=log)
     res = Result(spec, ctx, pd.DataFrame(), pd.DataFrame(), run_id, started)
     progress(2, "building canonical tables")
@@ -161,6 +181,9 @@ def run(spec: ProjectSpec, progress=None) -> Result:
     n = len(REGISTRY)
     for k, r in enumerate(REGISTRY):
         progress(15 + int(80 * k / n), f"{r.id}")
+        if not is_enabled(params, r.id):
+            rows.append({"rule_id": r.id, "status": "DISABLED", "n_issues": 0, "note": "disabled in the profile"})
+            continue
         missing = [x for x in r.needs if not ctx.has(x)]
         if missing:
             rows.append({"rule_id": r.id, "status": "NOT_APPLICABLE", "n_issues": 0, "note": "missing input: " + ", ".join(missing)})
@@ -178,11 +201,68 @@ def run(spec: ProjectSpec, progress=None) -> Result:
     matrix["title_en"] = matrix["rule_id"].map(lambda x: meta.get(x, {}).get("title_en", ""))
     matrix["title_fa"] = matrix["rule_id"].map(lambda x: meta.get(x, {}).get("title_fa", ""))
     matrix["jorc"] = matrix["rule_id"].map(lambda x: meta.get(x, {}).get("jorc", ""))
+    matrix["category"] = matrix["rule_id"].map(category)
+    matrix["aliases"] = matrix["rule_id"].map(lambda x: ", ".join(aliases(x)))
+    matrix["standards"] = matrix["rule_id"].map(lambda x: "; ".join(standards_refs(x)))
+    res.issues = _decorate(log.frame(), ctx)
+    worst = res.issues.groupby("rule_id")["severity"].agg(lambda s: min(s, key=lambda v: SEV_RANK[v])) if not res.issues.empty else pd.Series(dtype=object)
+    matrix["worst"] = matrix["rule_id"].map(worst)
+    matrix["result"] = [_result(st, w) for st, w in zip(matrix["status"], matrix["worst"])]
     res.matrix = matrix
-    res.issues = log.frame()
+    progress(95, "fingerprints")
+    _fingerprints(ctx, spec, params)
     res.finished = datetime.now().isoformat(timespec="seconds")
     progress(96, "done")
     return res
+
+
+def _result(status: str, worst) -> str:
+    """Per-rule outcome for the reports: PASS (ran, nothing above INFO), FAIL, or why it did not run."""
+    if status != "RUN":
+        return status
+    if not isinstance(worst, str) or worst == "INFO":
+        return "PASS"
+    return "FAIL"
+
+
+def _source_files(ctx: Ctx) -> dict:
+    out = {}
+    for t in ([ctx.collar] if ctx.collar else []) + ([ctx.survey] if ctx.survey else []) + ctx.tables:
+        for part in str(t.name).split("+"):
+            out.setdefault(part, Path(str(t.source)).name)
+        out.setdefault(t.name, Path(str(t.source)).name)
+    return out
+
+
+def _decorate(iss: pd.DataFrame, ctx: Ctx) -> pd.DataFrame:
+    """Add the v2 issue fields that follow from the rule and the table (brief §5.1)."""
+    if iss.empty:
+        for c in ("category", "rule_alias", "source_file", "standards_refs"):
+            iss[c] = pd.Series(dtype=object)
+        return iss
+    src = _source_files(ctx)
+    iss["category"] = iss["rule_id"].map(category)
+    iss["rule_alias"] = iss["rule_id"].map(lambda r: ", ".join(aliases(r)))
+    iss["source_file"] = iss["table"].map(lambda t: "; ".join(dict.fromkeys(src.get(p, "") for p in str(t).split("+") if src.get(p))) if isinstance(t, str) else None)
+    iss["standards_refs"] = iss["rule_id"].map(lambda r: "; ".join(standards_refs(r)))
+    return iss
+
+
+def _fingerprints(ctx: Ctx, spec: ProjectSpec, params: dict) -> None:
+    """v2 brief §5.5: file SHA-256, per-hole canonical hashes, dataset hash and profile hash."""
+    ctx.stats["file_hashes"] = [{"file": Path(i.raw.source).name, "sheet": i.raw.sheet or "", "sha256": i.raw.sha256,
+                                 "table": i.name, "kind": i.kind} for i in spec.inputs]
+    for k, path in (("dem", spec.dem_path), ("licence", spec.licence_path), ("crm", spec.crm_path)):
+        if path and Path(path).is_file():
+            ctx.stats["file_hashes"].append({"file": Path(path).name, "sheet": "", "sha256": sha256_of(path), "table": k, "kind": k})
+    try:
+        hh = hole_hashes(ctx)
+    except Exception as e:     # fingerprints must never stop a validation; reported in the run messages
+        hh = pd.DataFrame(columns=["hole_key", "hole_id", "hash"])
+        ctx.stats["fingerprint_error"] = str(e)
+    ctx.stats["hole_hashes"] = hh
+    ctx.stats["dataset_hash"] = dataset_hash(hh)
+    ctx.stats["profile_hash"] = profile_hash(params)
 
 
 def _dip_convention(ctx: Ctx) -> None:
@@ -192,7 +272,11 @@ def _dip_convention(ctx: Ctx) -> None:
     s = ctx.survey.df
     sent = set(ctx.p("SUR-020").get("sentinels", []))
     d = s["dip"][s["dip"].notna() & ~s["dip"].isin(sent) & (s["dip"].abs() > 5) & (s["dip"].abs() <= 90)]
-    if len(d) >= 10 and (d > 0).mean() >= 0.95:
+    conv = str(ctx.params.get("dip_convention", "auto")).lower()      # v2 SRV-03: user-set convention
+    if conv == "negative_down":
+        ctx.dip_convention = "NEGATIVE_DOWN_DECLARED"
+        return
+    if conv == "positive_down" or (conv == "auto" and len(d) >= 10 and (d > 0).mean() >= 0.95):
         s["dip_raw"] = s["dip"]
         s.loc[s["dip"].notna() & ~s["dip"].isin(sent), "dip"] = -s["dip"]
         ctx.dip_convention = "POSITIVE_DOWN_CONVERTED"

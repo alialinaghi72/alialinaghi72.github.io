@@ -191,6 +191,23 @@ def _draw(kind: str, c: str, p: QPainter):
         path.arcTo(QRectF(9, 9, 30, 30), 90, -180)
         path.closeSubpath()
         p.drawPath(path)
+    elif kind == "compass":     # survey: compass needle
+        p.drawEllipse(QRectF(7, 7, 34, 34))
+        path = QPainterPath(QPointF(24, 11))
+        path.lineTo(29, 24)
+        path.lineTo(24, 37)
+        path.lineTo(19, 24)
+        path.closeSubpath()
+        p.drawPath(path)
+    elif kind == "shield":      # evidence pack
+        path = QPainterPath(QPointF(24, 6))
+        path.lineTo(39, 12)
+        path.cubicTo(39, 28, 33, 37, 24, 42)
+        path.cubicTo(15, 37, 9, 28, 9, 12)
+        path.closeSubpath()
+        p.drawPath(path)
+        p.drawLine(17, 24, 22, 29)
+        p.drawLine(22, 29, 31, 19)
     elif kind == "lang":
         f = QFont()
         f.setPixelSize(22)

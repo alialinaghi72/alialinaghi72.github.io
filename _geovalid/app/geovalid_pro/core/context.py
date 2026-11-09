@@ -24,6 +24,7 @@ class Ctx:
     crm_values: pd.DataFrame | None = None
     traces: dict = field(default_factory=dict)               # hole_id -> DataFrame (MIN_CURV)
     traces_tan: dict = field(default_factory=dict)
+    traces_bt: dict = field(default_factory=dict)            # balanced tangential (SUR-015 sensitivity)
     stats: dict = field(default_factory=dict)                # numbers and series for the report
     dip_convention: str = "NEGATIVE_DOWN"
 
@@ -73,6 +74,8 @@ class Ctx:
             return bool(self.interval_tables)
         if need in ("assay", "lithology", "geotech", "density"):
             return bool(self.by_kind(need))
+        if need == "code_dictionary":
+            return bool(self.params.get("code_dictionaries"))
         if need == "logging":
             return any(self.by_kind(k) for k in ("lithology", "alteration", "weathering"))
         if need == "analytes":
@@ -129,6 +132,7 @@ class Ctx:
             st = stations_for_hole(d, a, p, row.get("eoh_m"), row.get("azimuth"), row.get("dip"))
             self.traces[h] = desurvey(st, row["x"], row["y"], z0, "MIN_CURV")
             self.traces_tan[h] = desurvey(st, row["x"], row["y"], z0, "TAN")
+            self.traces_bt[h] = desurvey(st, row["x"], row["y"], z0, "BAL_TAN")
 
     def midpoints(self, table: Canon) -> pd.DataFrame:
         """XYZ of interval mid-points (or point depths) from the minimum-curvature traces."""

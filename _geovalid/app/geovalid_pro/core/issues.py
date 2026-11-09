@@ -1,4 +1,8 @@
-"""Issue model: one row per finding, with the fields of brief §1.3 plus fingerprint and run_id."""
+"""Issue model: one row per finding (brief §1.3, v2 brief §5.1) plus fingerprint and run_id.
+
+v2 fields: `category` (A–J), `source_file`, `source_row` (= `src_row`, the line number in the source file with the
+header on line 1), `fix_class` (None when not auto-fixable), `standards_refs` and `severity_default` (what the rule
+emitted before a profile severity override)."""
 from __future__ import annotations
 
 import hashlib
@@ -15,8 +19,9 @@ SEV_LETTER = {"CRITICAL": "C", "ERROR": "E", "WARNING": "W", "INFO": "I"}
 ISSUE_COLUMNS = [
     "issue_id", "rule_id", "severity", "table", "hole_id", "from_m", "to_m", "field", "value",
     "expected", "message_en", "message_fa", "suggested_fix", "status", "reviewer", "reason",
-    "timestamp", "src_row", "fingerprint", "run_id",
+    "timestamp", "src_row", "fingerprint", "run_id", "fix_class", "severity_default",
 ]
+ISSUE_COLUMNS_V2 = ["category", "rule_alias", "source_file", "standards_refs"]   # added by the engine after the run
 
 _META: dict | None = None
 
@@ -46,8 +51,9 @@ def fingerprint(rule_id: str, table: str, hole_id, from_m, to_m, field, value) -
 class IssueLog:
     """Collects issues from all rules; never modifies data."""
 
-    def __init__(self, run_id: str, cap_per_rule_table: int = 500):
+    def __init__(self, run_id: str, cap_per_rule_table: int = 500, severity_overrides: dict | None = None):
         self.run_id = run_id
+        self.overrides = severity_overrides or {}
         self.rows: list[dict] = []
         self.cap = cap_per_rule_table
         self._count: dict[tuple[str, str], int] = {}
@@ -56,9 +62,13 @@ class IssueLog:
 
     def add(self, rule_id: str, severity: str, table: str, message_en: str, message_fa: str, *,
             hole_id=None, from_m=None, to_m=None, field=None, value=None, expected=None,
-            suggested_fix=None, src_row=None) -> None:
+            suggested_fix=None, src_row=None, fix_class=None) -> None:
         if severity not in SEV_RANK:
             raise ValueError(f"bad severity {severity} for {rule_id}")
+        emitted = severity
+        if self.overrides:
+            from .registry import resolve_severity
+            severity = resolve_severity(self.overrides, rule_id, severity)
         key = (rule_id, table or "")
         n = self._count.get(key, 0) + 1
         self._count[key] = n
@@ -75,7 +85,7 @@ class IssueLog:
             "suggested_fix": suggested_fix, "status": "open", "reviewer": None, "reason": None,
             "timestamp": self.timestamp, "src_row": src_row,
             "fingerprint": fingerprint(rule_id, table, hole_id, from_m, to_m, field, value),
-            "run_id": self.run_id,
+            "run_id": self.run_id, "fix_class": fix_class, "severity_default": emitted,
         })
 
     def count(self, rule_id: str) -> int:

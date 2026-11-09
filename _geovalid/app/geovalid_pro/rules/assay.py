@@ -13,6 +13,9 @@ MAJORS = ["SiO2", "TiO2", "Al2O3", "Fe2O3", "Fe2O3T", "FeO", "MnO", "MgO", "CaO"
           "SrO", "SO3", "V2O5", "LOI"]
 
 
+_BDL_TEXT = {"BDL", "ND", "N.D.", "N/D", "<DL", "LDL", "BLD", "TR", "TRACE", "NIL", "<LOD", "LOD", "BD"}
+
+
 def _orig_mask(t) -> pd.Series:
     if "qc_class" in t.df:
         return ~t.df["qc_class"].isin(QC_TYPES)
@@ -56,6 +59,25 @@ def asy_002(ctx):
                     f"Column '{a.column}': {parts['BDL']} below detection, {parts['ODL']} over-range, {parts['TXT']} text codes {ctext}, {parts['SNT']} sentinels, {parts['NA']} blank (not analysed). BDL values use ½ DL in statistics.",
                     f"ستون «{a.column}»: {parts['BDL']} زیر حد تشخیص، {parts['ODL']} بالای حد، {parts['TXT']} کد متنی، {parts['SNT']} مقدار جانشین، {parts['NA']} خالی (آنالیزنشده). در آمار، نصف حد تشخیص به کار رفته است.",
                     field=a.column, value=parts["BDL"] + parts["ODL"] + parts["TXT"] + parts["SNT"])
+            # VAL-01: how "below detection" is written, per batch; more than one convention in a column is flagged
+            raw = t.raw[a.column].astype("string").str.strip() if t.raw is not None and a.column in t.raw else pd.Series(pd.NA, index=t.df.index)
+            form = pd.Series(pd.NA, index=t.df.index, dtype=object)
+            bdl = a.parsed["flag"] == "BDL"
+            form[bdl & raw.str.startswith("<").fillna(False)] = "<DL"
+            form[bdl & raw.str.startswith("-").fillna(False)] = "negative DL"
+            txt_bdl = (a.parsed["flag"] == "TXT") & a.parsed["code"].astype("string").str.upper().str.replace(" ", "", regex=False).isin(_BDL_TEXT).fillna(False)
+            form[txt_bdl] = "text code"
+            form = form[m]
+            batch = t.df.loc[form.index, "batch"].astype("string").fillna("—") if "batch" in t.df else pd.Series("—", index=form.index)
+            inv = pd.DataFrame({"form": form, "batch": batch}).dropna(subset=["form"])
+            if not inv.empty:
+                tab = inv.groupby(["form", "batch"]).size().reset_index(name="n")
+                ctx.stats.setdefault("bdl_inventory", []).append(tab.assign(table=t.name, column=a.column, analyte=a.analyte))
+                if inv["form"].nunique() > 1:
+                    desc = "; ".join(f"{f} ({g['n'].sum()}, batches {', '.join(map(str, g['batch'].head(5)))}{'…' if len(g) > 5 else ''})" for f, g in tab.groupby("form"))
+                    ctx.add("ASY-002", "WARNING", t.name, f"Column '{a.column}' writes below-detection values in {inv['form'].nunique()} ways: {desc}.",
+                            f"ستون «{a.column}» مقادیر زیر حد تشخیص را به {inv['form'].nunique()} شکل نوشته است: {desc}.",
+                            field=a.column, value=inv["form"].nunique())
 
 
 @rule("ASY-003", ("analytes",))
@@ -75,6 +97,13 @@ def asy_003(ctx):
                 why_fa = "عیار منفی" if v[i] < 0 else f"بیش از حد فیزیکی ممکن ({v[i]:g} {a.unit})"
                 ctx.add("ASY-003", "ERROR", t.name, f"{a.analyte}: impossible value, {why_en}.", f"{a.analyte}: مقدار ناممکن، {why_fa}.",
                         field=a.column, value=v[i], **_row_ctx(t, i))
+        el = [a for a in t.analytes if not a.partial and a.analyte not in OXIDES]
+        if len(el) >= 2:                                       # v2 VAL-05: Σ of all elements as % above 100
+            tot_el = sum(_pct(a).where(a.parsed["flag"] == "VAL").fillna(0) for a in el)
+            for i in tot_el.index[(tot_el > p.get("element_sum_max_pct", 100)) & m]:
+                ctx.add("ASY-003", "ERROR", t.name, f"The reported elements add up to {tot_el[i]:.1f} % (above 100 %).",
+                        f"مجموع عناصر گزارش‌شده {tot_el[i]:.1f} درصد و بیش از ۱۰۰ درصد است.", field="element sum",
+                        value=round(float(tot_el[i]), 2), **_row_ctx(t, i))
         ox = [a for a in t.analytes if a.analyte in MAJORS and not a.partial]
         names = {a.analyte for a in ox}
         if len(ox) >= 5:
@@ -305,3 +334,9 @@ def asy_015(ctx):
             ctx.add("ASY-015", "WARNING", t.name, f"Major-oxide total {tot[i]:.1f} % is below {p['total_min_pct']} %: a missing component, LOI or incomplete package.",
                     f"مجموع اکسیدهای اصلی {tot[i]:.1f} درصد و کمتر از {p['total_min_pct']} درصد است: جزء یا LOI ناموجود یا بستهٔ آنالیز ناقص.",
                     field="oxide total", value=round(float(tot[i]), 2), **_row_ctx(t, i))
+        hi = p.get("total_max_pct")
+        if hi is not None:                                     # v2 VAL-07: 97–102 %
+            for i in tot.index[(tot > hi) & (n_rep >= 5) & _orig_mask(t)]:
+                ctx.add("ASY-015", "WARNING", t.name, f"Major-oxide total {tot[i]:.1f} % is above {hi} %: double-counted iron, a units error or an analytical problem.",
+                        f"مجموع اکسیدهای اصلی {tot[i]:.1f} درصد و بیش از {hi} درصد است.", field="oxide total high",
+                        value=round(float(tot[i]), 2), **_row_ctx(t, i))

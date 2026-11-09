@@ -1,7 +1,7 @@
 """Command line (01 §11, v0.1 subset).
 
   GEOVALID.exe run --files collar.csv survey.csv assay.xlsx [--dem dem.asc] [--licence lic.csv] [--crm crm.csv]
-                   [--profile my.yaml] [--out folder] [--lang fa|en|both] [--name "Project"]
+                   [--profile my.json|my.yaml] [--codes codes.csv] [--out folder] [--lang fa|en|both] [--name "Project"]
   GEOVALID.exe run --sample [--out folder]          validate the bundled synthetic database
   GEOVALID.exe sample --out folder [--clean]        write the synthetic database (with or without injected errors)
 
@@ -39,7 +39,13 @@ def cmd_run(a) -> int:
     inputs = load_inputs(files)
     for t in inputs:
         print(f"  {t.name:<28} {t.kind:<11} {len(t.raw.df):>8} rows")
-    spec = ProjectSpec([t for t in inputs if t.kind != "ignore"], a.dem, a.licence, a.crm, a.profile, a.name)
+    from .engine import load_params
+    params = load_params(a.profile)
+    if getattr(a, "codes", None):
+        from .io.codes import read_code_dictionary
+        for k, v in read_code_dictionary(a.codes).items():
+            params.setdefault("code_dictionaries", {})[k] = sorted(set(params.get("code_dictionaries", {}).get(k, [])) | set(v))
+    spec = ProjectSpec([t for t in inputs if t.kind != "ignore"], a.dem, a.licence, a.crm, a.profile, a.name, params)
     res = run(spec, lambda p, m: print(f"\r  [{p:3d}%] {m:<30}", end="", flush=True))
     out = write_outputs(res, a.out, a.lang)
     print()
@@ -66,6 +72,7 @@ def main(argv=None) -> int:
     r.add_argument("--licence")
     r.add_argument("--crm")
     r.add_argument("--profile")
+    r.add_argument("--codes", help="code dictionary file (field, code[, description])")
     r.add_argument("--out", default=str(Path.home() / "GEOVALID_PRO" / "output"))
     r.add_argument("--lang", default="fa", choices=["fa", "en", "both"])
     r.add_argument("--name", default="GEOVALID project")

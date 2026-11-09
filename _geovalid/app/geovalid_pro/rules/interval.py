@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 
 from ..core.normalise import hole_key
-from .base import rule
+from .base import closest_collars, rule
 
 QC_TYPES = {"CRM", "BLANK", "FIELD_DUP", "COARSE_DUP", "PULP_DUP", "UMPIRE"}
 CONTIGUOUS = {"lithology", "weathering", "alteration", "geotech"}
@@ -45,21 +45,26 @@ def int_001(ctx):
         for i, r in df[bad].iterrows():
             what = "negative depth" if min(r["from_m"], r["to_m"]) < 0 else ("zero length" if abs(r["to_m"] - r["from_m"]) <= eps else "From > To")
             what_fa = {"negative depth": "عمق منفی", "zero length": "طول صفر", "From > To": "عمق «از» بزرگ‌تر از «تا»"}[what]
-            ctx.add("INT-001", "ERROR", t.name, f"Interval {r['from_m']:g}–{r['to_m']:g} m: {what}.", f"بازهٔ {r['from_m']:g} تا {r['to_m']:g} متر: {what_fa}.",
+            sev = "ERROR" if what == "zero length" else "CRITICAL"      # v2 brief: INT-01 From ≥ To Critical, INT-02 zero length Major
+            ctx.add("INT-001", sev, t.name, f"Interval {r['from_m']:g}–{r['to_m']:g} m: {what}.", f"بازهٔ {r['from_m']:g} تا {r['to_m']:g} متر: {what_fa}.",
                     hole_id=r["hole_id"], from_m=r["from_m"], to_m=r["to_m"], field="from_m,to_m", src_row=int(r["src_row"]))
+
+
+def _overlaps(t, eps):
+    df = _valid(originals(t), eps).sort_values(["hole_id", "from_m", "to_m"])
+    prev_max = df.groupby("hole_id")["to_m"].transform(lambda s: s.cummax().shift())
+    return df, prev_max - df["from_m"], df.duplicated(["hole_id", "from_m", "to_m"], keep=False)
 
 
 @rule("INT-002", ("intervals",))
 def int_002(ctx):
-    eps, micro = ctx.eps, ctx.p("INT-002")["micro_overlap_m"]
+    """Real overlaps (> the global depth tolerance) are CRITICAL; smaller ones are precision artefacts (INT-012)."""
+    eps = ctx.eps
     for t in ctx.interval_tables:
-        df = _valid(originals(t), eps).sort_values(["hole_id", "from_m", "to_m"])
-        prev_max = df.groupby("hole_id")["to_m"].transform(lambda s: s.cummax().shift())
-        ov = prev_max - df["from_m"]
-        dup = df.duplicated(["hole_id", "from_m", "to_m"], keep=False)
+        df, ov, dup = _overlaps(t, eps)
         for i in df.index[(ov > eps) & ~dup]:
             r = df.loc[i]
-            sev = "INFO" if ov[i] <= micro else "ERROR"
+            sev = "CRITICAL"
             ctx.add("INT-002", sev, t.name, f"Interval {r['from_m']:g}–{r['to_m']:g} m overlaps the previous interval by {ov[i]:.3g} m.",
                     f"بازهٔ {r['from_m']:g} تا {r['to_m']:g} متر با بازهٔ قبلی {ov[i]:.3g} متر هم‌پوشانی دارد.", hole_id=r["hole_id"],
                     from_m=r["from_m"], to_m=r["to_m"], field="from_m", value=round(float(ov[i]), 4), src_row=int(r["src_row"]))
@@ -82,7 +87,8 @@ def int_003(ctx):
             ctx.add("INT-003", "ERROR", t.name, f"{len(g)} records for {r['from_m']:g}–{r['to_m']:g} m: {kind_en}.",
                     f"{len(g)} رکورد برای بازهٔ {r['from_m']:g} تا {r['to_m']:g} متر: {kind_fa}.", hole_id=r["hole_id"],
                     from_m=r["from_m"], to_m=r["to_m"], value=len(g), src_row=int(g["src_row"].iloc[1]),
-                    suggested_fix="Keep one record (identical) or resolve the conflict from the source document.")
+                    suggested_fix="Keep one record (identical) or resolve the conflict from the source document.",
+                    fix_class="INTERVAL_DUP_IDENTICAL" if same else None)
 
 
 @rule("INT-004", ("intervals", "collar"))
@@ -98,7 +104,7 @@ def int_004(ctx):
             f, to = g["from_m"].to_numpy(), g["to_m"].to_numpy()
             runmax = np.maximum.accumulate(to)
             gaps = [("top", 0.0, f[0])] if f[0] > p["top_gap_tol_m"] else []
-            gi = np.where(f[1:] - runmax[:-1] > eps)[0]
+            gi = np.where(f[1:] - runmax[:-1] > eps)[0]          # gaps ≤ the tolerance are precision artefacts (INT-012)
             gaps += [("internal", runmax[k], f[k + 1]) for k in gi]
             e = eoh.get(h, np.nan)
             if np.isfinite(e) and e - runmax[-1] > p["bottom_gap_tol_m"]:
@@ -134,21 +140,39 @@ def int_006(ctx):
         for h, g in df[df["hole_id"].notna() & ~df["hole_id"].isin(ids)].groupby("hole_id"):
             k = keys.get(hole_key(h))
             hint = f" Matches collar '{k}' after folding: a join error." if k else ""
+            near = closest_collars(h, ids)
             ctx.add("INT-006", "ERROR", t.name, f"{len(g)} rows for hole '{h}', which is not in the collar table.{hint}",
                     f"{len(g)} ردیف برای گمانهٔ «{h}» که در جدول دهانه نیست.", hole_id=h, field="hole_id", value=len(g),
-                    src_row=int(g["src_row"].iloc[0]))
+                    src_row=int(g["src_row"].iloc[0]), fix_class="ID_MAP" if k else None,
+                    suggested_fix=(f"Closest collar IDs (suggestion only): {', '.join(near)}" if near else "Add the collar record or correct the hole ID."))
+
+
+def _limits_by_drill_type(ctx, p):
+    """Per-hole (short, long) sample-length limits from the collar drill type; `default` when unknown."""
+    lim = {str(k).upper(): v for k, v in (p.get("by_drill_type") or {}).items()}
+    default = lim.get("DEFAULT", [p.get("short_m", 0.1), p.get("long_sample_m", 6.0)])
+    out = {}
+    if ctx.has("collar") and "drill_method" in ctx.collar_u:
+        for h, m in ctx.collar_u["drill_method"].items():
+            out[h] = lim.get(str(m).strip().upper(), default) if isinstance(m, str) else default
+    return out, default
 
 
 @rule("INT-007", ("assay",))
 def int_007(ctx):
+    """v2 INT-06: sample length outside the limits for the hole's drill type (defaults 0.1–6 m; Minor)."""
     p = ctx.p("INT-007")
+    per_hole, default = _limits_by_drill_type(ctx, p)
     for t in ctx.by_kind("assay"):
         df = _valid(originals(t), ctx.eps)
         L = df["to_m"] - df["from_m"]
-        for i in df.index[(L < p["short_m"]) | (L > p["long_sample_m"])]:
+        lims = df["hole_id"].map(lambda h: per_hole.get(h, default))
+        lo = lims.map(lambda x: float(x[0])) if len(df) else pd.Series(dtype=float)
+        hi = lims.map(lambda x: float(x[1])) if len(df) else pd.Series(dtype=float)
+        for i in df.index[(L < lo) | (L > hi)]:
             r = df.loc[i]
-            ctx.add("INT-007", "INFO", t.name, f"Sample length {L[i]:.2f} m is outside {p['short_m']}–{p['long_sample_m']} m.",
-                    f"طول نمونه {L[i]:.2f} متر خارج از بازهٔ {p['short_m']} تا {p['long_sample_m']} متر است.", hole_id=r["hole_id"],
+            ctx.add("INT-007", "WARNING", t.name, f"Sample length {L[i]:.2f} m is outside {lo[i]:g}–{hi[i]:g} m for this hole's drill type.",
+                    f"طول نمونه {L[i]:.2f} متر خارج از بازهٔ {lo[i]:g} تا {hi[i]:g} متر برای نوع حفاری این گمانه است.", hole_id=r["hole_id"],
                     from_m=r["from_m"], to_m=r["to_m"], field="length_m", value=round(float(L[i]), 3), src_row=int(r["src_row"]))
         key = next((a for a in t.analytes if a.analyte in ctx.params.get("key_analytes", []) and not a.partial), None)
         if key is not None and len(df) >= 100:
@@ -193,39 +217,43 @@ def int_008(ctx):
 
 @rule("INT-009", ("intervals",))
 def int_009(ctx):
+    """A block of `min_window_n` (5) consecutive rows (values and codes) that occurs again elsewhere, in another hole or
+    the same one: possible copy-paste. Windows with fewer than 3 distinct rows are ignored (uniform runs are legitimate).
+    Vectorised: each window gets a 64-bit polynomial hash of its row hashes; repeated keys are the copies. WARNING."""
+    from numpy.lib.stride_tricks import sliding_window_view
     k = ctx.p("INT-009")["min_window_n"]
+    pw = np.array([pow(1099511628211, j, 2 ** 64) for j in range(k)], dtype=np.uint64)
     for t in ctx.interval_tables:
         df = _valid(originals(t), ctx.eps).sort_values(["hole_id", "from_m"])
         vcols = [c for c in df.columns if c.startswith("attr:") or c in ("lith_code", "cr_pct", "rqd_pct", "density")]
         acols = [a.column for a in t.analytes]
-        if not vcols and not acols:
+        if (not vcols and not acols) or len(df) < k:
             continue
         frame = pd.concat([df[vcols].astype("string"), t.raw.loc[df.index, acols].astype("string")], axis=1).fillna("")
-        hashes = pd.util.hash_pandas_object(frame, index=False).to_numpy()
-        seen = {}
-        for h, idx in df.groupby("hole_id").indices.items():
-            hh = hashes[idx]
-            for s in range(0, len(hh) - k + 1):
-                w = hh[s:s + k]
-                if len(set(w)) < 3:
-                    continue
-                win = frame.iloc[idx[s:s + k]]
-                if all(win[c].nunique() <= 1 for c in win.columns):
-                    continue
-                seen.setdefault(tuple(w), []).append((h, idx[s]))
+        hashes = pd.util.hash_pandas_object(frame, index=False).to_numpy(np.uint64)
+        hole = pd.factorize(df["hole_id"])[0]
+        W = sliding_window_view(hashes, k)
+        same_hole = hole[: len(W)] == hole[k - 1:]
+        srt = np.sort(W, axis=1)
+        distinct = 1 + (np.diff(srt, axis=1) != 0).sum(axis=1)
+        ok = same_hole & (distinct >= 3)
+        with np.errstate(over="ignore"):
+            keys = (W * pw).sum(axis=1, dtype=np.uint64)
+        cand = pd.DataFrame({"key": keys[ok], "start": np.where(ok)[0]})
+        dup = cand[cand.duplicated("key", keep=False)]
         reported = set()
-        for w, occ in seen.items():
+        for key, g in dup.groupby("key"):
+            occ = [(df["hole_id"].iloc[st], st) for st in g["start"]]
             holes = {o[0] for o in occ}
-            if len(occ) >= 2 and (len(holes) >= 2 or len(occ) >= 2):
-                for h, start in occ:
-                    r = df.iloc[start]
-                    if (h, r["from_m"]) in reported:
-                        continue
-                    reported.add((h, r["from_m"]))
-                    others = ", ".join(sorted({o[0] for o in occ} - {h})) or "same hole"
-                    ctx.add("INT-009", "WARNING", t.name, f"A block of {k} consecutive rows from {r['from_m']:g} m is repeated elsewhere ({others}): possible copy-paste.",
-                            f"بلوکی از {k} ردیف پیاپی از عمق {r['from_m']:g} متر در جای دیگری تکرار شده است ({others}): احتمال کپی‌کردن.",
-                            hole_id=h, from_m=r["from_m"], value=others, src_row=int(r["src_row"]))
+            for h, st in occ:
+                r = df.iloc[st]
+                if (h, r["from_m"]) in reported:
+                    continue
+                reported.add((h, r["from_m"]))
+                others = ", ".join(sorted(holes - {h})) or "same hole"
+                ctx.add("INT-009", "WARNING", t.name, f"A block of {k} consecutive rows from {r['from_m']:g} m is repeated elsewhere ({others}): possible copy-paste.",
+                        f"بلوکی از {k} ردیف پیاپی از عمق {r['from_m']:g} متر در جای دیگری تکرار شده است ({others}): احتمال کپی‌کردن.",
+                        hole_id=h, from_m=r["from_m"], value=others, src_row=int(r["src_row"]))
 
 
 @rule("INT-013", ("intervals",))
@@ -264,3 +292,28 @@ def imp_011(ctx):
             ctx.add("IMP-011", "WARNING", t.name, f"Depths are about {ratio.median():.2f} × EOH in {len(ratio)} holes: the table is probably in feet.",
                     f"عمق‌ها در {len(ratio)} گمانه حدود {ratio.median():.2f} برابر عمق نهایی‌اند: احتمالاً واحد جدول فوت است.",
                     field=col, value=round(float(ratio.median()), 3), suggested_fix="Set the depth unit of this table to ft in the mapping.")
+
+
+@rule("INT-012", ("intervals",))
+def int_012(ctx):
+    """v2 brief §5.4: overlaps and gaps no larger than the global depth tolerance (`depth_eps_m`, default 0.001 m) are
+    precision artefacts. They are reported here (Minor), never mixed with real overlaps (INT-002) or gaps (INT-004)."""
+    eps = ctx.eps
+    tiny = 1e-9
+    for t in ctx.interval_tables:
+        df, ov, dup = _overlaps(t, eps)
+        for i in df.index[(ov > tiny) & (ov <= eps) & ~dup]:
+            r = df.loc[i]
+            ctx.add("INT-012", "WARNING", t.name, f"Precision artefact: {ov[i] * 1000:.3g} mm overlap at {r['from_m']:g} m (≤ tolerance {eps * 1000:g} mm).",
+                    f"اثر دقت عددی: هم‌پوشانی {ov[i] * 1000:.3g} میلی‌متر در عمق {r['from_m']:g} متر (کمتر از رواداری {eps * 1000:g} میلی‌متر).",
+                    hole_id=r["hole_id"], from_m=r["from_m"], to_m=r["to_m"], field="from_m", value=float(ov[i]), src_row=int(r["src_row"]))
+        if t.kind == "density":
+            continue
+        for h, g in df.groupby("hole_id"):
+            f, to = g["from_m"].to_numpy(), g["to_m"].to_numpy()
+            gap = f[1:] - np.maximum.accumulate(to)[:-1]
+            for k in np.where((gap > tiny) & (gap <= eps))[0]:
+                r = g.iloc[k + 1]
+                ctx.add("INT-012", "WARNING", t.name, f"Precision artefact: {gap[k] * 1000:.3g} mm gap at {r['from_m']:g} m (≤ tolerance {eps * 1000:g} mm).",
+                        f"اثر دقت عددی: شکاف {gap[k] * 1000:.3g} میلی‌متر در عمق {r['from_m']:g} متر (کمتر از رواداری).",
+                        hole_id=h, from_m=r["from_m"], to_m=r["to_m"], field="from_m", value=float(gap[k]), src_row=int(r["src_row"]))

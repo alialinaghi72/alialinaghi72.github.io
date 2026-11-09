@@ -914,3 +914,39 @@ def strip_log(smp: pd.DataFrame, hole: str, analytes: list[str], fields: dict, u
         fig.suptitle(_L(f"Hole {hole} — logged geology and grade", f"گمانهٔ {hole} — زمین‌شناسی ثبت‌شده و عیار", lang),
                      fontsize=10, fontweight="semibold", color=theme.ink, x=0.99 if lang == "fa" else 0.01, ha="right" if lang == "fa" else "left")
         return fig
+
+
+# ------------------------------------------------------------------ survey QA (v2 F1)
+def survey_qa(st: pd.DataFrame, hole: str, warn: float = 3.0, err: float = 6.0, lang="en", theme=T.IVORY):
+    """Downhole dip, azimuth and dogleg severity (°/30 m) of one hole, with the SUR-010 thresholds."""
+    from ..analysis.desurvey import dogleg_deg
+    g = st[st["hole_id"] == hole].dropna(subset=["depth_m"]).sort_values("depth_m")
+    g = g[np.isfinite(g["azimuth"]) & np.isfinite(g["dip"])] if "azimuth" in g else g.iloc[0:0]
+    if len(g) < 2:
+        return None
+    with styled(theme):
+        d, a, p = g["depth_m"].to_numpy(float), g["azimuth"].to_numpy(float), g["dip"].to_numpy(float)
+        beta = dogleg_deg(a[:-1], p[:-1], a[1:], p[1:])
+        dls = beta * 30.0 / np.maximum(np.diff(d), 1e-9)
+        fig = Figure(figsize=(8.6, 5.8), layout="constrained", facecolor=theme.bg)
+        axes = fig.subplots(1, 3, sharey=True)
+        for ax in axes:
+            ax.set_facecolor(theme.panel)
+        axes[0].plot(p, d, color=T.CAT[0], marker="o", ms=3.5, lw=1.4)
+        axes[0].set_xlabel(_L("dip (°)", "شیب (درجه)", lang))
+        au = np.degrees(np.unwrap(np.radians(a)))
+        axes[1].plot(au, d, color=T.CAT[1], marker="o", ms=3.5, lw=1.4)
+        axes[1].set_xlabel(_L("azimuth (°, unwrapped)", "آزیموت (درجه)", lang))
+        mid = (d[:-1] + d[1:]) / 2
+        cols = [T.SEVERITY["ERROR"] if v >= err else T.SEVERITY["WARNING"] if v >= warn else T.CAT[0] for v in dls]
+        axes[2].barh(mid, dls, height=np.diff(d) * 0.8, color=cols, alpha=0.85)
+        axes[2].axvline(warn, color=T.SEVERITY["WARNING"], ls="--", lw=1)
+        axes[2].axvline(err, color=T.SEVERITY["ERROR"], ls="--", lw=1)
+        axes[2].set_xlabel(_L("dogleg severity (°/30 m)", "شدت خمیدگی (درجه بر ۳۰ متر)", lang))
+        axes[0].set_ylim(max(d.max() * 1.03, 1), 0)
+        axes[0].set_ylabel(_L("downhole depth (m)", "عمق درون‌چاهی (متر)", lang))
+        for ax in axes:
+            ax.grid(True, axis="x")
+        fig.suptitle(_L(f"Survey QA — {hole}", f"کنترل انحراف‌سنجی — {hole}", lang), fontsize=10, fontweight="semibold",
+                     color=theme.ink, x=0.99 if lang == "fa" else 0.01, ha="right" if lang == "fa" else "left")
+        return fig

@@ -11,6 +11,7 @@ import pandas as pd
 
 from .. import __version__
 from ..core.issues import SEV_RANK
+from ..core.registry import CATEGORIES
 from . import charts
 
 S = {
@@ -30,7 +31,7 @@ S = {
  "note": ("یادداشت", "Note"), "severity": ("شدت", "Severity"), "hole": ("گمانه", "Hole"), "from": ("از", "From"),
  "to": ("تا", "To"), "message": ("شرح", "Message"), "fix": ("پیشنهاد اصلاح", "Suggested fix"), "row": ("ردیف فایل", "File row"),
  "search": ("جستجو در مسائل…", "Search issues…"), "top": ("مهم‌ترین یافته‌ها", "Key findings"),
- "contents": ("فهرست مطالب", "Contents"), "samples": ("نمونهٔ اصلی", "Original samples"), "rules_run": ("قاعدهٔ اجراشده", "Rules run"),
+ "contents": ("فهرست مطالب", "Contents"), "holes_status": ("وضعیت گمانه‌ها", "Status by hole"), "samples": ("نمونهٔ اصلی", "Original samples"), "rules_run": ("قاعدهٔ اجراشده", "Rules run"),
  "disclaimer": ("این نرم‌افزار ابزار پشتیبان تصمیم است. پذیرش نهایی داده‌ها برای گزارش‌دهی عمومی (JORC، NI 43-101) بر عهدهٔ شخص صلاحیت‌دار (Competent / Qualified Person) است. هیچ داده‌ای به‌طور خودکار تغییر داده نشده است؛ همهٔ اصلاحات پیشنهادی نیازمند بازبینی و ثبت دلیل هستند.",
                 "This software is a decision-support tool. Final acceptance of data for public reporting (JORC, NI 43-101) remains with the Competent / Qualified Person. No data were changed automatically; every proposed correction requires review and a recorded reason."),
  "v01": ("نسخهٔ {ver}: اجرای {run} قاعده از فهرست مصوب؛ قواعد دیگر در فازهای بعدی (به سند ۰۵ مراجعه شود). شاخص اطمینان داده در فاز ۴ اضافه می‌شود.",
@@ -140,6 +141,8 @@ figcaption{font-size:12.5px;color:var(--muted);margin-top:6px}
 .find{list-style:none;padding:0;margin:8px 0}.find li{position:relative;padding:6px 26px 6px 0;margin:2px 0;border-bottom:1px dashed var(--line)}
 html[dir=ltr] .find li{padding:6px 0 6px 26px}
 .find li::before{content:"";position:absolute;inset-inline-start:4px;top:15px;width:9px;height:9px;border-radius:50%;background:var(--gold2)}
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.filters select{padding:8px 10px;border:1px solid var(--line);border-radius:10px;font:inherit;background:var(--soft)}
+.filters input.q{flex:1;min-width:200px}
 input.q{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;margin:6px 0;background:var(--soft)}
 details{margin:10px 0}details summary{cursor:pointer;font-weight:700;color:var(--teal);margin:6px 0}
 .ltr{direction:ltr;unicode-bidi:embed}
@@ -152,8 +155,11 @@ figure{break-inside:avoid}.hero{-webkit-print-color-adjust:exact;print-color-adj
 """
 
 JS = """
-function gvFilter(inp){var q=inp.value.toLowerCase();document.querySelectorAll('#issues tbody tr').forEach(function(r){
-r.style.display=r.textContent.toLowerCase().indexOf(q)>=0?'':'none';});}
+function gvFilter(){var q=(document.getElementById('fq')||{value:''}).value.toLowerCase(),
+s=(document.getElementById('fs')||{value:''}).value,c=(document.getElementById('fc')||{value:''}).value;
+document.querySelectorAll('#issues tbody tr').forEach(function(r){var td=r.children;
+var ok=(!q||r.textContent.toLowerCase().indexOf(q)>=0)&&(!s||td[1].textContent.trim()===s)&&(!c||td[2].textContent.trim()===c);
+r.style.display=ok?'':'none';});}
 """
 
 
@@ -484,16 +490,35 @@ def build_report(res, lang, sm, inv, ast) -> str:
     if not sm["by_rule"].empty:
         c += table(sm["by_rule"].reset_index(), ["rule_id", title_col, "CRITICAL", "ERROR", "WARNING", "INFO", "total"],
                    [t("rule", lang), t("title_col", lang), "C", "E", "W", "I", t("total", lang)])
-    c += (f"<details><summary>{t('matrix', lang)} ({len(res.matrix)})</summary>"
-          f"{table(res.matrix, ['rule_id', title_col, 'status', 'n_issues', 'note'], [t('rule', lang), t('title_col', lang), t('status', lang), 'n', t('note', lang)])}</details>")
+    mx = res.matrix
+    rc = mx["result"].value_counts().to_dict() if "result" in mx else {}
+    c += (f"<div class='note'>{'نتیجهٔ قواعد' if fa else 'Rule results'}: PASS {rc.get('PASS', 0)} · FAIL {rc.get('FAIL', 0)} · "
+          f"{'غیرقابل اجرا' if fa else 'not applicable'} {rc.get('NOT_APPLICABLE', 0)} · {'غیرفعال' if fa else 'disabled'} {rc.get('DISABLED', 0)}"
+          f"{' · FAILED ' + str(rc['FAILED']) if rc.get('FAILED') else ''}</div>")
+    c += (f"<details open><summary>{t('matrix', lang)} ({len(mx)})</summary>"
+          f"{table(mx, ['rule_id', 'aliases', 'category', title_col, 'result', 'n_issues', 'worst', 'note'], [t('rule', lang), 'v2', 'Cat.', t('title_col', lang), 'PASS/FAIL', 'n', 'worst', t('note', lang)])}</details>")
     sec("rules", c, num)
     num += 1
+    # per-hole status
+    from ..io.writers import hole_status
+    hs = hole_status(res)
+    if not hs.empty:
+        cnt = hs["status"].value_counts().to_dict()
+        c = ("<div class='note'>" + " · ".join(f"{k} {cnt.get(k, 0)}" for k in ("CRITICAL", "ERROR", "WARNING", "INFO", "CLEAN")) + "</div>"
+             + table(hs.rename(columns={"status": "severity"}), ["hole_id", "severity", "CRITICAL", "ERROR", "WARNING", "INFO", "rules"],
+                     [t("hole", lang), 'status', "C", "E", "W", "I", t("rule", lang)], max_rows=3000))
+        sec("holes_status", c, num)
+        num += 1
     # issues
     msg = "message_fa" if fa else "message_en"
-    c = f"<input class='q' placeholder='{t('search', lang)}' oninput='gvFilter(this)'>"
-    c += table(iss, ["issue_id", "severity", "rule_id", "table", "hole_id", "from_m", "to_m", "src_row", msg, "suggested_fix"],
-               ["#", t("severity", lang), t("rule", lang), t("table", lang), t("hole", lang), t("from", lang), t("to", lang),
-                t("row", lang), t("message", lang), t("fix", lang)], max_rows=3000, cls="issues").replace("<table", "<table id='issues'", 1)
+    sev_opts = "".join(f"<option value='{k}'>{k}</option>" for k in ("CRITICAL", "ERROR", "WARNING", "INFO"))
+    cat_opts = "".join(f"<option value='{k}'>{k} · {CATEGORIES[k][1] if fa else CATEGORIES[k][0]}</option>" for k in CATEGORIES)
+    c = (f"<div class='filters'><select id='fs' onchange='gvFilter()'><option value=''>{'همهٔ شدت‌ها' if fa else 'All severities'}</option>{sev_opts}</select>"
+         f"<select id='fc' onchange='gvFilter()'><option value=''>{'همهٔ دسته‌ها' if fa else 'All categories'}</option>{cat_opts}</select>"
+         f"<input class='q' id='fq' placeholder='{t('search', lang)}' oninput='gvFilter()'></div>")
+    c += table(iss, ["issue_id", "severity", "category", "rule_id", "rule_alias", "table", "hole_id", "from_m", "to_m", "source_file", "src_row", msg, "suggested_fix"],
+               ["#", t("severity", lang), "Cat.", t("rule", lang), "v2", t("table", lang), t("hole", lang), t("from", lang), t("to", lang),
+                t("file", lang), t("row", lang), t("message", lang), t("fix", lang)], max_rows=3000, cls="issues").replace("<table", "<table id='issues'", 1)
     if len(iss) > 3000:
         c += f"<p>{'فهرست کامل در فایل issue_log.xlsx است.' if fa else 'The full list is in issue_log.xlsx.'}</p>"
     sec("issues", c, num)
@@ -505,6 +530,14 @@ def build_report(res, lang, sm, inv, ast) -> str:
     prm = pd.DataFrame([{"rule": k, "parameters": ", ".join(f"{a}={b}" for a, b in v.items())}
                         for k, v in ctx.params.get("rules", {}).items()])
     c += f"<details><summary>{'پارامترهای به‌کاررفته' if fa else 'Parameters used'}</summary>{table(prm)}</details>"
+    ov = ctx.params.get("severity_overrides") or {}
+    if ov:
+        c += (f"<details><summary>{'تغییر شدت قواعد' if fa else 'Severity overrides'} ({len(ov)})</summary>"
+              + table(pd.DataFrame([{"rule": k, "override": v if isinstance(v, str) else ", ".join(f"{a}→{b}" for a, b in v.items())} for k, v in ov.items()])) + "</details>")
+    fh = pd.DataFrame(ctx.stats.get("file_hashes", []))
+    c += (f"<h3>{'اثرانگشت داده‌ها' if fa else 'Dataset fingerprints'}</h3>" + table(fh) +
+          table(pd.DataFrame([{"dataset hash": ctx.stats.get("dataset_hash"), "holes": len(ctx.stats.get("hole_hashes", [])),
+                               "profile hash": ctx.stats.get("profile_hash"), "software": f"GEOVALID PRO {__version__}"}])))
     sec("appendix", c, num)
     toc = "".join(f"<a href='#s{n}'><span>{n}</span>{esc(ti)}</a>" for n, ti in sorted(sections))
     css = CSS.replace("__FONT__", _font_b64())

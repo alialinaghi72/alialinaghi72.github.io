@@ -37,9 +37,15 @@ def col_001(ctx):
 def col_002(ctx):
     c, p = ctx.collar_df, ctx.p("COL-002")
     big = c["x"].abs().median() > 1000 if c["x"].notna().any() else False
+    dummies = set(float(x) for x in p.get("dummy_values", [-99, -999, -9999, 9999, 99999]))
     for i, r in c.iterrows():
         for f in ("x", "y", "z"):
             v = r.get(f)
+            if np.isfinite(v) and v in dummies:      # v2 COL-01: dummy coordinate codes
+                ctx.add("COL-002", "ERROR", _tab(ctx), f"{f.upper()} = {v:g} is a dummy (missing-value) code, not a coordinate.",
+                        f"مقدار {f.upper()} برابر {v:g} کد جانشین (مقدار ناموجود) است، نه مختصات.", hole_id=r["hole_id"], field=f,
+                        value=v, src_row=int(r["src_row"]))
+                continue
             if not np.isfinite(v):
                 ctx.add("COL-002", "ERROR", _tab(ctx), f"{f.upper()} coordinate is missing or not numeric.",
                         f"مختصات {f.upper()} وجود ندارد یا عددی نیست.", hole_id=r["hole_id"], field=f, src_row=int(r["src_row"]))
@@ -68,17 +74,43 @@ def col_002(ctx):
 
 @rule("COL-003", ("collar",))
 def col_003(ctx):
+    """SCH-05: hole IDs that differ only by case, spaces, `-`, `_`, `.` or (optionally) leading zeros of numeric parts,
+    across ALL tables (e.g. `DH-01`, `DH01`, `dh 01`). ERROR (Major), one issue per group, with a suggested target
+    (the collar ID; else the most frequent spelling). Suggestion only: merges happen through the approved ID-mapping
+    table (fix class ID_MAP), which is saved, applied to a corrected copy and logged."""
+    p = ctx.p("COL-003")
+    strip_zeros = p.get("strip_leading_zeros", True)
+
+    def key(h):
+        k = re.sub(r"[\s_\-\.]+", "", str(h).upper())
+        return re.sub(r"(?<!\d)0+(?=\d)", "", k) if strip_zeros else k
+
+    tabs = ([ctx.collar] if ctx.collar is not None else []) + ([ctx.survey] if ctx.survey is not None else []) + ctx.tables
+    rows = []
+    for t in tabs:
+        for h, n in t.df["hole_id"].dropna().astype(str).value_counts().items():
+            rows.append({"key": key(h), "raw_id": h, "table": t.name, "kind": t.kind, "rows": int(n)})
+    occ = pd.DataFrame(rows)
+    groups = []
+    if not occ.empty:
+        collar_ids = set(ctx.collar_df["hole_id"].dropna().astype(str))
+        for k, g in occ.groupby("key"):
+            ids = list(dict.fromkeys(g["raw_id"]))
+            if len(ids) < 2:
+                continue
+            in_collar = [i for i in ids if i in collar_ids]
+            tot = g.groupby("raw_id")["rows"].sum()
+            target = max(in_collar, key=lambda i: tot.get(i, 0)) if in_collar else tot.idxmax()
+            where = "; ".join(f"{i} ({', '.join(f'{r.table} {r.rows}' for r in g[g['raw_id'] == i].itertuples())})" for i in ids)
+            groups.append(g.assign(suggested_target=target))
+            ctx.add("COL-003", "ERROR", _tab(ctx),
+                    f"Hole IDs that differ only by case, separators or leading zeros share the key '{k}': {where}. Suggested target: '{target}'. Approve or edit the merge in the ID-mapping table.",
+                    f"شناسه‌هایی که فقط در حروف، جداکننده یا صفرهای آغازین تفاوت دارند کلید مشترک «{k}» دارند: {where}. پیشنهاد: «{target}». ادغام را در جدول نگاشت شناسه‌ها تأیید یا ویرایش کنید.",
+                    hole_id=target, field="hole_id", value=" / ".join(ids), fix_class="ID_MAP",
+                    suggested_fix=f"Map {', '.join(i for i in ids if i != target)} → {target} (ID mapping table)")
+    ctx.stats["id_groups"] = pd.concat(groups, ignore_index=True) if groups else pd.DataFrame(columns=["key", "raw_id", "table", "kind", "rows", "suggested_target"])
     c = ctx.collar_df
     ids = c["hole_id"].dropna().unique()
-    groups = {}
-    for h in ids:
-        groups.setdefault(hole_key(h), []).append(h)
-    for k, hs in groups.items():
-        if len(hs) > 1:
-            ctx.add("COL-003", "WARNING", _tab(ctx),
-                    f"HoleIDs {', '.join(hs)} differ only by case, separators or leading zeros; some software will merge them.",
-                    f"شناسه‌های {', '.join(hs)} فقط در حروف بزرگ و کوچک، جداکننده یا صفرهای آغازین تفاوت دارند؛ برخی نرم‌افزارها آن‌ها را یکی می‌کنند.",
-                    hole_id=hs[0], field="hole_id", value=" / ".join(hs))
     for h in ids:
         if not re.match(r"^[A-Za-z0-9_\-./]+$", str(h)):
             ctx.add("COL-003", "WARNING", _tab(ctx), f"HoleID '{h}' contains spaces or characters that export targets may reject.",
@@ -338,7 +370,19 @@ def col_013(ctx):
 
 @rule("COL-014", ("collar",))
 def col_014(ctx):
+    """Dates (future, before `min_year`, completion before start, implausible drilling rate) and, v2 COL-08, drill-type
+    codes not in the known list (`drill_types`) or the `drill_method` code dictionary. WARNING (Minor)."""
     c, p = ctx.collar_u, ctx.p("COL-014")
+    if "drill_method" in c and c["drill_method"].notna().any():
+        known = {str(x).strip().upper() for x in p.get("drill_types", [])}
+        known |= {str(x).strip().upper() for x in (ctx.params.get("code_dictionaries") or {}).get("drill_method", [])}
+        dm = c["drill_method"].dropna().astype(str).str.strip()
+        for code, g in dm.groupby(dm.str.upper()):
+            if code not in known:
+                ctx.add("COL-014", "WARNING", ctx.collar.name, f"Drill-type code '{g.iloc[0]}' ({len(g)} holes) is not a known drilling method.",
+                        f"کد نوع حفاری «{g.iloc[0]}» ({len(g)} گمانه) روش حفاری شناخته‌شده‌ای نیست.", hole_id=g.index[0], field="drill_method",
+                        value=g.iloc[0], src_row=int(c.loc[g.index[0], "src_row"]),
+                        suggested_fix="Add the code to the drill_method dictionary, or correct it.")
     if "date_started" not in c and "date_completed" not in c:
         return
     today = pd.Timestamp.today().normalize()

@@ -1,4 +1,4 @@
-# GEOVALID PRO — application (v0.2.0)
+# GEOVALID PRO — application (v0.3.0)
 
 Implementation of the design package in `../docs/`. User guide: [`README_RUN.md`](README_RUN.md).
 
@@ -18,8 +18,9 @@ Windows build: `packaging\build_windows.bat`, or the GitHub Actions workflow `.g
 | `core/` | issue model and fingerprints, Persian-aware normalisation (digits, ٫, Jalali dates), canonical tables, context |
 | `io/` | readers (CSV any delimiter/encoding, XLSX/XLS multi-sheet), automatic mapping with en/fa synonyms, DEM (.asc, XYZ→TIN), licence polygon, writers |
 | `analysis/` | minimum-curvature / tangential desurvey, assay code and unit parsing, spatial statistics, collar survey-method inference, grade versus logged geology (`categorical.py`: η², Kruskal–Wallis, Cramér's V, contacts, swaths, grade–length) |
-| `rules/` | 71 registered rules + 5 import-stage rules (COL, SUR, INT, ASY, QAQ, LIT, GEO, DEN, CRS, IMP), IDs from the catalogue |
+| `rules/` | 85 registered rules + 5 import-stage rules (IMP, COL, SUR, INT, SMP, ASY, QAQ, LIT, GEO, DEN, CRS), IDs from the catalogue; generated list: `../docs/RULE_CATALOGUE.md` |
 | `report/` | visual identity (`theme.py`: palettes, Ivory/Obsidian themes, fonts), 26 matplotlib charts and the self-contained bilingual HTML report |
-| `gui/` | PySide6 desktop application (`style.py`: Obsidian/Ivory style sheets and drawn icons) |
+| `gui/` | PySide6 desktop application (`style.py`: Obsidian/Ivory style sheets and drawn icons; `pages_v2.py`: Survey QA, Values, Rules & profiles, Evidence pack, fix approval) |
+| `core/` v2 | `registry.py` (categories, aliases, standards tags, severities), `fingerprint.py` (per-hole hashes), `fixes.py` (approved fix classes) |
 | `synth.py` | synthetic porphyry database (grade controlled by host rock, alteration and weathering) + error injector + manifest |
-| `tools/` | `gen_rules_meta.py`, `make_icon.py`, `make_fonts.py` (cuts the bundled Vazirmatn/Inter font files) |
+| `tools/` | `gen_rules_meta.py`, `gen_rule_catalogue.py`, `make_icon.py`, `make_fonts.py`, `perf_bench.py` (10 000-hole benchmark) |

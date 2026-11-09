@@ -13,7 +13,7 @@ from .issues import IssueLog
 from .normalise import clean_text, parse_dates, parse_numbers
 
 NUMERIC = {"x", "y", "z", "eoh_m", "azimuth", "dip", "depth_m", "from_m", "to_m", "cr_pct", "rqd_pct",
-           "run_length_m", "recovered_length_m", "rqd_length_m", "density"}
+           "run_length_m", "recovered_length_m", "rqd_length_m", "density", "azimuth_mag", "mag_field"}
 DATES = {"date_started", "date_completed"}
 DEPTH_FIELDS = {"eoh_m", "depth_m", "from_m", "to_m", "run_length_m", "recovered_length_m", "rqd_length_m"}
 KEY_NUMERIC = {"x", "y", "z", "eoh_m", "depth_m", "from_m", "to_m", "dip", "azimuth"}
@@ -58,6 +58,7 @@ class Canon:
     analytes: list[Analyte] = field(default_factory=list)
     attrs: list[str] = field(default_factory=list)
     raw: pd.DataFrame | None = None
+    fieldmap: dict = field(default_factory=dict)      # canonical field -> source column (for raw-value checks)
 
     @property
     def is_interval(self) -> bool:
@@ -123,7 +124,7 @@ def build_canonical(inp: TableInput, log: IssueLog) -> Canon:
     for f in list(m.fields):
         if f not in df:
             df[f] = np.nan if f in NUMERIC else pd.NA
-    canon = Canon(inp.name, inp.kind, inp.raw.source, df, raw=raw)
+    canon = Canon(inp.name, inp.kind, inp.raw.source, df, raw=raw, fieldmap={f: c for f, c in m.fields.items() if c})
     used = {c for c in m.fields.values() if c}
     for a in m.analytes:
         parsed = parse_assay(raw[a.column])

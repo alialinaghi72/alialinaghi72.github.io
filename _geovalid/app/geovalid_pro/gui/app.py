@@ -19,6 +19,7 @@ from .. import APP_NAME, __version__
 from ..io.mapping import FIELDS, KINDS, propose_mapping
 from ..report import theme as T
 from . import style
+from .pages_v2 import TR_V2, V2Pages
 
 TR = {
     "title": ("اعتبارسنجی و تحلیل پایگاه دادهٔ گمانه‌های اکتشافی", "Exploration drillhole database validation and analysis"),
@@ -59,13 +60,16 @@ TR = {
     "subtitle_dash": ("نمای کلی کیفیت پایگاه داده", "Database quality at a glance"),
     "cols": ({"issue_id": "#", "severity": "شدت", "rule_id": "قاعده", "table": "جدول", "hole_id": "گمانه", "from_m": "از", "to_m": "تا",
               "src_row": "ردیف فایل", "message_fa": "شرح", "message_en": "شرح", "title_fa": "عنوان", "title_en": "عنوان", "status": "وضعیت",
-              "n_issues": "تعداد", "jorc": "JORC", "note": "یادداشت"},
+              "n_issues": "تعداد", "jorc": "JORC", "note": "یادداشت", "category": "دسته", "rule_alias": "شناسهٔ v2",
+              "source_file": "فایل", "aliases": "شناسهٔ v2", "result": "نتیجه", "worst": "شدیدترین", "standards": "استانداردها"},
              {"issue_id": "#", "severity": "Severity", "rule_id": "Rule", "table": "Table", "hole_id": "Hole", "from_m": "From", "to_m": "To",
               "src_row": "File row", "message_fa": "Message", "message_en": "Message", "title_fa": "Title", "title_en": "Title",
-              "status": "Status", "n_issues": "Issues", "jorc": "JORC", "note": "Note"}),
+              "status": "Status", "n_issues": "Issues", "jorc": "JORC", "note": "Note", "category": "Cat.", "rule_alias": "v2 ID",
+              "source_file": "File", "aliases": "v2 ID", "result": "Result", "worst": "Worst", "standards": "Standards"}),
     "subtitle_geo": ("ارتباط عیار با سنگ‌شناسی، دگرسانی، هوازدگی و سایر ویژگی‌های توصیفی",
                      "Grade against lithology, alteration, weathering and other logged attributes"),
 }
+TR.update(TR_V2)
 SEV_COLORS = {"CRITICAL": "#C0392B", "ERROR": "#E07B24", "WARNING": "#E9B000", "INFO": "#1BA6A6"}
 
 THRESHOLDS = [  # (rule, key, label_fa, label_en, step)
@@ -78,7 +82,14 @@ THRESHOLDS = [  # (rule, key, label_fa, label_en, step)
     ("SUR-008", "max_spacing_m", "حداکثر فاصلهٔ ایستگاه‌ها (متر)", "Max survey station spacing (m)", 5),
     ("SUR-010", "warn_deg_30m", "داگ‌لگ هشدار (درجه بر ۳۰ متر)", "Dogleg warning (°/30 m)", 0.5),
     ("SUR-010", "error_deg_30m", "داگ‌لگ خطا (درجه بر ۳۰ متر)", "Dogleg error (°/30 m)", 0.5),
-    ("INT-002", "micro_overlap_m", "هم‌پوشانی جزئی مجاز (متر)", "Micro-overlap tolerance (m)", 0.005),
+    ("SUR-013", "dev_deg", "انحراف ایستگاه از مجاورها (درجه)", "Station deviation from neighbours (°)", 0.5),
+    ("SUR-023", "dip_tol_deg", "اختلاف شیب دهانه و نخستین ایستگاه (درجه)", "Collar vs first station dip (°)", 1),
+    ("SUR-023", "az_tol_deg", "اختلاف آزیموت دهانه و نخستین ایستگاه (درجه)", "Collar vs first station azimuth (°)", 1),
+    ("SUR-015", "eoh_diff_m", "حساسیت روش محاسبهٔ مسیر (متر)", "Desurvey sensitivity at EOH (m)", 0.5),
+    ("SUR-009", "straight_min_m", "طول گمانهٔ بدون انحراف‌سنجی (متر)", "Unsurveyed straight-hole length (m)", 10),
+    ("ASY-030", "min_run", "تعداد مقادیر یکسان پیاپی", "Identical consecutive values", 1),
+    ("ASY-029", "factor", "ضریب جهش درون‌چاهی", "Downhole spike factor", 1),
+    ("IMP-012", "cluster_sep_km", "فاصلهٔ خوشهٔ جداگانه (کیلومتر)", "Separate collar cluster distance (km)", 1),
     ("INT-004", "top_gap_tol_m", "شکاف بالایی مجاز (متر)", "Top gap tolerance (m)", 0.1),
     ("LIT-002", "thin_m", "بازهٔ نازک سنگ‌شناسی (متر)", "Thin lithology interval (m)", 0.1),
     ("QAQ-004", "max_fail_frac", "سهم مجاز جفت‌های مردود HARD", "Allowed share of failing HARD pairs", 0.01),
@@ -345,7 +356,7 @@ class ChartView(QWidget):
         self.canvas.draw_idle()
 
 
-class MainWindow(QMainWindow):
+class MainWindow(V2Pages, QMainWindow):
     def __init__(self):
         super().__init__()
         from ..engine import default_params
@@ -405,7 +416,9 @@ class MainWindow(QMainWindow):
         self.status = self.statusBar()
         self.pages = {}
         for key, builder in (("data", self._page_data), ("dash", self._page_dash), ("issues", self._page_issues),
-                             ("geo", self._page_geo), ("rules", self._page_rules), ("log", self._page_log)):
+                             ("survey", self._page_survey), ("values", self._page_values), ("geo", self._page_geo),
+                             ("rules", self._page_rules), ("profiles", self._page_profiles), ("evidence", self._page_evidence),
+                             ("log", self._page_log)):
             self.pages[key] = self.stack.addWidget(builder())
         self.go("data")
 
@@ -448,7 +461,9 @@ class MainWindow(QMainWindow):
         self.nav.setExclusive(True)
         self.nav_btns = {}
         for key, ic, tk in (("data", "data", "nav_data"), ("dash", "dash", "nav_dash"), ("issues", "issues", "nav_issues"),
-                            ("geo", "geo", "nav_geo"), ("rules", "rules", "nav_rules"), ("log", "log", "nav_log")):
+                            ("survey", "compass", "nav_survey"), ("values", "sample", "nav_values"), ("geo", "geo", "nav_geo"),
+                            ("rules", "rules", "nav_rules"), ("profiles", "sliders", "nav_profiles"),
+                            ("evidence", "shield", "nav_evidence"), ("log", "log", "nav_log")):
             b = QPushButton()
             b.setObjectName("Nav")
             b.setCheckable(True)
@@ -629,17 +644,27 @@ class MainWindow(QMainWindow):
         fl = QHBoxLayout()
         fl0.addLayout(fl)
         self.f_sev, self.f_table, self.f_text = QComboBox(), QComboBox(), QLineEdit()
-        self.f_sev.setMinimumWidth(140)
-        self.f_table.setMinimumWidth(170)
-        for w in (self.f_sev, self.f_table):
+        self.f_cat, self.f_rule, self.f_hole = QComboBox(), QComboBox(), QLineEdit()
+        self.f_sev.setMinimumWidth(120)
+        self.f_table.setMinimumWidth(130)
+        self.f_cat.setMinimumWidth(170)
+        self.f_rule.setMinimumWidth(110)
+        self.f_hole.setMaximumWidth(120)
+        for w in (self.f_sev, self.f_table, self.f_cat, self.f_rule):
             w.currentIndexChanged.connect(self.apply_filter)
         self.f_text.textChanged.connect(self.apply_filter)
+        self.f_hole.textChanged.connect(self.apply_filter)
         self.tr_(self.f_text, "search", "setPlaceholderText")
-        fl.addWidget(self.f_sev)
-        fl.addWidget(self.f_table)
+        self.tr_(self.f_hole, "hole_filter", "setPlaceholderText")
+        for w in (self.f_sev, self.f_cat, self.f_rule, self.f_table, self.f_hole):
+            fl.addWidget(w)
         fl.addWidget(self.f_text, 1)
         self.iss_count = label("Muted", 9)
         fl.addWidget(self.iss_count)
+        self.b_export = QPushButton()
+        self.b_export.clicked.connect(self._export_issues)
+        self.tr_(self.b_export, "export")
+        fl.addWidget(self.b_export)
         lay.addWidget(fc)
         sp = QSplitter(Qt.Vertical)
         self.iss_view = QTableView()
@@ -656,6 +681,7 @@ class MainWindow(QMainWindow):
         self.iss_view.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.iss_view.horizontalHeader().setStretchLastSection(True)
         self.iss_view.selectionModel().selectionChanged.connect(self.show_detail)
+        self.iss_view.doubleClicked.connect(self._show_source)
         sp.addWidget(self.iss_view)
         self.detail = QTextBrowser()
         sp.addWidget(self.detail)
@@ -813,6 +839,7 @@ class MainWindow(QMainWindow):
         self.c_rlang.setCurrentText("fa" if fa else "en")
         self._fill_filters()
         self._fill_chart_list()
+        self._fill_profiles()
         self.status.showMessage(self.t("ready"))
         if self.result is not None:
             self.show_result(self.result)
@@ -1001,15 +1028,17 @@ class MainWindow(QMainWindow):
                          "ERROR": self.t("error"), "WARNING": self.t("warning"), "INFO": self.t("info"), "total": "Σ"})
             self.by_rule_model.set(br)
             self.by_rule.resizeColumnsToContents()
-        self.matrix_model.set(res.matrix[["rule_id", title, "status", "n_issues", "jorc", "note"]])
+        self.matrix_model.set(res.matrix[["rule_id", "aliases", "category", title, "result", "status", "n_issues", "worst", "standards", "note"]])
         self.matrix.resizeColumnsToContents()
         msg = "message_fa" if self.lang == "fa" else "message_en"
-        self.iss_model.set(iss, ["issue_id", "severity", "rule_id", "table", "hole_id", "from_m", "to_m", "src_row", msg])
+        self.iss_model.set(iss, ["issue_id", "severity", "category", "rule_id", "rule_alias", "table", "hole_id", "from_m", "to_m",
+                                 "source_file", "src_row", msg])
         self.iss_view.resizeColumnsToContents()
         self.iss_count.setText(f"{len(iss):,}")
         self._fill_filters()
         self._fill_selectors()
         self.refresh_charts()
+        self._refresh_v2()
 
     def _findings_html(self, res):
         from ..analysis import categorical as C
@@ -1269,15 +1298,25 @@ class MainWindow(QMainWindow):
 
     # ---------------------------------------------------------------- issues page
     def _fill_filters(self):
-        for w in (self.f_sev, self.f_table):
+        from ..core.registry import CATEGORIES
+        boxes = (self.f_sev, self.f_table, self.f_cat, self.f_rule)
+        for w in boxes:
             w.blockSignals(True)
         self.f_sev.clear()
         self.f_sev.addItems([self.t("all"), "CRITICAL", "ERROR", "WARNING", "INFO"])
         self.f_table.clear()
         self.f_table.addItem(self.t("all"))
+        self.f_cat.clear()
+        self.f_cat.addItem(self.t("all_cat"), None)
+        for k, (en, fa) in CATEGORIES.items():
+            self.f_cat.addItem(f"{k} · {fa if self.lang == 'fa' else en}", k)
+        self.f_rule.clear()
+        self.f_rule.addItem(self.t("all_rules"), None)
         if self.result is not None and not self.result.issues.empty:
             self.f_table.addItems(sorted(self.result.issues["table"].dropna().unique()))
-        for w in (self.f_sev, self.f_table):
+            for rid in sorted(self.result.issues["rule_id"].unique()):
+                self.f_rule.addItem(rid, rid)
+        for w in boxes:
             w.blockSignals(False)
 
     def apply_filter(self):
@@ -1288,8 +1327,16 @@ class MainWindow(QMainWindow):
             iss = iss[iss["severity"] == self.f_sev.currentText()]
         if self.f_table.currentIndex() > 0:
             iss = iss[iss["table"] == self.f_table.currentText()]
+        if self.f_cat.currentData():
+            iss = iss[iss["category"] == self.f_cat.currentData()]
+        if self.f_rule.currentData():
+            iss = iss[iss["rule_id"] == self.f_rule.currentData()]
+        h = self.f_hole.text().strip()
+        if h:
+            iss = iss[iss["hole_id"].astype("string").str.contains(h, case=False, regex=False).fillna(False)]
         msg = "message_fa" if self.lang == "fa" else "message_en"
-        self.iss_model.set(iss, ["issue_id", "severity", "rule_id", "table", "hole_id", "from_m", "to_m", "src_row", msg])
+        self.iss_model.set(iss, ["issue_id", "severity", "category", "rule_id", "rule_alias", "table", "hole_id", "from_m", "to_m",
+                                 "source_file", "src_row", msg])
         self.proxy.setFilterFixedString(self.f_text.text())
         self.iss_count.setText(f"{self.proxy.rowCount():,} / {len(self.result.issues):,}")
 
@@ -1373,7 +1420,9 @@ def main() -> int:
         out.mkdir(parents=True, exist_ok=True)
         QTimer.singleShot(500, lambda: (w.load_sample(), w.run()))
         steps = [("dash", None, "gui_smoke.png"), ("geo", "box", "gui_smoke_grade.png"), ("geo", "twoway", "gui_smoke_twoway.png"),
-                 ("geo", "strip", "gui_smoke_strip.png"), ("issues", None, "gui_smoke_issues.png"), ("data", None, "gui_smoke_data.png")]
+                 ("geo", "strip", "gui_smoke_strip.png"), ("issues", None, "gui_smoke_issues.png"), ("data", None, "gui_smoke_data.png"),
+                 ("survey", None, "gui_smoke_survey.png"), ("values", None, "gui_smoke_values.png"),
+                 ("profiles", None, "gui_smoke_profiles.png"), ("evidence", None, "gui_smoke_evidence.png")]
 
         def step(i):
             if i >= len(steps):

@@ -72,6 +72,42 @@ def assay_stats(res) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def write_issues_json(res, path) -> Path:
+    """Issues as JSON (v2 brief §8.1): metadata header plus one record per issue."""
+    iss = res.issues
+    doc = {"schema": "geovalid-issues/1.0", "application": "GEOVALID PRO", "version": __version__, "run_id": res.run_id,
+           "project": res.spec.project_name, "started": res.started, "dataset_hash": res.ctx.stats.get("dataset_hash"),
+           "profile_hash": res.ctx.stats.get("profile_hash"), "count": int(len(iss)),
+           "issues": json.loads(iss.to_json(orient="records", force_ascii=False, date_format="iso")) if not iss.empty else []}
+    Path(path).write_text(json.dumps(doc, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
+    return Path(path)
+
+
+def hole_status(res) -> pd.DataFrame:
+    """Per-hole status (v2 brief §8.1): worst severity, counts per severity and the rules involved."""
+    from ..core.issues import SEV_RANK
+    iss = res.issues
+    ctx = res.ctx
+    holes = list(ctx.collar_u.index) if ctx.has("collar") else []
+    sub = iss[iss["hole_id"].notna()] if not iss.empty else iss
+    rows = []
+    groups = {h: g for h, g in sub.groupby("hole_id")} if not sub.empty else {}
+    for h in list(dict.fromkeys(holes + list(groups))):
+        g = groups.get(h)
+        if g is None:
+            rows.append({"hole_id": h, "status": "CLEAN", "CRITICAL": 0, "ERROR": 0, "WARNING": 0, "INFO": 0, "rules": "", "in_collar": h in holes})
+            continue
+        c = g["severity"].value_counts()
+        worst = min(g["severity"], key=lambda v: SEV_RANK[v])
+        rows.append({"hole_id": h, "status": worst, **{k: int(c.get(k, 0)) for k in ("CRITICAL", "ERROR", "WARNING", "INFO")},
+                     "rules": ", ".join(sorted(g["rule_id"].unique())), "in_collar": h in holes})
+    out = pd.DataFrame(rows)
+    if out.empty:
+        return out
+    order = {"CRITICAL": 0, "ERROR": 1, "WARNING": 2, "INFO": 3, "CLEAN": 4}
+    return out.sort_values(["status", "hole_id"], key=lambda s: s.map(order) if s.name == "status" else s).reset_index(drop=True)
+
+
 def grade_analysis_tables(res) -> dict[str, pd.DataFrame]:
     """Grade versus logged geology: association, statistics per category, domain suggestions, contacts, two-way medians."""
     from ..analysis import categorical as C
@@ -151,6 +187,7 @@ def write_outputs(res, out_dir: str, lang: str = "fa", progress=None) -> dict:
     res.ctx.stats["inventory"], res.ctx.stats["assay_stats"] = inv, ast
     iss.to_csv(run_dir / "issues.csv", index=False, encoding="utf-8-sig")
     files["issues_csv"] = run_dir / "issues.csv"
+    files["issues_json"] = write_issues_json(res, run_dir / "issues.json")
     xlsx = run_dir / "issue_log.xlsx"
     with pd.ExcelWriter(xlsx, engine="openpyxl") as xw:
         iss.to_excel(xw, sheet_name="Issues", index=False)
@@ -158,6 +195,9 @@ def write_outputs(res, out_dir: str, lang: str = "fa", progress=None) -> dict:
         sm["by_table"].to_excel(xw, sheet_name="By_table")
         sm["by_hole"].to_excel(xw, sheet_name="By_hole")
         res.matrix.to_excel(xw, sheet_name="Rule_matrix", index=False)
+        hs = hole_status(res)
+        if not hs.empty:
+            hs.to_excel(xw, sheet_name="Hole_status", index=False)
         inv.to_excel(xw, sheet_name="Inventory", index=False)
         if not ast.empty:
             ast.to_excel(xw, sheet_name="Assay_stats", index=False)
@@ -203,8 +243,12 @@ def write_outputs(res, out_dir: str, lang: str = "fa", progress=None) -> dict:
             "spatial": {k: {"file": v, "sha256": sha} for k, v, sha in
                         [(k, v, _sha(v)) for k, v in (("dem", res.spec.dem_path), ("licence", res.spec.licence_path), ("crm", res.spec.crm_path)) if v]},
             "dip_convention": res.ctx.dip_convention, "issue_counts": res.issues["severity"].value_counts().to_dict() if not res.issues.empty else {},
+            "dataset_hash": res.ctx.stats.get("dataset_hash"), "profile_hash": res.ctx.stats.get("profile_hash"),
             "errors": res.errors}
     (run_dir / "run_metadata.json").write_text(json.dumps(meta, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
+    progress(98, "writing evidence pack")
+    from ..report import evidence
+    files.update(evidence.write(res, run_dir, "en" if lang == "en" else ("fa" if lang == "fa" else "both")))
     progress(98, "writing report")
     for lg in ([lang] if lang in ("fa", "en") else ["fa", "en"]):
         path = run_dir / f"report_{lg}.html"

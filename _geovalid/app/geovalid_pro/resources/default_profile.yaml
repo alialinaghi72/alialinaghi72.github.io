@@ -1,14 +1,43 @@
 # GEOVALID PRO — base validation profile (03 rule catalogue defaults).
 # Copy this file, edit thresholds and load it in the program (Settings → Profile) or with --profile.
 profile: base
-version: 0.2.0
+version: 0.3.0
 key_analytes: [Au, Cu, Zn, Pb, Ag, Mo, Fe, Ni, Co, Cr2O3, Al2O3, Mn, U]
-depth_eps_m: 0.001
+depth_eps_m: 0.001          # global depth tolerance (v2 §5.4): smaller overlaps and gaps are precision artefacts (INT-012)
+# Severity overrides (v2 brief §7 defaults; Critical = CRITICAL, Major = ERROR, Minor = WARNING, Info = INFO).
+# A single value sets the severity of every issue of the rule; a mapping changes only the listed levels.
+# Delete a line to go back to the catalogue default (03_rule_catalogue.md).
+severity_overrides:
+  SUR-001: {ERROR: CRITICAL}     # SCH-04: survey records without a collar
+  SUR-002: {INFO: WARNING}       # SRV-04: identical duplicate station is Minor (conflicting stays Major)
+  SUR-003: {ERROR: CRITICAL}     # SRV-02
+  SUR-004: {ERROR: CRITICAL}     # SRV-02 (an azimuth of exactly 360 stays INFO)
+  INT-003: {ERROR: CRITICAL}     # SCH-03: duplicate interval key
+  INT-005: {ERROR: CRITICAL}     # INT-05
+  INT-006: {ERROR: CRITICAL}     # SCH-04
+  COL-002: {ERROR: CRITICAL}     # COL-01: null, zero or dummy coordinates
+  COL-004: {WARNING: ERROR}      # COL-02: duplicate collar location
+  COL-007: {ERROR: CRITICAL}     # COL-07: data beyond EOH
+  COL-009: {INFO: WARNING}       # SCH-04: collar without interval data is Minor
+  ASY-003: {ERROR: CRITICAL}     # VAL-05
+  ASY-005: {WARNING: ERROR}      # VAL-02
+  ASY-015: {WARNING: ERROR}      # VAL-07
+disabled_rules: []               # rule IDs to skip (shown as DISABLED in the rule matrix)
+# Code dictionaries (VAL-08 / INT-015): {field: [codes]} for lith_code, alt_type, weathering, drill_method, …
+# A CSV or XLSX with columns `field, code[, description]` can also be loaded in the program or with --codes.
+code_dictionaries: {}
+dip_convention: auto             # auto | negative_down | positive_down (v2 SRV-03)
+crs: {epsg: null, utm_zone: null, hemisphere: N}   # declared CRS (IMP-012); e.g. {epsg: 32640}
+north_reference: null            # MAGNETIC | TRUE | GRID when the survey files do not say (SUR-014)
 # Cut-offs for the grade analyses (box plots, grade-length curve, grade x thickness). [value, unit]; other analytes use P75.
 analysis_cutoffs: {Cu: [0.2, "%"], Au: [0.3, "g/t"], Zn: [1.0, "%"], Pb: [1.0, "%"], Ag: [20, "g/t"], Mo: [100, "ppm"],
                    Ni: [0.3, "%"], Co: [500, "ppm"], Mn: [10, "%"], U: [100, "ppm"]}
 rules:
-  COL-002: {z_zero_tol_m: 20}
+  IMP-006: {sentinels: [-99, -999, -9999, 9999]}
+  IMP-012: {cluster_sep_km: 20}
+  SMP-002: {max_gap_n: 100}
+  COL-002: {z_zero_tol_m: 20, dummy_values: [-99, -999, -9999, 9999, 99999]}
+  COL-003: {strip_leading_zeros: true}
   COL-004: {near_dup_distance_m: 1.0, near_dup_dz_m: 2.0}
   COL-005: {edge_buffer_m: 25}
   COL-007: {eoh_tol_m: 0.05}
@@ -16,7 +45,9 @@ rules:
   COL-011: {warn_m: 2.0, error_m: 5.0, handheld_warn_m: 10.0, handheld_error_m: 20.0}
   COL-012: {min_n: 20, offset_min_m: 1.0}
   COL-013: {min_group_n: 3}
-  COL-014: {min_year: 1950, max_rate_m_day: 300}
+  COL-014: {min_year: 1950, max_rate_m_day: 300,
+            drill_types: [DD, DDH, DIA, DIAMOND, CORE, NQ, HQ, PQ, BQ, NQ2, HQ3, RC, RCD, RC_DD, RCDD, RC/DD, PRE-COLLAR, PC,
+                          RAB, AC, AIR, AIRCORE, PERC, PERCUSSION, AUGER, SONIC, ROTARY, TRENCH, TR, CH, CHANNEL, PIT, WEDGE, UG]}
   COL-015: {isolation_x_median: 3.0, ce_clustered: 0.80}
   COL-016: {z_range_m: [-50, 5700], robust_z: 5.0}
   COL-019: {vertical_tol_deg: 0.5}
@@ -24,26 +55,31 @@ rules:
   SUR-005: {near_horizontal_deg: 5}
   SUR-006: {survey_overrun_tol_m: 0.5}
   SUR-007: {first_station_max_m: 30}
+  SUR-023: {max_first_depth_m: 50, dip_tol_deg: 5, az_tol_deg: 10}
   SUR-008: {max_spacing_m: 50, extrap_max_m: 50, extrap_max_frac: 0.20}
-  SUR-009: {min_length_m: 50, const_tol_deg: 0.01}
+  SUR-009: {min_length_m: 50, const_tol_deg: 0.01, straight_min_m: 100}
   SUR-010: {warn_deg_30m: 3.0, error_deg_30m: 6.0, min_dmd_m: 3}
   SUR-011: {max_dip_change_deg: 5, max_dip_change_deg_30m: 10}
-  SUR-012: {max_az_change_deg: 10, max_az_change_deg_30m: 20, suppress_steeper_than_dip_deg: -85}
-  SUR-013: {spike_deg: 10}
+  SUR-012: {max_az_change_deg: 10, max_az_change_deg_30m: 20, near_vertical_incl_deg: 3}
+  SUR-013: {dev_deg: 2.0, agree_dls_30m: 1.0, unreliable_n: 3}
+  SUR-014: {declination_deg: null, grid_convergence_deg: 0.0, tol_deg: 1.0}
   SUR-015: {eoh_diff_m: 2.0}
+  SUR-027: {expected_field_nt: null, field_tol_nt: 300, dip_stable_deg: 0.5, az_swing_deg: 5.0}
   SUR-016: {cross_dist_m: 1.0, collar_zone_m: 5, exit_tol_m: 2.0, step_m: 1.0}
   SUR-020: {sentinels: [-99, -999, -9999, 999, 9999], steep_dip_cutoff_deg: -85}
-  INT-002: {micro_overlap_m: 0.01}
   INT-004: {top_gap_tol_m: 0.5, bottom_gap_tol_m: 0.5, micro_gap_m: 0.01}
-  INT-007: {short_m: 0.2, long_sample_m: 3.0, long_logging_m: 50}
+  INT-007: {by_drill_type: {default: [0.1, 6.0], RC: [0.5, 6.0], DD: [0.1, 6.0], RAB: [0.5, 6.0], AC: [0.5, 6.0]}, long_logging_m: 50}
   INT-008: {contact_tol_m: 0.05}
   INT-009: {min_window_n: 5}
-  ASY-003: {total_max_pct: 101, au_max_ppm: 10000}
+  ASY-003: {total_max_pct: 105, au_max_ppm: 10000, element_sum_max_pct: 100}
   ASY-004: {min_minority_frac: 0.05, min_n: 200, min_separation_decades: 2.5, group_gap_decades: 1.0, group_separation_decades: 2.0, min_group_n: 10}
   ASY-006: {fe_rel_tol_frac: 0.05, partial_tol_frac: 0.05, cu_s_max_ratio: 4.0, cu_min_pct: 0.5}
   ASY-007: {tukey_k: 3, cv_topcut: 2.0}
   ASY-011: {bdl_share_warn_frac: 0.30, bdl_share_info_frac: 0.80}
-  ASY-015: {total_min_pct: 98}
+  ASY-015: {total_min_pct: 97, total_max_pct: 102}
+  ASY-028: {caps_pct: {Cu: 79.9, Pb: 86.6, Zn: 67.1, Fe: 72.4, S: 53.4, Mo: 59.9, Ba: 58.8}}
+  ASY-029: {factor: 10, quantile: 0.95}
+  ASY-030: {min_run: 5}
   QAQ-001: {target_crm_pct: 5, target_blank_pct: 3, target_field_dup_pct: 2, target_coarse_dup_pct: 2, target_pulp_dup_pct: 2, min_originals_n: 100}
   QAQ-002: {sd_warn: 2, sd_fail: 3, bias_warn_pct: 3, bias_err_pct: 5, min_n_bias: 10}
   QAQ-003: {blank_warn_x_dl: 5, blank_fail_x_dl: 10}

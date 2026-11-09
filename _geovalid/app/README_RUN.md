@@ -1,4 +1,4 @@
-# GEOVALID PRO 0.2.0 — راهنمای سریع / Quick start
+# GEOVALID PRO 0.3.0 — راهنمای سریع / Quick start
 
 ## فارسی
 
@@ -19,10 +19,17 @@
    - نمودارهای نواری (Swath)، نقشهٔ عیار × ضخامت، منحنی عیار–متراژ؛
    - احتمال لگاریتمی، همبستگی عناصر، نمودار پراکنش، نقشهٔ دهانه‌ها، کنترل CRM، بلانک و HARD.
 5. **پوسته**: دکمهٔ «پوسته» بین نمای تیره (Obsidian) و روشن (Ivory) جابه‌جا می‌کند.
-6. **دادهٔ نمونه**: یک پایگاه دادهٔ مصنوعی پورفیری با ۳۷ خطای عمدی بارگذاری می‌کند. فهرست خطاها در `manifest.csv` است. عیار در این داده تابع سنگ میزبان، دگرسانی و هوازدگی است تا تحلیل‌ها معنادار باشند.
+6. **کنترل انحراف‌سنجی**: برای هر گمانه نمودار شیب، آزیموت و شدت خمیدگی در طول گمانه و حساسیت موقعیت انتهای گمانه به روش محاسبهٔ مسیر.
+7. **کنترل مقادیر**: شیوهٔ ثبت مقادیر زیر حد تشخیص در هر بچ، واحد عناصر و مسائل مقادیر.
+8. **قواعد و پروفایل**: فعال یا غیرفعال کردن هر قاعده، تغییر شدت (بحرانی، خطا، هشدار، اطلاعات)، ویرایش آستانه‌ها، بارگذاری فهرست کدها (فایل با ستون‌های field و code) و ذخیرهٔ همه در یک پروفایل JSON.
+9. **بستهٔ مستندات**: مستندات راستی‌آزمایی داده‌ها بر پایهٔ بندهای JORC، NI 43-101، S-K 1300 و CIM. سه بخش «روش‌ها»، «محدودیت‌ها» و «نظر دربارهٔ کفایت» خالی می‌ماند تا شخص صلاحیت‌دار بنویسد. دکمهٔ «تأیید و اعمال اصلاحات» دسته‌های قابل‌اصلاح (نگاشت شناسهٔ گمانه، آزیموت ۳۶۰، تکراری‌های یکسان) را نشان می‌دهد؛ فقط پس از تأیید، نسخهٔ اصلاح‌شده و گزارش اصلاح (fix_log.csv) در پوشهٔ `corrected` نوشته می‌شود.
+10. **مسائل**: فیلتر بر پایهٔ شدت، دسته (A تا J)، قاعده، جدول و گمانه؛ دوبار کلیک روی هر مسئله فایل و شمارهٔ ردیف منبع را نشان می‌دهد؛ خروجی فهرست فیلترشده.
+11. **دادهٔ نمونه**: یک پایگاه دادهٔ مصنوعی پورفیری با ۳۷ خطای عمدی بارگذاری می‌کند. فهرست خطاها در `manifest.csv` است. عیار در این داده تابع سنگ میزبان، دگرسانی و هوازدگی است تا تحلیل‌ها معنادار باشند.
 
 **خروجی‌ها** (در پوشهٔ `GEOVALID_<تاریخ>`؛ داده‌های اصلی هرگز تغییر نمی‌کنند)
 - `report_fa.html` و `report_en.html`: گزارش فنی با نمودارها، از جمله بخش «تحلیل عیار بر پایهٔ واحدهای توصیفی».
+- `evidence_pack_fa.html`، `evidence_pack_en.html` و `evidence_pack.json`: بستهٔ مستندات راستی‌آزمایی.
+- `issues.json` و `hole_hashes.csv`: فهرست مسائل به قالب JSON و اثرانگشت هر گمانه برای مقایسهٔ نسخه‌ها.
 - `grade_vs_geology.xlsx`: جدول ارتباط (η²، کروسکال–والیس)، آمار عیار هر واحد، دامنه‌های پیشنهادی تخمین، نتیجهٔ تحلیل همبری و میانهٔ عیار سنگ‌شناسی × دگرسانی.
 - `issue_log.xlsx` و `issues.csv`: فهرست کامل مسائل، با خلاصه بر پایهٔ قاعده، جدول و گمانه، ماتریس اجرای قواعد، آمار آنالیزها، روش برداشت دهانه و ΔZ.
 - `flagged_tables/*.csv`: نسخه‌ای از هر جدول ورودی با ستون‌های `QC_FLAG` (C/E/W/I) و `QC_COMMENT` (شمارهٔ قواعد).
@@ -33,8 +40,9 @@
 
 **عیار حد** تحلیل‌ها از بخش `analysis_cutoffs` پروفایل خوانده می‌شود (مثلاً Cu ۰٫۲ درصد، Au ۰٫۳ گرم بر تن)؛ برای عناصر دیگر صدک ۷۵ داده به کار می‌رود و در برنامه قابل تغییر است.
 
-**محدودیت‌های نسخهٔ ۰٫۲:**
-- ۷۶ قاعده از ۲۲۹ قاعدهٔ فهرست مصوب اجرا می‌شود (افزوده‌های این نسخه: CRS-004 پیشنهاد دامنه‌ها و CRS-005 تحلیل همبری).
+**محدودیت‌های نسخهٔ ۰٫۳:**
+- ۹۰ قاعده اجرا می‌شود (افزوده‌های این نسخه: بستهٔ کنترل انحراف‌سنجی، یکسان‌سازی شناسه‌ها، کامل بودن داده و کنترل مقادیر طبق دستورالعمل v2؛ فهرست کامل در `docs/RULE_CATALOGUE.md`).
+- مقایسهٔ نسخه‌ها، تطبیق با فایل آزمایشگاه (قالب GEOQAQC)، قالب‌های متنوع توپوگرافی و محدودهٔ پروانه در فاز ۲ می‌آیند.
 - فرمت‌های اختصاصی (Datamine `.dm`، Micromine `.DAT`، MS Access) و GeoTIFF پشتیبانی نمی‌شوند؛ خروجی CSV یا `.asc` آن‌ها را بدهید.
 - شاخص اطمینان داده، گزارش DOCX/PDF و نمایشگر نقشه و مقطع در فازهای بعدی می‌آیند.
 - روش برداشت دهانه (COL-010) نسخهٔ پیش‌نمایش است.
@@ -52,17 +60,19 @@
    - CRM table with the columns `crm_id, analyte, certified, sd`.
    - A YAML profile, or edit thresholds directly with **Thresholds…**.
 3. **Run validation.** The **Dashboard** shows issue counts, charts and key findings; **Issues** is the searchable list with details; **Open report** opens the HTML report.
-4. **Grade analysis & charts:** more than 25 interactive charts (zoom, pan, save as PNG/SVG/PDF). Choose the analyte, logged attribute, hole and cut-off above the chart; the **Interpretation** panel shows statistics and suggested domains. Highlights:
+4. **Survey QA:** downhole dip, azimuth and dogleg severity per hole, and desurvey sensitivity at EOH. **Values:** below-detection coding by batch, analyte units, value issues. **Rules & profiles:** enable rules, change severities and thresholds, load a code dictionary (`field, code` table) and save everything as a JSON profile. **Evidence pack:** data-verification evidence by JORC, NI 43-101, S-K 1300 and CIM clauses, with three empty sections for the Qualified Person; **Approve and apply fixes** writes corrected copies and `fix_log.csv` only for the fix classes you approve. **Issues:** filter by severity, category, rule, table and hole; double-click shows the source file and line; export the filtered view.
+5. **Grade analysis & charts:** more than 25 interactive charts (zoom, pan, save as PNG/SVG/PDF). Choose the analyte, logged attribute, hole and cut-off above the chart; the **Interpretation** panel shows statistics and suggested domains. Highlights:
    - η² matrix: how much of the grade variation each logged attribute (lithology, alteration, weathering, intensity, colour, campaign…) explains;
    - grade by unit (log box plots with length-weighted mean and cut-off), median grade for attribute × attribute (e.g. lithology × alteration), Cramér's V;
    - contact analysis (hard or soft boundaries), units with depth, downhole strip log, density and RQD by unit;
    - swath plots, grade × thickness map, grade–length curve;
    - log-probability, inter-element correlation, scatter, collar map, CRM, blank and HARD charts.
-5. **Theme** switches between the dark (Obsidian) and light (Ivory) look.
-6. **Sample data** loads a synthetic porphyry database with 37 deliberate errors, listed in `manifest.csv`. Its grades depend on host rock, alteration and weathering, so the analyses have something to find.
+6. **Theme** switches between the dark (Obsidian) and light (Ivory) look.
+7. **Sample data** loads a synthetic porphyry database with 37 deliberate errors, listed in `manifest.csv`. Its grades depend on host rock, alteration and weathering, so the analyses have something to find.
 
 **Outputs.** Source files are never modified; every run writes a new `GEOVALID_<timestamp>` folder containing:
-- HTML reports (fa/en), including the section "Grade versus logged geology";
+- HTML reports (fa/en), including the section "Grade versus logged geology", PASS/FAIL per rule and status by hole;
+- Data Verification Evidence Pack (`evidence_pack_<lang>.html`, `evidence_pack.json`), `issues.json`, `hole_hashes.csv`;
 - `grade_vs_geology.xlsx`: association (η², Kruskal–Wallis), grade statistics per unit, suggested estimation domains, contact analysis and the lithology × alteration median grade;
 - an Excel issue log with summary sheets;
 - flagged copies of every table (`QC_FLAG`, `QC_COMMENT`);
@@ -73,8 +83,9 @@
 
 **Cut-offs** for the analyses come from the profile's `analysis_cutoffs` (e.g. Cu 0.2 %, Au 0.3 g/t); other analytes use the 75th percentile, and the value can be changed in the program.
 
-**v0.2 limits:**
-- 76 of the 229 catalogue rules are implemented (new in this version: CRS-004 domain suggestions and CRS-005 contact analysis).
+**v0.3 limits:**
+- 90 rules run (new: the v2 survey QA pack, hole-ID normalisation, completeness and value checks; see `docs/RULE_CATALOGUE.md`).
+- Version comparison, laboratory-file reconciliation (GEOQAQC format), more topography formats and licence-boundary formats come in Phase 2.
 - Proprietary formats and GeoTIFF are not supported; use CSV or `.asc` exports.
 - The confidence index, DOCX/PDF reports and map/section viewer come in later phases.
 - Collar-method inference (COL-010) is a preview.
