@@ -208,7 +208,7 @@ def collar_map(ctx, worst: pd.Series, lang="en", theme=T.IVORY):
         fig, ax = _new(7.4, 6.0, theme)
         ax = ax[0, 0]
         if ctx.licence is not None:
-            ax.fill(ctx.licence[:, 0], ctx.licence[:, 1], facecolor=theme.accent, alpha=0.06, edgecolor=theme.accent, lw=1.2, ls="--")
+            _draw_licence(ax, ctx.licence, theme, 0.06, 1.2)
         for h, tr in list(ctx.traces.items())[:3000]:
             if h in c.index:
                 ax.plot(tr["x"], tr["y"], color=theme.axis, lw=0.7, alpha=0.8, zorder=1, solid_capstyle="round")
@@ -716,6 +716,17 @@ def swath_plots(smp: pd.DataFrame, analyte: str, unit: str, lang="en", theme=T.I
         return fig
 
 
+def _draw_licence(ax, lic, theme, alpha: float, lw: float) -> None:
+    """Licence boundary: a vertex array, or a Boundary with several parts and holes (holes are outlined, not filled)."""
+    rings = lic.polygons if hasattr(lic, "polygons") else [[np.asarray(lic)]]
+    for poly in rings:
+        for k, r in enumerate(poly):
+            if k == 0:
+                ax.fill(r[:, 0], r[:, 1], facecolor=theme.accent, alpha=alpha, edgecolor=theme.accent, lw=lw, ls="--")
+            else:
+                ax.fill(r[:, 0], r[:, 1], facecolor=theme.bg, alpha=0.9, edgecolor=theme.accent, lw=lw * 0.8, ls=":")
+
+
 def gt_map(hg: pd.DataFrame, analyte: str, unit: str, cutoff: float | None, licence=None, lang="en", theme=T.IVORY):
     if hg is None or hg.empty:
         return None
@@ -723,7 +734,7 @@ def gt_map(hg: pd.DataFrame, analyte: str, unit: str, cutoff: float | None, lice
         fig, ax = _new(7.0, 5.8, theme)
         ax = ax[0, 0]
         if licence is not None:
-            ax.fill(licence[:, 0], licence[:, 1], facecolor=theme.accent, alpha=0.05, edgecolor=theme.accent, lw=1, ls="--")
+            _draw_licence(ax, licence, theme, 0.05, 1.0)
         gt = hg["gt"].clip(lower=0)
         size = 18 + 520 * (gt / gt.max()) if gt.max() > 0 else 30
         vals = hg["mean_lw"].clip(lower=hg["mean_lw"][hg["mean_lw"] > 0].min() if (hg["mean_lw"] > 0).any() else 1e-6)

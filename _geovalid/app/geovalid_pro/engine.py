@@ -109,6 +109,127 @@ class Result:
     outputs: dict = field(default_factory=dict)
 
 
+def _read_topography(ctx: Ctx, spec: ProjectSpec, params: dict, res: Result) -> None:
+    """The primary topography (spec.dem_path) and any dated topographies (profile `topographies`: [{path, date,
+    label}]), each aligned to the collars' coordinate system (io/topo.py `align`). Nothing is read twice."""
+    from .io.topo import align
+    c = ctx.collar_u if ctx.has("collar") else None
+    cx = c["x"].to_numpy(float) if c is not None else np.array([])
+    cy = c["y"].to_numpy(float) if c is not None else np.array([])
+    max_dist = (params.get("topography") or {}).get("max_dist_m")
+    items = []
+    if spec.dem_path:
+        items.append({"path": spec.dem_path, "date": None, "label": "primary"})
+    for t in params.get("topographies") or []:
+        if t.get("path"):
+            items.append({"path": t["path"], "date": t.get("date"), "label": t.get("label") or Path(t["path"]).stem})
+    surfaces = []
+    for it in items:
+        try:
+            s = read_dem(it["path"], (params.get("topography") or {}).get("format") if it["label"] == "primary" else None, max_dist)
+            s, notes = align(s, params, cx, cy)
+            surfaces.append({**it, "surface": s, "notes": notes})
+        except Exception as e:  # reported, never silent
+            res.errors.append(f"Topography {Path(it['path']).name}: {e}")
+    if surfaces:
+        ctx.dem = surfaces[0]["surface"]
+        ctx.stats["topographies"] = surfaces
+        ctx.stats["topography"] = [{"label": t["label"], "date": t["date"], "file": Path(t["path"]).name,
+                                    **{k: v for k, v in t["surface"].info.items() if k != "notes"},
+                                    "notes": list(t["surface"].info.get("notes", [])) + t["notes"]} for t in surfaces]
+
+
+def _collar_topography(ctx: Ctx, params: dict) -> None:
+    """z_topo and ΔZ per collar. With dated topographies, each collar uses the latest surface dated on or before its
+    start date (the ground when it was drilled); one drilled before every dated survey uses the undated primary surface
+    (else the earliest); collars without a date use the primary surface.
+    Collars exempted by the profile (`topo_exempt`: {field, values}, e.g. underground or trench holes) get no ΔZ."""
+    c = ctx.collar_u
+    x, y = c["x"].to_numpy(float), c["y"].to_numpy(float)
+    surfs = ctx.stats.get("topographies") or []
+    zt = pd.Series(np.nan, index=c.index)
+    src = pd.Series(None, index=c.index, dtype=object)
+    dated = [s for s in surfs if s.get("date")]
+    if dated and "date_started" in c:
+        dates = pd.to_datetime(c["date_started"], errors="coerce")
+        order = sorted(dated, key=lambda s: str(s["date"]))
+        for h, d in dates.items():
+            if pd.isna(d):
+                continue
+            pick = [s for s in order if pd.Timestamp(str(s["date"])) <= d]
+            if pick:
+                src[h] = pick[-1]["label"]
+            elif not surfs[0].get("date"):
+                src[h] = surfs[0]["label"]            # drilled before every dated survey: the undated primary surface
+            else:
+                src[h] = order[0]["label"]
+    src = src.fillna(surfs[0]["label"])
+    for s in surfs:
+        m = (src == s["label"]).to_numpy()
+        if m.any():
+            zt[m] = s["surface"].sample(x[m], y[m])
+    ex = params.get("topo_exempt") or {}
+    exempt = pd.Series(False, index=c.index)
+    if ex.get("field") and ex.get("values"):
+        col = ex["field"]
+        vals = {str(v).strip().upper() for v in ex["values"]}
+        series = c[col] if col in c else (ctx.collar.raw[col].reindex(c["src_row"].to_numpy() - 2).set_axis(c.index)
+                                         if ctx.collar.raw is not None and col in ctx.collar.raw else None)
+        if series is not None:
+            exempt = series.astype("string").str.strip().str.upper().isin(vals).fillna(False)
+    ctx.stats["topo_exempt"] = exempt
+    ctx.stats["z_topo_source"] = src
+    ctx.stats["z_topo"] = zt
+    ctx.stats["dz"] = (c["z"] - zt).where(~exempt)
+    ctx.stats["topo_sanity"] = _topo_sanity(ctx, x, y, c["z"].to_numpy(float), zt.to_numpy(float), exempt.to_numpy())
+
+
+def _topo_sanity(ctx: Ctx, x, y, z, zt, exempt) -> dict:
+    """v2 R2 sanity checks before any ΔZ comparison: extent overlap (none → CRS / zone / swapped E-N), constant
+    horizontal offset (false easting or northing), elevation ratio ≈ 3.28 (feet vs metres), collars outside the
+    surface ("not checked"). A gross failure blocks the per-collar ΔZ rules; COL-025 reports why."""
+    s = ctx.dem
+    out = {"n_collars": int(len(x)), "findings": [], "blocked": None}
+    ok = np.isfinite(x) & np.isfinite(y)
+    have = np.isfinite(zt) & ok
+    out["n_with_topography"] = int(have.sum())
+    out["not_checked"] = list(ctx.collar_u.index[ok & ~have & ~exempt][:500])
+    if s.extent is None or not ok.any():
+        return out
+    x0, y0, x1, y1 = s.extent
+    inside = ok & (x >= x0) & (x <= x1) & (y >= y0) & (y <= y1)
+    out["inside_extent"] = int(inside.sum())
+    if not inside.any():
+        sw = ok & (y >= x0) & (y <= x1) & (x >= y0) & (x <= y1)
+        dx = float(np.nanmedian(x[ok]) - (x0 + x1) / 2)
+        dy = float(np.nanmedian(y[ok]) - (y0 + y1) / 2)
+        if sw.mean() > 0.5:
+            cause = "easting and northing appear swapped (the collars fall inside the topography with X and Y exchanged)"
+        elif abs(abs(dx) - 500000) < 50000:
+            cause = f"horizontal offset of {dx:+,.0f} m in easting: a missing or extra UTM false easting (500 000 m)"
+        elif abs(abs(dy) - 10000000) < 200000:
+            cause = f"offset of {dy:+,.0f} m in northing: the southern-hemisphere false northing (10 000 000 m) applied to one dataset only"
+        elif 150000 < abs(dx) < 900000 and abs(dy) < 300000:
+            cause = f"offset of {dx:+,.0f} m in easting: the collars and the topography are probably in different UTM zones"
+        else:
+            cause = f"no overlap (collars centred {dx:+,.0f} m E, {dy:+,.0f} m N of the topography): different coordinate systems"
+        out["blocked"] = cause
+        out["findings"].append(("ERROR", cause))
+        return out
+    zz = z[have & ~exempt]
+    tt = zt[have & ~exempt]
+    if len(zz) >= 5 and np.nanmedian(tt) != 0:
+        r = float(np.nanmedian(zz) / np.nanmedian(tt))
+        out["elevation_ratio"] = round(r, 4)
+        if abs(r - 3.2808) < 0.1 or abs(r - 1 / 3.2808) < 0.01:
+            cause = f"collar elevations are {r:.2f} × the topography: one of them is in feet, the other in metres"
+            out["blocked"] = cause
+            out["findings"].append(("ERROR", cause))
+    if (~have & ok & ~exempt).any():
+        out["findings"].append(("WARNING", f"{int((~have & ok & ~exempt).sum())} collars lie outside the topography or on nodata: ΔZ not checked"))
+    return out
+
+
 def _read_crm(path: str) -> pd.DataFrame:
     """CRM certificates: CRM_ID, ELEMENT (column name or symbol), CERTIFIED, SD[, UNIT] (QAQC_FORMAT.md §5)."""
     from .io.lab import read_crm_certificates
@@ -145,14 +266,15 @@ def run(spec: ProjectSpec, progress=None) -> Result:
             t.df["qc_class"] = cls
     _dip_convention(ctx)
     progress(10, "reading spatial inputs")
-    if spec.dem_path:
-        try:
-            ctx.dem = read_dem(spec.dem_path)
-        except Exception as e:  # reported, never silent
-            res.errors.append(f"DEM: {e}")
+    _read_topography(ctx, spec, params, res)
     if spec.licence_path:
         try:
-            ctx.licence = read_polygon(spec.licence_path)
+            from .io.boundary import align_boundary
+            b = read_polygon(spec.licence_path)
+            c = ctx.collar_u if ctx.has("collar") else None
+            b, notes = align_boundary(b, params, c["x"] if c is not None else [], c["y"] if c is not None else [])
+            ctx.licence = b
+            ctx.stats["licence_info"] = b.info() | {"alignment": notes}
         except Exception as e:
             res.errors.append(f"Licence: {e}")
     if spec.crm_path:
@@ -168,10 +290,7 @@ def run(spec: ProjectSpec, progress=None) -> Result:
             except Exception as e:
                 res.errors.append(f"{attr} file: {e}")
     if ctx.dem is not None and ctx.has("collar"):
-        c = ctx.collar_u
-        zt = pd.Series(ctx.dem.sample(c["x"].to_numpy(float), c["y"].to_numpy(float)), index=c.index)
-        ctx.stats["z_topo"] = zt
-        ctx.stats["dz"] = c["z"] - zt
+        _collar_topography(ctx, params)
     progress(15, "desurveying holes")
     ctx.build_traces()
     meta = rules_meta()

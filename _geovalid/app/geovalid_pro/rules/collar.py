@@ -166,16 +166,26 @@ def col_004(ctx):
 
 @rule("COL-005", ("collar", "licence"))
 def col_005(ctx):
+    """Collar against the licence boundary (any format; multipart polygons and holes by the even–odd rule). Outside by
+    more than `buffer_m` → ERROR; outside within `buffer_m` → INFO (tolerance); inside but within `edge_buffer_m` of the
+    boundary → INFO."""
     c, p = ctx.collar_u, ctx.p("COL-005")
+    buf = float(p.get("buffer_m", 0.0))
     c = c[np.isfinite(c["x"]) & np.isfinite(c["y"])]
-    inside = point_in_polygon(c["x"], c["y"], ctx.licence)
-    dist = distance_to_polyline(c["x"], c["y"], ctx.licence)
+    lic = ctx.licence
+    if hasattr(lic, "contains"):
+        inside, dist = lic.contains(c["x"].to_numpy(), c["y"].to_numpy()), lic.distance(c["x"].to_numpy(), c["y"].to_numpy())
+    else:
+        inside, dist = point_in_polygon(c["x"], c["y"], lic), distance_to_polyline(c["x"], c["y"], lic)
     ctx.stats["in_licence"] = pd.Series(inside, index=c.index)
     for (h, r), ins, d in zip(c.iterrows(), inside, dist):
-        if not ins:
+        if not ins and d > buf:
             ctx.add("COL-005", "ERROR", _tab(ctx), f"Collar lies outside the licence boundary by {d:.0f} m.",
                     f"دهانه {d:.0f} متر خارج از محدودهٔ پروانه است.", hole_id=h, field="x,y", value=round(d, 1),
                     src_row=int(r["src_row"]), suggested_fix="Check the collar coordinates and the licence corner points.")
+        elif not ins:
+            ctx.add("COL-005", "INFO", _tab(ctx), f"Collar is {d:.1f} m outside the licence boundary, within the {buf:g} m tolerance.",
+                    f"دهانه {d:.1f} متر خارج از محدوده ولی در حد رواداری {buf:g} متر است.", hole_id=h, value=round(d, 1), src_row=int(r["src_row"]))
         elif d <= p["edge_buffer_m"]:
             ctx.add("COL-005", "INFO", _tab(ctx), f"Collar is inside the licence but only {d:.0f} m from the boundary.",
                     f"دهانه داخل محدوده ولی فقط {d:.0f} متر تا مرز فاصله دارد.", hole_id=h, value=round(d, 1), src_row=int(r["src_row"]))
@@ -312,7 +322,14 @@ def col_010(ctx):
 @rule("COL-011", ("collar", "dem"))
 def col_011(ctx):
     c, p = ctx.collar_u, ctx.p("COL-011")
+    if (ctx.stats.get("topo_sanity") or {}).get("blocked"):
+        return                    # a gross CRS / unit problem: COL-025 reports it; per-collar ΔZ would be noise
     dz = ctx.stats["dz"]
+    ex = ctx.stats.get("topo_exempt")
+    if ex is not None and ex.any():
+        f = (ctx.params.get("topo_exempt") or {})
+        ctx.add("COL-011", "INFO", _tab(ctx), f"{int(ex.sum())} collars exempt from the topography check ({f.get('field')} in {', '.join(map(str, f.get('values', [])))}).",
+                f"{int(ex.sum())} دهانه از مقایسه با توپوگرافی معاف شدند ({f.get('field')}).", field=str(f.get("field")), value=int(ex.sum()))
     meth = ctx.stats.get("collar_method")
     for h, r in c.iterrows():
         d = dz.get(h, np.nan)
@@ -332,6 +349,8 @@ def col_011(ctx):
 @rule("COL-012", ("collar", "dem"))
 def col_012(ctx):
     p = ctx.p("COL-012")
+    if (ctx.stats.get("topo_sanity") or {}).get("blocked"):
+        return
     dz = ctx.stats["dz"].dropna()
     c = ctx.collar_u
     camp = c["campaign"].fillna("—") if "campaign" in c and c["campaign"].notna().any() else pd.Series("ALL", index=c.index)
@@ -342,11 +361,38 @@ def col_012(ctx):
             continue
         med = float(d.median())
         s = 1.4826 * float(np.median(np.abs(d - med)))
+        iqr = float(d.quantile(0.75) - d.quantile(0.25))
+        if abs(med) > p.get("datum_median_m", 3.0) and iqr < p.get("datum_iqr_m", 2.0):        # v2 COL-06b
+            ctx.add("COL-012", "ERROR", ctx.collar.name,
+                    f"Campaign '{k}': median ΔZ {med:+.2f} m with a tight spread (IQR {iqr:.2f} m, n = {n}): a vertical-datum mismatch (ellipsoidal vs orthometric heights, or a different topography datum).",
+                    f"فاز «{k}»: میانهٔ اختلاف ارتفاع {med:+.2f} متر با پراکندگی کم (IQR {iqr:.2f} متر): ناسازگاری مبنای ارتفاعی.",
+                    field="z", value=round(med, 2), expected=f"|median| ≤ {p.get('datum_median_m', 3.0):g} m", alias="COL-06b",
+                    suggested_fix="Confirm the vertical datum of the collars and of the topography; apply one documented shift if justified.")
+            continue
         if abs(med) >= max(p["offset_min_m"], 3.86 * s / np.sqrt(n)) and abs(med) > s:
             ctx.add("COL-012", "WARNING", ctx.collar.name,
                     f"Campaign '{k}': systematic ΔZ offset {med:+.2f} m (robust SD {s:.2f} m, n = {n}); a vertical-datum mismatch (ellipsoidal vs orthometric heights) is more likely than random GPS error.",
                     f"فاز «{k}»: اختلاف ارتفاع سیستماتیک {med:+.2f} متر (انحراف معیار مقاوم {s:.2f} متر، n = {n})؛ احتمال ناسازگاری مبنای ارتفاعی (بیضوی در برابر ارتومتریک) بیش از خطای تصادفی GPS است.",
                     field="z", value=round(med, 2), suggested_fix="Confirm the vertical datum; apply one documented datum shift if justified.")
+
+
+@rule("COL-025", ("collar", "dem"))
+def col_025(ctx):
+    """Topographic control (v2 R2 sanity checks; catalogue COL-025 (c), (f)). Before any ΔZ comparison: no overlap
+    between collars and topography → ERROR with the likely cause (swapped E/N, false easting or northing, other UTM
+    zone, other CRS); elevations ≈ 3.28 × apart → ERROR (feet vs metres); collars outside the surface or on nodata →
+    WARNING, listed as not checked (never as a pass). Alignment notes (geographic surface converted to UTM, non-WGS 84
+    datum, zone mismatch) and global-DEM notes (SRTM: EGM96 geoid, 30 m class) → INFO."""
+    st = ctx.stats.get("topo_sanity") or {}
+    for sev, msg in st.get("findings", []):
+        fa = "بررسی اولیهٔ توپوگرافی: " + msg
+        nc = st.get("not_checked") or []
+        extra = f" ({', '.join(map(str, nc[:12]))}{' …' if len(nc) > 12 else ''})" if sev == "WARNING" and nc else ""
+        ctx.add("COL-025", sev, _tab(ctx), f"Topography check: {msg}{extra}.", fa, field="x,y,z", value=len(nc) if sev == "WARNING" else None,
+                suggested_fix="Declare the CRS / zone (profile crs) or supply topography in the collars' coordinate system and units." if sev == "ERROR" else None)
+    for t in ctx.stats.get("topography") or []:
+        for note in t.get("notes", []):
+            ctx.add("COL-025", "INFO", _tab(ctx), f"{t['file']}: {note}.", f"{t['file']}: {note}.", field="topography", value=note[:60])
 
 
 @rule("COL-013", ("collar",))

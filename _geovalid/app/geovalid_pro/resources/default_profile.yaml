@@ -34,6 +34,10 @@ mineralised_codes: {}            # XTB-01/05/07, e.g. {lith_code: [QMP, BXH], al
 barren_codes: {}                 # XTB-07, e.g. {lith_code: [ALLUV, DYKE]}
 density_ranges: {}               # XTB-04, e.g. {lith_code: {QMP: [2.5, 2.75], TUF: [2.2, 2.6]}} (g/cm3)
 weathering_rank: {}              # XTB-06 project codes, 0 = most weathered ... 5 = fresh, e.g. {CAP: 0, OXS: 1}
+# Topography (v2 R2): format override and the point-cloud support distance (null = automatic)
+topography: {format: null, max_dist_m: null}
+topographies: []                 # dated surfaces, e.g. [{path: premining.tif, date: 2019-01-01, label: pre-mining}]
+topo_exempt: {field: null, values: []}   # collars without a ΔZ check, e.g. {field: hole_type, values: [UG, TRENCH]}
 random_audit: {pct: 5, min_n: 100, seed: 20261109}   # REC-07: seeded, reproducible selection
 crm_id_aliases: {}               # explicit CRM ID spellings, e.g. {DEMO-501: DEMO 501} (QAQ-008)
 lab_sample_types: {}             # extra GEOQAQC sample-type codes: {code: CRM|BLANK|FIELD_DUP|COARSE_DUP|PULP_DUP|ORIGINAL}
@@ -48,11 +52,11 @@ rules:
   COL-002: {z_zero_tol_m: 20, dummy_values: [-99, -999, -9999, 9999, 99999]}
   COL-003: {strip_leading_zeros: true}
   COL-004: {near_dup_distance_m: 1.0, near_dup_dz_m: 2.0}
-  COL-005: {edge_buffer_m: 25}
+  COL-005: {edge_buffer_m: 25, buffer_m: 0}       # buffer_m: outside tolerance (INFO within it)
   COL-007: {eoh_tol_m: 0.05}
   COL-010: {grid_steps_m: [100, 50, 25], round_decimals_max: 0}
   COL-011: {warn_m: 2.0, error_m: 5.0, handheld_warn_m: 10.0, handheld_error_m: 20.0}
-  COL-012: {min_n: 20, offset_min_m: 1.0}
+  COL-012: {min_n: 20, offset_min_m: 1.0, datum_median_m: 3.0, datum_iqr_m: 2.0}   # COL-06b
   COL-013: {min_group_n: 3}
   COL-014: {min_year: 1950, max_rate_m_day: 300,
             drill_types: [DD, DDH, DIA, DIAMOND, CORE, NQ, HQ, PQ, BQ, NQ2, HQ3, RC, RCD, RC_DD, RCDD, RC/DD, PRE-COLLAR, PC,
