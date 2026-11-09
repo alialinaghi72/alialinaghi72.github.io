@@ -102,6 +102,9 @@ rules:
   INT-011: {cov_warn_frac: 0.90, min_cov_mineralised_frac: 0.95, expected_tables: [lithology, assay]}   # XTB-05
   WTH-001: {min_inversion_m: 2, fault_buffer_m: 5}                 # XTB-06
   CRS-001: {hi_factor: 2, lo_factor: 0.25, min_len_m: 2, cluster_n: 3}   # XTB-07
+  VER-002: {tol_xy_m: 0.05, tol_z_m: 0.05, tol_eoh_m: 0.01, shift_min_frac: 0.5}
+  VER-003: {pos_tol_m: 1.0}
+  VER-005: {upward_share: 0.75, min_n: 20}
   SMP-004: {suggest_cutoff: 0.85, max_suggestions: 200}          # REC-01
   ASY-020: {dl_frac: 0.5, rel_tol: 0.001, scale_tol: 0.03, min_scale_pairs: 5, offset_max: 3, offset_run_min: 5, err_warn_pct: 0.5, err_err_pct: 1.0}   # REC-02/03/04
   QAQ-004: {hard_limit_pct: {FIELD_DUP: 30, COARSE_DUP: 20, PULP_DUP: 10}, max_fail_frac: 0.10, min_mean_x_dl: 10}

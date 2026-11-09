@@ -234,6 +234,17 @@ def write_outputs(res, out_dir: str, lang: str = "fa", progress=None) -> dict:
     if res.ctx.traces:
         tr = pd.concat([t.assign(hole_id=h) for h, t in res.ctx.traces.items()], ignore_index=True)
         tr[["hole_id", "depth_m", "x", "y", "z", "azimuth", "dip", "dogleg_deg"]].round(3).to_csv(run_dir / "desurveyed_traces.csv", index=False, encoding="utf-8-sig")
+    v = res.ctx.stats.get("version")
+    if v is not None:                                # v2 F6: change log for the evidence pack
+        v["changes"].to_csv(run_dir / "change_log.csv", index=False, encoding="utf-8-sig")
+        files["change_log"] = run_dir / "change_log.csv"
+        if not v["metal"].empty:
+            v["metal"].to_csv(run_dir / "version_metal.csv", index=False, encoding="utf-8-sig")
+        if not v["metal_by_hole"].empty:
+            v["metal_by_hole"].to_csv(run_dir / "version_metal_by_hole.csv", index=False, encoding="utf-8-sig")
+    ra = res.ctx.stats.get("lab_reconciliation")
+    if ra and ra.get("values"):
+        pd.DataFrame(ra["values"]).to_csv(run_dir / "lab_reconciliation.csv", index=False, encoding="utf-8-sig")
     (run_dir / "profile_used.yaml").write_text(yaml.safe_dump(res.ctx.params, allow_unicode=True, sort_keys=False), encoding="utf-8")
     meta = {"software": "GEOVALID PRO", "version": __version__, "run_id": res.run_id, "started": res.started, "finished": res.finished,
             "inputs": [{"name": i.name, "file": i.raw.source, "sheet": i.raw.sheet, "sha256": i.raw.sha256, "kind": i.kind,
@@ -241,7 +252,10 @@ def write_outputs(res, out_dir: str, lang: str = "fa", progress=None) -> dict:
                         "analytes": [{"column": a.column, "analyte": a.analyte, "unit": a.unit} for a in i.mapping.analytes]}
                        for i in res.spec.inputs],
             "spatial": {k: {"file": v, "sha256": sha} for k, v, sha in
-                        [(k, v, _sha(v)) for k, v in (("dem", res.spec.dem_path), ("licence", res.spec.licence_path), ("crm", res.spec.crm_path)) if v]},
+                        [(k, v, _sha(v)) for k, v in (("dem", res.spec.dem_path), ("licence", res.spec.licence_path), ("crm", res.spec.crm_path),
+                                                      ("lab", res.spec.lab_path), ("umpire", res.spec.umpire_path)) if v]},
+            "topography": res.ctx.stats.get("topography"), "snapshot": {k: res.ctx.stats["snapshot"].get(k) for k in ("_file", "accepted_at", "reviewer", "note")}
+            if res.ctx.stats.get("snapshot") else None,
             "dip_convention": res.ctx.dip_convention, "issue_counts": res.issues["severity"].value_counts().to_dict() if not res.issues.empty else {},
             "dataset_hash": res.ctx.stats.get("dataset_hash"), "profile_hash": res.ctx.stats.get("profile_hash"),
             "errors": res.errors}

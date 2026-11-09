@@ -94,6 +94,8 @@ class ProjectSpec:
     lab_path: str | None = None            # laboratory / QA-QC file, GEOQAQC format (R1)
     umpire_path: str | None = None         # check / umpire laboratory file
     audit_path: str | None = None          # filled random-audit checklist to import (REC-07)
+    baseline_inputs: list | None = None    # the previous version of the dataset (TableInput list) for VER-001…005
+    snapshot_path: str | None = None       # accepted-snapshot manifest (or a folder of them) for VER-009
 
 
 @dataclass
@@ -107,6 +109,57 @@ class Result:
     finished: str = ""
     errors: list[str] = field(default_factory=list)
     outputs: dict = field(default_factory=dict)
+
+
+def _build_tables(ctx: Ctx, inputs, log: IssueLog) -> None:
+    """Canonical tables from the mapped inputs, QC classes and the dip convention (shared by the baseline build)."""
+    for inp in inputs:
+        if not inp.enabled or inp.kind == "ignore":
+            continue
+        canon = build_canonical(inp, log)
+        if inp.kind in ("collar", "survey"):
+            cur = getattr(ctx, inp.kind)
+            if cur is None:
+                setattr(ctx, inp.kind, canon)
+            else:
+                cur.df = pd.concat([cur.df, canon.df], ignore_index=False)
+                cur.name = f"{cur.name}+{canon.name}"
+        else:
+            ctx.tables.append(canon)
+    for t in ctx.by_kind("assay"):
+        st = t.df["sample_type"] if "sample_type" in t.df else pd.Series(pd.NA, index=t.df.index)
+        sid = t.df["sample_id"] if "sample_id" in t.df else None
+        cls = classify(st, sid)
+        if st.notna().any() or (cls != "ORIGINAL").any():
+            t.df["qc_class"] = cls
+    _dip_convention(ctx)
+
+
+def build_baseline(inputs, params: dict) -> Ctx:
+    """The previous version of the dataset, canonical and desurveyed, without running the rules."""
+    b = Ctx(params=params, log=IssueLog("baseline", severity_overrides=None))
+    _build_tables(b, inputs, b.log)
+    b.build_traces()
+    return b
+
+
+def _versions(ctx: Ctx, spec: ProjectSpec, params: dict, res: Result) -> None:
+    """Version comparison against the baseline and the accepted snapshot (v2 F6); the VER rules read the results."""
+    from . import versions
+    if spec.baseline_inputs:
+        try:
+            base = build_baseline(spec.baseline_inputs, params)
+            cmp = versions.compare(base, ctx, params)
+            cmp["summary"]["baseline_files"] = [{"file": Path(i.raw.source).name, "sha256": i.raw.sha256, "kind": i.kind} for i in spec.baseline_inputs]
+            ctx.stats["version"] = cmp
+            ctx.stats["version_summary"] = cmp["summary"]
+        except Exception as e:  # reported, never silent
+            res.errors.append(f"Version comparison: {e}")
+    if spec.snapshot_path:
+        try:
+            ctx.stats["snapshot"] = versions.load_snapshot(spec.snapshot_path)
+        except Exception as e:
+            res.errors.append(f"Snapshot: {e}")
 
 
 def _read_topography(ctx: Ctx, spec: ProjectSpec, params: dict, res: Result) -> None:
@@ -245,26 +298,7 @@ def run(spec: ProjectSpec, progress=None) -> Result:
     ctx = Ctx(params=params, log=log)
     res = Result(spec, ctx, pd.DataFrame(), pd.DataFrame(), run_id, started)
     progress(2, "building canonical tables")
-    for inp in spec.inputs:
-        if not inp.enabled or inp.kind == "ignore":
-            continue
-        canon = build_canonical(inp, log)
-        if inp.kind in ("collar", "survey"):
-            cur = getattr(ctx, inp.kind)
-            if cur is None:
-                setattr(ctx, inp.kind, canon)
-            else:
-                cur.df = pd.concat([cur.df, canon.df], ignore_index=False)
-                cur.name = f"{cur.name}+{canon.name}"
-        else:
-            ctx.tables.append(canon)
-    for t in ctx.by_kind("assay"):
-        st = t.df["sample_type"] if "sample_type" in t.df else pd.Series(pd.NA, index=t.df.index)
-        sid = t.df["sample_id"] if "sample_id" in t.df else None
-        cls = classify(st, sid)
-        if st.notna().any() or (cls != "ORIGINAL").any():
-            t.df["qc_class"] = cls
-    _dip_convention(ctx)
+    _build_tables(ctx, spec.inputs, log)
     progress(10, "reading spatial inputs")
     _read_topography(ctx, spec, params, res)
     if spec.licence_path:
@@ -293,6 +327,8 @@ def run(spec: ProjectSpec, progress=None) -> Result:
         _collar_topography(ctx, params)
     progress(15, "desurveying holes")
     ctx.build_traces()
+    _fingerprints(ctx, spec, params)            # before the rules: VER-009 compares the per-hole hashes
+    _versions(ctx, spec, params, res)
     meta = rules_meta()
     rows = []
     for rid in IMPORT_RULES:
@@ -328,8 +364,7 @@ def run(spec: ProjectSpec, progress=None) -> Result:
     matrix["worst"] = matrix["rule_id"].map(worst)
     matrix["result"] = [_result(st, w) for st, w in zip(matrix["status"], matrix["worst"])]
     res.matrix = matrix
-    progress(95, "fingerprints")
-    _fingerprints(ctx, spec, params)
+    progress(95, "audit")
     from . import audit
     try:
         ctx.stats["random_audit"] = audit.summarise(ctx, params, spec.audit_path) if spec.audit_path else audit.pending(ctx, params)

@@ -3014,5 +3014,18 @@
   "fix": "—",
   "jorc": "T1.12",
   "status": "NEW: audit practice (RC)"
+ },
+ "VER-009": {
+  "id": "VER-009",
+  "family": "VER",
+  "title_en": "Change to a hole locked in the last accepted snapshot",
+  "title_fa": "تغییر در گمانهٔ قفل‌شدهٔ آخرین تصویر پذیرفته‌شده",
+  "severity": "CRITICAL; INFO",
+  "logic": "An accepted snapshot (v2 F6) is a JSON manifest written when a reviewer accepts a dataset version: file hashes, per-hole canonical hashes, profile hash, program version, reviewer, date, note and the locked holes. Each run compares the current per-hole hashes with the last accepted manifest. A locked hole whose hash changed, or which is missing → CRITICAL. Unlocked changes and added holes → INFO summary; a different profile or program version → INFO.",
+  "parameters": "locked holes chosen at acceptance (default all)",
+  "reference": "v2 brief F6 (VER-01); CIM 2019 detection of unintended changes between data versions",
+  "fix": "Revert the change, or accept a new snapshot with the reason recorded",
+  "jorc": "T1.07",
+  "status": "NEW: v2 brief F6"
  }
 }

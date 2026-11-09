@@ -45,7 +45,7 @@ ALIASES = {
     "SUR-016": ["SPA-01", "SPA-02"], "GEO-001": ["XTB-02"], "GEO-002": ["XTB-03"], "DEN-001": ["XTB-04"],
     "ASY-008": ["XTB-01"], "INT-011": ["XTB-05"], "WTH-001": ["XTB-06"], "CRS-001": ["XTB-07"], "CRS-006": ["SPA-04"],
     "CRS-002": ["SPA-05"], "SMP-004": ["REC-01"], "ASY-020": ["REC-02", "REC-03", "REC-04"], "ASY-009": ["REC-05"],
-    "CRS-008": ["REC-06"],
+    "CRS-008": ["REC-06"], "VER-009": ["VER-01"],
 }
 
 # v2 brief §8.2 clause tags.
