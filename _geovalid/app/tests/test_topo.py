@@ -80,7 +80,7 @@ def w_bil(d, layout):
     else:
         data = np.stack([a, a + 1], axis=0)
     f.write_bytes(data.astype(">f4").tobytes())
-    (d / f"s.hdr").write_text(f"nrows {NY}\nncols {NX}\nnbands 2\nnbits 32\npixeltype float\nbyteorder M\nlayout {layout}\n"
+    (d / "s.hdr").write_text(f"nrows {NY}\nncols {NX}\nnbands 2\nnbits 32\npixeltype float\nbyteorder M\nlayout {layout}\n"
                               f"ulxmap {xs[0]}\nulymap {ys[-1]}\nxdim {DX}\nydim {DX}\n")
     return f
 
@@ -313,13 +313,14 @@ def test_geographic_surfaces_bridge_to_utm(tmp_path):
     params = load_params(None)
     params["crs"] = {"utm_zone": 39, "hemisphere": "N"}
     from geovalid_pro.io.topo import align
-    for f, tol in ((w_hgt(tmp_path), 0.6), (w_kml(tmp_path), 1e-6), (w_kml(tmp_path, kmz=True), 1e-6)):
+    hgt_file = w_hgt(tmp_path)          # written once: Windows refuses to rewrite a file that is memory-mapped
+    for f, tol in ((hgt_file, 0.6), (w_kml(tmp_path), 1e-6), (w_kml(tmp_path, kmz=True), 1e-6)):
         s, notes = align(read_surface(str(f)), params, E, N)
         lat, lon = utm_to_wgs84(E, N, 39, False)
         z = s.sample(E, N)
         assert np.max(np.abs(z - geo_plane(lon, lat))) < tol, (f.name, z, geo_plane(lon, lat))
         assert any("UTM zone 39N (declared)" in n for n in notes)
-    hgt = read_surface(str(w_hgt(tmp_path)))
+    hgt = read_surface(str(hgt_file))
     assert any("EGM96" in n for n in hgt.info["notes"])
 
 

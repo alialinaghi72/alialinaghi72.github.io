@@ -1,4 +1,4 @@
-# GEOVALID PRO — application (v0.3.0)
+# GEOVALID PRO — application (v0.4.0)
 
 Implementation of the design package in `../docs/`. User guide: [`README_RUN.md`](README_RUN.md).
 

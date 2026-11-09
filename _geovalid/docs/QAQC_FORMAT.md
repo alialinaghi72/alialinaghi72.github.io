@@ -4,7 +4,7 @@
 |---|---|
 | Source | Sample files from the owner's GEOQAQC application (`reference/qaqc_samples/`, received 2026-11-09). GEOQAQC's source code was not available, so this is **option B**: the format is inferred from the samples. |
 | Status | **Confirmed by the owner on 2026-11-09** (sample-type codes, text codes, CRM unit conversion, repeated sample IDs). |
-| Implementation | `geovalid_pro/io/lab.py` (reader), `geovalid_pro/rules/reconcile.py` (REC rules). Acceptance test: `app/tests/test_lab.py`. |
+| Implementation | `geovalid_pro/io/lab.py` (readers), `geovalid_pro/rules/reconcile.py` (REC-01…06), `geovalid_pro/rules/qaqc.py` (QAQ rules on the laboratory file), `geovalid_pro/audit.py` (REC-07). Tests: `app/tests/test_lab.py` (synthetic files in this format; the reference counts in §6 run where the sample files exist locally). Implemented in GEOVALID PRO 0.4.0. |
 
 A user prepares the file once for GEOQAQC and loads the same file in GEOVALID PRO without editing it.
 
@@ -27,7 +27,7 @@ program like any other table.
 |---|---|---|
 | `SAMPLE_ID` | Sample ticket number | Key for pairing with the database and the umpire file. A repeated ID is a **re-assay** (§4). |
 | `SAMPLE_TYPE` | Routine sample or QC type | Codes in §3. An unknown code is reported (never guessed). |
-| `CRM_ID` | Reference material name | Required when the type is a CRM; matched to the certificate `CRM_ID` exactly after trimming spaces. |
+| `CRM_ID` | Reference material name | Required when the type is a CRM; matched to the certificate `CRM_ID` ignoring case and surrounding spaces only. `DEMO-501` and `DEMO 501` are different IDs: QAQ-008 reports the near match, and the profile's `crm_id_aliases` maps it explicitly. |
 | `PARENT_ID` | Original sample of a duplicate | Explicit link. **No suffix stripping**: `S00003-FD` is linked to `S00003` only because `PARENT_ID` says so. |
 | `BATCH` | Laboratory job / certificate | Grouping for detection limits, coding and QC per batch. |
 | `SEQ` | Insertion order in the sample stream | Used for QC-insert-aware sequence checks. |

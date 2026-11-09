@@ -430,7 +430,6 @@ def crs_008(ctx):
     types as QC but the laboratory file does not contain → ERROR (expected QC missing). (c) Unknown SAMPLE_TYPE codes in
     the laboratory file → WARNING with counts; those rows are not used until the code is added to `lab_sample_types`.
     (d) Laboratory QC rows with no analysed value at all → WARNING."""
-    db = _db_samples(ctx)
     lab = ctx.lab.df if ctx.lab is not None else None
     lab_cls = {}
     if lab is not None:

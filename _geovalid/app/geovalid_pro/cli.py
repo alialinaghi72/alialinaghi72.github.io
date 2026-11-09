@@ -33,6 +33,11 @@ def cmd_run(a) -> int:
         d = _sample_dir(None)
         files = [str(d / f"{n}.csv") for n in SAMPLE_TABLES]
         a.dem, a.licence, a.crm = a.dem or str(d / "dem.asc"), a.licence or str(d / "licence.csv"), a.crm or str(d / "crm_standards.csv")
+        from . import synth_lab
+        lab = synth_lab.from_database(str(d))          # GEOQAQC laboratory and umpire files for the sample
+        a.lab, a.umpire = a.lab or lab["lab"], a.umpire or lab["umpire"]
+        if not a.baseline:
+            a.baseline = [str(_sample_dir(None, clean=True))]   # the clean twin stands in for the previous version
     else:
         files = a.files or []
     if not files:
@@ -49,7 +54,15 @@ def cmd_run(a) -> int:
             params.setdefault("code_dictionaries", {})[k] = sorted(set(params.get("code_dictionaries", {}).get(k, [])) | set(v))
     if a.topo_format:
         params.setdefault("topography", {})["format"] = a.topo_format
-    base = [t for t in load_inputs(a.baseline) if t.kind != "ignore"] if a.baseline else None
+    base = None
+    if a.baseline:
+        from .engine import load_folder
+        if len(a.baseline) == 1 and Path(a.baseline[0]).is_dir():
+            base, skipped = load_folder(a.baseline[0])
+            for m in skipped:
+                print(f"  baseline: skipped {m.splitlines()[0]}", file=sys.stderr)
+        else:
+            base = [t for t in load_inputs(a.baseline) if t.kind != "ignore"]
     spec = ProjectSpec([t for t in inputs if t.kind != "ignore"], a.dem, a.licence, a.crm, a.profile, a.name, params,
                        lab_path=a.lab, umpire_path=a.umpire, audit_path=a.audit_results, baseline_inputs=base, snapshot_path=a.snapshot)
     res = run(spec, lambda p, m: print(f"\r  [{p:3d}%] {m:<30}", end="", flush=True))

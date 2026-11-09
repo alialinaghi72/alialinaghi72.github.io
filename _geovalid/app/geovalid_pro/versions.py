@@ -182,7 +182,7 @@ def compare(old, new, params: dict | None = None) -> dict:
             add("collar moved", new.collar.name, k, field="x,y,z", ov=f"{a['x']:.3f}, {a['y']:.3f}, {a['z']:.3f}",
                 nv=f"{b['x']:.3f}, {b['y']:.3f}, {b['z']:.3f}", delta=round(d, 3), detail=f"dx {dxyz[0]:+.3f}, dy {dxyz[1]:+.3f}, dz {dxyz[2]:+.3f}")
             moves.append((k, *dxyz))
-        for c in sorted(set(a.index) & set(b.index) - {"x", "y", "z", "src_row", "hole_id"}):
+        for c in sorted(c for c in set(a.index) & set(b.index) - {"x", "y", "z", "src_row", "hole_id"} if not str(c).endswith("_raw")):
             av, bv = a[c], b[c]
             if (pd.isna(av) and pd.isna(bv)) or (isinstance(av, float) and isinstance(bv, float) and abs(av - bv) <= (tol_eoh if c == "eoh_m" else 1e-9)):
                 continue

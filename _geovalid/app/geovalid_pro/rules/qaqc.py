@@ -1,7 +1,6 @@
 """QAQ rules (03 §2.6): insertion rates, CRM, blanks, duplicates. QC classes come from sample_type or ID patterns."""
 from __future__ import annotations
 
-import re
 
 import numpy as np
 import pandas as pd

@@ -368,7 +368,6 @@ def write_tiff(path: str, arr: np.ndarray, *, affine_ul: tuple[float, float, flo
         tags[273], tags[279] = (4, offsets), (4, [len(b) for b in blocks])
     ifd_off = pos + (pos % 2)
     fmt = {2: "s", 3: "H", 4: "I", 12: "d"}
-    size = {2: 1, 3: 2, 4: 4, 12: 8}
     entries, extra = [], bytearray()
     extra_off = ifd_off + 2 + 12 * len(tags) + 4
     for tag in sorted(tags):

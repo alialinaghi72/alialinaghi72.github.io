@@ -376,7 +376,7 @@ class V2Pages:
                          "FAIL": c["results"]["FAIL"], "N/A": c["results"]["NOT_APPLICABLE"],
                          **{k: v for k, v in c["open_issues"].items()}})
         _model_df(self.ev_model, pd.DataFrame(rows))
-        self.ev_tbl.resizeColumnsToContents()
+        self._fit(self.ev_tbl, 360)                 # long clause titles no longer push the counts off screen
 
     def _open_evidence(self):
         o = self.result.outputs if self.result is not None else {}

@@ -1,9 +1,9 @@
-# GEOVALID PRO 0.3.0 — rule catalogue (generated)
+# GEOVALID PRO 0.4.0 — rule catalogue (generated)
 
 Generated from the rule registry by `tools/gen_rule_catalogue.py`; do not edit by hand. The design specification of every
 rule, including those not yet implemented, is `03_rule_catalogue.md`.
 
-90 rules run in this version. Severities: Critical = CRITICAL, Major = ERROR, Minor = WARNING, Info = INFO.
+109 rules run in this version. Severities: Critical = CRITICAL, Major = ERROR, Minor = WARNING, Info = INFO.
 
 ## Categories
 
@@ -60,6 +60,7 @@ rule, including those not yet implemented, is `03_rule_catalogue.md`.
 | COL-015 |  | B | Spacing outlier or clustered drilling (declustering needed) / فاصله‌داری غیرعادی یا حفاری خوشه‌ای (نیاز به واخوشه‌بندی) | INFO |  | `isolation_x_median` 3.0, `ce_clustered` 0.8 | JORC-T1-S3-DBIntegrity, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | COL-016 |  | B | Coordinate outlier in X, Y or Z / مختصات پرت X، Y یا Z | WARNING |  | `z_range_m` [-50, 5700], `robust_z` 5.0 | JORC-T1-S1-Location, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | COL-019 |  | B | No survey and no collar orientation: trace silently assumed vertical / بدون انحراف‌سنجی و بدون جهت دهانه: مسیر گمانه به‌طور ضمنی قائم فرض می‌شود | ERROR |  | `vertical_tol_deg` 0.5 | JORC-T1-S1-Location, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
+| COL-025 |  | B | Topographic control inadequate for ΔZ tests and intended use / ناکافی بودن کنترل توپوگرافی برای آزمون ΔZ و کاربرد مورد نظر | WARNING |  |  | JORC-T1-S1-Location, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | SUR-001 | SCH-04, SCH-04b | C | Survey HoleID not in collar / شمارهٔ گمانهٔ انحراف‌سنجی در جدول دهانه وجود ندارد | ERROR | ERROR→CRITICAL |  | JORC-T1-S3-DBIntegrity, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | SUR-002 | SRV-04, SCH-03 | C | Duplicate survey depth / عمق تکراری ایستگاه انحراف‌سنجی | ERROR; ↓INFO if identical | INFO→WARNING | `dup_angle_tol_deg` 0.1 | JORC-T1-S3-DBIntegrity, JORC-T1-S1-Location, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | SUR-003 | SRV-02 | C | Dip out of range / شیب خارج از محدودهٔ مجاز | ERROR | ERROR→CRITICAL |  | JORC-T1-S1-Location, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
@@ -112,21 +113,39 @@ rule, including those not yet implemented, is `03_rule_catalogue.md`.
 | LIT-001 |  | E | Lithology code not in the dictionary, or synonym variants / کد سنگ‌شناسی خارج از فرهنگ کدها یا گونه‌های هم‌معنا | WARNING; INFO (inventory) |  |  | JORC-T1-S3-DBIntegrity, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | LIT-002 |  | E | Thin interval or unmerged consecutive identical units / بازهٔ بسیار نازک یا واحدهای یکسان پیاپی ادغام‌نشده | INFO; ↑WARNING (over-splitting) |  | `thin_m` 0.5, `thin_share_frac` 0.2 | JORC-T1-S3-DBIntegrity, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | LIT-003 |  | E | Illogical downhole sequence / توالی غیرمنطقی در طول گمانه | WARNING (a, b); INFO (c) |  | `cover_codes` ['OB', 'OVB', 'OVBD', 'ALL', 'ALLUV', 'ALV', 'SOIL', 'SOL', 'COLL', 'QAL', 'QT', 'CV', 'COVER', 'TILL', 'SCREE', 'FILL'] | JORC-T1-S3-DBIntegrity, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
+| ASY-008 | XTB-01 | F | Missing assays in a logged mineralised interval / نبود عیار در بازهٔ کانه‌دار ثبت‌شده | WARNING; ↓INFO when pending |  | `min_len_m` 1.0 | JORC-T1-S3-DBIntegrity, CIM2019-6.2, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
+| CRS-001 | XTB-07 | F | High grade in a logged barren unit, or low grade in a logged ore zone / عیار بالا در واحد بی‌کانهٔ لاگ‌شده یا عیار پایین در زون کانه‌دار لاگ‌شده | INFO; ↑WARNING (cluster) |  | `hi_factor` 2, `lo_factor` 0.25, `min_len_m` 2, `cluster_n` 3 | JORC-T1-S1-Verification, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | CRS-004 |  | F | Candidate estimation domains not statistically separated / عدم تفکیک آماری دامنه‌های پیشنهادی تخمین | INFO |  | `alpha` 0.01, `effect_min` 0.2, `min_n` 30, `cv_mixed` 2.0, `eta2_weak` 0.02 | JORC-T1-S3-DBIntegrity, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | CRS-005 |  | F | Contact behaviour (hard vs soft boundary) / رفتار همبری (مرز سخت یا نرم) | INFO |  | `max_dist_m` 20 | JORC-T1-S3-DBIntegrity, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
+| CRS-008 | REC-06 | F | QC sample carried as a downhole interval / نمونهٔ کنترلی ثبت‌شده به‌عنوان بازهٔ درون‌چاهی | CRITICAL; ERROR |  |  | JORC-T1-S1-Verification, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | DEN-001 | XTB-04 | F | Implausible density for the lithology / چگالی غیرمحتمل برای سنگ‌شناسی | WARNING; ↑ERROR outside the absolute bounds (physically implausible) |  | `abs_bounds_gcm3` [1.0, 6.5], `k_mad` 4 | JORC-T1-S3-DBIntegrity, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | GEO-001 | XTB-02 | F | Core recovery above 100 % or below 0 / بازیافت مغزه بیش از ۱۰۰ درصد یا منفی | ERROR; INFO within tolerance |  | `cr_tol_pct` 5 | JORC-T1-S3-DBIntegrity, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | GEO-002 | XTB-03 | F | RQD greater than core recovery, or above 100 % / RQD بزرگ‌تر از بازیافت مغزه یا بیش از ۱۰۰ درصد | ERROR |  | `tol_pct` 1 | JORC-T1-S3-DBIntegrity, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | GEO-003 |  | F | Recorded and recomputed CR or RQD disagree / مغایرت CR یا RQD ثبت‌شده با مقدار بازمحاسبه‌شده | WARNING |  | `diff_tol_pct` 2, `len_tol_m` 0.02 | JORC-T1-S3-DBIntegrity, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | GEO-004 |  | F | Recovery–grade bias / اریبی بین بازیافت و عیار | WARNING |  | `low_pct` 85, `high_pct` 95, `alpha` 0.01, `min_n_per_class` 30 | JORC-T1-S3-DBIntegrity, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
+| INT-011 | XTB-05 | F | Low coverage of an expected table per hole or within mineralised intervals / پوشش کم جدول موردانتظار در گمانه یا در بازه‌های کانه‌دار | WARNING |  | `cov_warn_frac` 0.9, `min_cov_mineralised_frac` 0.95, `expected_tables` ['lithology', 'assay'] | JORC-T1-S3-DBIntegrity, CIM2019-4.5, CIM2019-6.2, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
+| WTH-001 | XTB-06 | F | Illogical oxidation or weathering sequence downhole / توالی غیرمنطقی اکسیداسیون یا هوازدگی در طول گمانه | WARNING; INFO | WARNING→INFO | `min_inversion_m` 2, `fault_buffer_m` 5 | JORC-T1-S3-DBIntegrity, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
+| ASY-009 | REC-05 | G | Multiple determinations per sample–analyte without resolved precedence / نتایج متعدد برای یک نمونه و عنصر بدون اولویت حل‌شده | ERROR |  |  | JORC-T1-S1-Verification, NI43101-F1-Item12, CIM2019-6.2, SK1300-601b96-iii-B-9 |
+| ASY-020 | REC-02, REC-03, REC-04 | G | Database value differs from the original laboratory certificate (incl. sample-ID offset) / مغایرت مقدار پایگاه داده با گواهی اصلی آزمایشگاه (شامل جابجایی شناسهٔ نمونه) | ERROR (per record); project W/E (banded) |  | `dl_frac` 0.5, `rel_tol` 0.001, `scale_tol` 0.03, `min_scale_pairs` 5, `offset_max` 3, `offset_run_min` 5, `err_warn_pct` 0.5, `err_err_pct` 1.0 | JORC-T1-S1-Verification, NI43101-F1-Item12, CIM2019-6.2, SK1300-601b96-iii-B-9 |
 | QAQ-001 |  | G | Insufficient insertion rate or no QA/QC / نرخ درج ناکافی یا نبود کنترل کیفیت | CRITICAL (a); ERROR / WARNING (b, banded); WARNING (c) |  | `target_crm_pct` 5, `target_blank_pct` 3, `target_field_dup_pct` 2, `target_coarse_dup_pct` 2, `target_pulp_dup_pct` 2, `min_originals_n` 100 | JORC-T1-S1-Verification, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | QAQ-002 |  | G | CRM failure (±3 SD), Westgard violation or bias / شکست ماده مرجع (±۳ انحراف معیار)، نقض قواعد وستگارد یا اریبی | ERROR / WARNING as stated |  | `sd_warn` 2, `sd_fail` 3, `bias_warn_pct` 3, `bias_err_pct` 5, `min_n_bias` 10 | JORC-T1-S1-Verification, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | QAQ-003 |  | G | Blank contamination or carry-over / آلودگی بلانک یا انتقال آلودگی | ERROR / WARNING |  | `blank_warn_x_dl` 5, `blank_fail_x_dl` 10 | JORC-T1-S1-Verification, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | QAQ-004 |  | G | Duplicate precision failure (HARD) / شکست دقت نمونه‌های تکراری (HARD) | WARNING; ↑ERROR (pulp, > 2× allowed) |  | `hard_limit_pct` {'FIELD_DUP': 30, 'COARSE_DUP': 20, 'PULP_DUP': 10}, `max_fail_frac` 0.1, `min_mean_x_dl` 10 | JORC-T1-S1-Verification, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
-| COL-005 | COL-05 | H | Collar outside licence boundary or project extent / دهانه خارج از محدودهٔ پروانه یا گسترهٔ پروژه | ERROR (INFO near boundary) |  | `edge_buffer_m` 25 | JORC-T1-S1-Location, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
+| QAQ-006 |  | G | Probable mislabelled CRM (result matches another CRM or a blank) / احتمال برچسب اشتباه ماده مرجع | WARNING |  | `match_sd` 2, `min_analytes_match` 2, `blank_x_dl` 5 | JORC-T1-S1-Verification, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
+| QAQ-007 |  | G | Inter-laboratory (umpire) bias / اریبی بین آزمایشگاهی (آزمایشگاه داور) | WARNING / ERROR |  | `min_pairs` 20, `warn_pct` 5, `err_pct` 10, `alpha` 0.01 | JORC-T1-S1-Verification, NI43101-F1-Item12, CIM2019-4.5, SK1300-601b96-iii-B-9 |
+| QAQ-008 |  | G | CRM identity or certified value unresolved, or certified for an incompatible method / هویت یا مقدار تأییدشدهٔ ماده مرجع نامشخص یا ناسازگار با روش آنالیز | ERROR; WARNING (indicative) |  |  | JORC-T1-S1-Verification, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
+| QAQ-010 |  | G | Duplicate–parent linkage invalid / پیوند نامعتبر نمونهٔ تکراری با نمونهٔ اصلی | WARNING; ↑ERROR when > 10 % of a type's pairs are invalid |  |  | JORC-T1-S1-Verification, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
+| SMP-004 | REC-01 | G | Orphan result: sample not in the register or any dispatch / نتیجهٔ یتیم: نمونه در ثبت نمونه یا محموله‌ها وجود ندارد | ERROR; WARNING |  | `suggest_cutoff` 0.85, `max_suggestions` 200 | JORC-T1-S1-Verification, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
+| COL-005 | COL-05 | H | Collar outside licence boundary or project extent / دهانه خارج از محدودهٔ پروانه یا گسترهٔ پروژه | ERROR (INFO near boundary) |  | `edge_buffer_m` 25, `buffer_m` 0 | JORC-T1-S1-Location, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | COL-011 | COL-06 | H | Collar–topography \|ΔZ\| above threshold / اختلاف ارتفاع دهانه و توپوگرافی بیش از حد آستانه | WARNING/ERROR (banded) |  | `warn_m` 2.0, `error_m` 5.0, `handheld_warn_m` 10.0, `handheld_error_m` 20.0 | JORC-T1-S1-Location, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
-| COL-012 | COL-06b | H | Systematic ΔZ offset (datum suspicion) / جابجایی سیستماتیک ΔZ (احتمال اختلاف دیتوم) | WARNING |  | `min_n` 20, `offset_min_m` 1.0 | JORC-T1-S1-Location, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
+| COL-012 | COL-06b | H | Systematic ΔZ offset (datum suspicion) / جابجایی سیستماتیک ΔZ (احتمال اختلاف دیتوم) | WARNING |  | `min_n` 20, `offset_min_m` 1.0, `datum_median_m` 3.0, `datum_iqr_m` 2.0 | JORC-T1-S1-Location, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 | SUR-016 | SPA-01, SPA-02 | H | Trace crosses another trace, or exits above topography / تقاطع مسیر با گمانهٔ دیگر یا خروج مسیر از سطح زمین | ERROR |  | `cross_dist_m` 1.0, `collar_zone_m` 5, `exit_tol_m` 2.0, `step_m` 1.0 | JORC-T1-S1-Location, CIM2019-4.5, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
+| VER-001 |  | I | Holes added or removed between versions / گمانه‌های افزوده یا حذف‌شده بین نسخه‌ها | INFO; WARNING |  |  | JORC-T1-S1-Verification, CIM2019-4.2, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
+| VER-002 |  | I | Collar coordinates or EOH changed / تغییر مختصات یا عمق نهایی دهانهٔ گمانه | INFO; WARNING |  | `tol_xy_m` 0.05, `tol_z_m` 0.05, `tol_eoh_m` 0.01, `shift_min_frac` 0.5 | JORC-T1-S1-Location, CIM2019-4.2, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
+| VER-003 |  | I | Survey stations changed / تغییر ایستگاه‌های انحراف‌سنجی | INFO; WARNING |  | `pos_tol_m` 1.0 | JORC-T1-S1-Location, CIM2019-4.2, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
+| VER-004 |  | I | Intervals added, removed, split or merged / بازه‌های افزوده، حذف، تقسیم یا ادغام‌شده | INFO; WARNING |  |  | JORC-T1-S1-Verification, CIM2019-4.2, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
+| VER-005 |  | I | Field values or codes changed / تغییر مقادیر یا کدها | INFO; WARNING |  | `upward_share` 0.75, `min_n` 20 | JORC-T1-S1-Verification, CIM2019-4.2, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
+| VER-009 | VER-01 | I | Change to a hole locked in the last accepted snapshot / تغییر در گمانهٔ قفل‌شدهٔ آخرین تصویر پذیرفته‌شده | CRITICAL; INFO |  |  | JORC-T1-S1-Verification, CIM2019-4.2, NI43101-F1-Item12, SK1300-601b96-iii-B-9 |
 
 ## Logic
 
@@ -172,6 +191,28 @@ Catalogue logic: ⟦`drv_assay_wide`⟧ (a) **Sulphide S budget**, in `PRIMARY` 
 
 Catalogue logic: Per analyte and domain, on log values: Tukey far-out fence Q3 + `tukey_k`·IQR; robust z ≥ `z_robust`; top GMM population holding < 1 % of samples. Spatial outliers are SPA-001. Top-cut analysis is **suggestion only**: CV > `cv_topcut`, Parrish deciles (top decile > 40 % of metal or top percentile > 10 %), metal at risk, cumulative metal curve.
 
+### ASY-008 — Missing assays in a logged mineralised interval
+
+*نبود عیار در بازهٔ کانه‌دار ثبت‌شده* · category F (Cross-table consistency) · v2 XTB-01
+
+XTB-01. Each zone logged with a mineralised code (profile `mineralised_codes`), merged where intervals touch,
+is compared with the routine assay intervals that hold a result for a key analyte. A zone with no assay at all →
+ERROR; uncovered metres ≥ `min_len_m` inside a partly assayed zone → WARNING; a gap covered only by explained
+codes (NS, IS, LNR, …) → INFO. Silent zero-filling of such gaps dilutes the composite grade.
+
+Catalogue logic: ⟦`drv_interval_master`⟧ A logged mineralised interval (code `mineralisation_class = MINERALISED`, or logged sulphide ≥ `sulph_thr_pct`) without a preferred result for a key analyte. Status: **not sampled** (decision); **pending** (SMP-005 OUTSTANDING → INFO, and the hole is excluded from intercept reporting, VER-007); **lost/insufficient** (ASY-002 codes); **missing** (no explanation → WARNING). The issue proposes an explicit composite treatment (not sampled vs background) and shows the effect of each choice; silent zero-filling dilutes grade.
+
+### ASY-009 — Multiple determinations per sample–analyte without resolved precedence
+
+*نتایج متعدد برای یک نمونه و عنصر بدون اولویت حل‌شده* · category G (Laboratory and QA/QC reconciliation) · v2 REC-05
+
+REC-05. A SAMPLE_ID that occurs more than once in the laboratory file is a re-assay (owner's confirmation). Every
+result is listed with its batch, and for each element the result the database holds (or none, or not in the
+database). GEOVALID never chooses one. INFO. A database value that equals the umpire laboratory's result and none of
+the primary results → ERROR: umpire results never replace the primary (02 §4.9.3, ladder step 5).
+
+Catalogue logic: Per (sample_uid, analyte) with > 1 candidate, the precedence ladder (extends 02 §4.9.3; Appendix C) is applied and the deciding step recorded: (1) an over-limit result replaces a primary that is ODL or ≥ UL; (2) screen-fire / metallic-screen / large-charge Au replaces standard FA; (3) a re-assay of a QC-failed batch (QAQ-018 disposition `RE_ASSAYED`) replaces **all** samples of that batch; (4) lab repeats are QC only (original kept; `repeat_policy`); (5) umpire results never replace the primary; (6) certificate revisions → SMP-010. Flags: an unresolved tie or ladder conflict → ERROR; a **partially replaced** failed batch → ERROR; original vs repeat RD = |a−b| / ((a+b)/2) > `rd_tol_frac` for pairs ≥ 10 × DL → WARNING; INFO with counts per ladder step (the T1.07 disclosure of adjustments to assay data).
+
 ### ASY-010 — Detection limit changes between labs, batches or periods
 
 *تغییر حد تشخیص بین آزمایشگاه‌ها، بچ‌ها یا دوره‌ها* · category E (Values) · v2 VAL-04
@@ -213,6 +254,23 @@ VAL-04 (laboratories and methods): an assay table whose rows come from more than
 method (mapped `lab` / `method` columns). WARNING (Minor): mixed methods in one field must be shown to be comparable.
 
 Catalogue logic: ⟦`drv_assay_wide`⟧ The preferred values of one analyte come from ≥ 2 `method_class`/digestion groups. **Partial vs total** mixed for refractory or partially digested elements (Cr, Ti, Zr, Al, Ba, W, Sn, REE, K) → ERROR. Other mixtures (e.g. aqua regia vs four-acid Cu) → WARNING, with the systematic difference tested on spatially paired samples within the domain. Au charge (25/30/50 g), finish (AAS/gravimetric), PhotonAssay, screen fire or cyanide leach (LeachWELL/BLEG, partial) mixed → WARNING. Proposal: method-specific fields with the §6.1 preference.
+
+### ASY-020 — Database value differs from the original laboratory certificate (incl. sample-ID offset)
+
+*مغایرت مقدار پایگاه داده با گواهی اصلی آزمایشگاه (شامل جابجایی شناسهٔ نمونه)* · category G (Laboratory and QA/QC reconciliation) · v2 REC-02, REC-03, REC-04
+
+REC-02/03/04. Each database result is compared with the laboratory result of the same SAMPLE_ID and element
+(declared units converted for the comparison; every conversion is listed). Tolerance = max(`dl_frac`·DL,
+`rel_tol`·|lab value|), DL being the largest `<x` of the laboratory batch. With re-assays the closest laboratory
+result is used (ASY-009 lists them all). Classes: value mismatch → ERROR (REC-02); the database holds the laboratory
+value rounded to fewer decimals → WARNING; ratio ≈ 10³ / 10⁴ → ERROR (REC-03), one issue per column when most pairs
+share the factor; below-detection or over-limit coding differs → WARNING (REC-04); a database value with no laboratory
+result (IS, LNR, empty) or a laboratory result missing from the database → ERROR. A run of ≥ `offset_run_min`
+mismatches whose database values equal the laboratory values of samples ±1…±`offset_max` in laboratory order is one
+ERROR (sample-ID offset). The project error rate (mismatches / compared values) is reported with its 95 %
+Clopper–Pearson upper bound: WARNING above `err_warn_pct`, ERROR above `err_err_pct`.
+
+Catalogue logic: ⟦`table:certificate_value`⟧ (Appendix C). Certificate files (lab CSV/XLSX/SIF; PDF by user-confirmed extraction) are parsed **independently of the database mapping** into a read-only store keyed (lab, certificate, sample_id, analyte, method, unit). Join and compare after unit canonicalisation and DL coding. Match: |Δ| ≤ ½ of the certificate's last reported digit. Mismatch classes: transcription (digit transposition, 10ⁿ shift); unit (ratios 1000, 10 000, 31.1035, 34.2857); DL coding; preferred-value selection (→ ASY-009); **sample-ID offset** (≥ `offset_run_min` consecutive mismatches where the DB equals the certificate value of sample ±1…±`offset_max` in the same job → re-merge proposal); column shift (value equals a neighbouring analyte); no certificate. With incomplete certificates, a stratified random audit sample (campaign × lab × year, oversampling the top decile and reported intercepts) is exported as a worksheet and re-imported. **Project error rate** e = mismatches/checked, with the 95 % Clopper–Pearson upper bound.
 
 ### ASY-028 — Value above the mineral-stoichiometric cap
 
@@ -275,6 +333,10 @@ Catalogue logic: ⟦`kdtree`, `drv_trace`⟧ Pairs with 2D distance < `near_dup_
 ### COL-005 — Collar outside licence boundary or project extent
 
 *دهانه خارج از محدودهٔ پروانه یا گسترهٔ پروژه* · category H (Spatial, topography and boundary) · v2 COL-05
+
+Collar against the licence boundary (any format; multipart polygons and holes by the even–odd rule). Outside by
+more than `buffer_m` → ERROR; outside within `buffer_m` → INFO (tolerance); inside but within `edge_buffer_m` of the
+boundary → INFO.
 
 Catalogue logic: ⟦`drv_collar_spatial`, `layer:LICENCE`⟧ `in_licence = false` → issue with `dist_licence_edge_m`. A collar outside the project extent (profile `coord_plausibility` or a user extent) is always an issue, with or without a licence layer. Collars inside but within `edge_buffer_m` of the boundary → INFO "near boundary" (feeds SPA-004).
 
@@ -353,6 +415,29 @@ Catalogue logic: (a) Robust Mahalanobis distance (MCD) on (x, y) per campaign > 
 
 Catalogue logic: 0 survey rows **and** (`dip` NULL, or `azimuth` NULL with `dip` > −90 + `vertical_tol_deg`). The message states the consequence per export target: Datamine DESURV/HOLES3D treat the hole as vertical; Leapfrog cannot orient it. The trace is `ASSUMED_VERTICAL` and excluded from spacing at depth and proximity tests (01 §6.3). ↓WARNING when the design (`planned_dip`) or the hole type declares the hole vertical.
 
+### COL-025 — Topographic control inadequate for ΔZ tests and intended use
+
+*ناکافی بودن کنترل توپوگرافی برای آزمون ΔZ و کاربرد مورد نظر* · category B (Collars)
+
+Topographic control (v2 R2 sanity checks; catalogue COL-025 (c), (f)). Before any ΔZ comparison: no overlap
+between collars and topography → ERROR with the likely cause (swapped E/N, false easting or northing, other UTM
+zone, other CRS); elevations ≈ 3.28 × apart → ERROR (feet vs metres); collars outside the surface or on nodata →
+WARNING, listed as not checked (never as a pass). Alignment notes (geographic surface converted to UTM, non-WGS 84
+datum, zone mismatch) and global-DEM notes (SRTM: EGM96 geoid, 30 m class) → INFO.
+
+Catalogue logic: ⟦`layer:DEM_*`, `drv_collar_spatial`, `drv_collar_method`⟧ Uses `spatial_layer` metadata: source, cell size, stated σ_v, vintage, `interp_rmse_m`. (a) Realised σ_v (robust SD of ΔZ on survey-grade collars after the COL-012 offset) > `realised_ratio` × stated → WARNING. (b) σ_v,DEM ≥ ½ of the COL-011 WARNING band → COL-011 issues **demoted to INFO** ("below DEM resolving power"). (c) A 30 m-class global DEM (SRTM, ASTER, ALOS, Copernicus) used as resource topography in a profile targeting Indicated → WARNING. (d) DEM cell > `cell_vs_spacing_frac` × nominal collar spacing → WARNING. (e) Vintage unknown → INFO; vertical CRS missing → WARNING. (f) Collars on nodata or outside coverage → INFO list "ΔZ not testable".
+
+### CRS-001 — High grade in a logged barren unit, or low grade in a logged ore zone
+
+*عیار بالا در واحد بی‌کانهٔ لاگ‌شده یا عیار پایین در زون کانه‌دار لاگ‌شده* · category F (Cross-table consistency) · v2 XTB-07
+
+XTB-07. Per routine sample (code at the sample mid-point): logged barren (profile `barren_codes`) with grade >
+`hi_factor` × the analysis cut-off of a key analyte → INFO; ≥ `cluster_n` consecutive such samples in a hole → one
+WARNING (systematic mislogging or a hole / sample mismatch). A zone logged as mineralised ≥ `min_len_m` whose
+length-weighted grade is below `lo_factor` × cut-off → INFO.
+
+Catalogue logic: Per sample in `drv_interval_master`: a code with `mineralisation_class = BARREN` (post-mineral dyke, cover, barren host) and grade > `hi_factor` × cut-off, or above the mineralised-domain P95 → INFO. A MINERALISED interval ≥ `min_len_m` whose length-weighted grade < `lo_factor` × cut-off → INFO. ≥ `cluster_n` consecutive such samples in one hole → WARNING (systematic mislogging, or a hole or sample mismatch).
+
 ### CRS-004 — Candidate estimation domains not statistically separated
 
 *عدم تفکیک آماری دامنه‌های پیشنهادی تخمین* · category F (Cross-table consistency)
@@ -365,9 +450,27 @@ Catalogue logic: On composites of each key analyte: Kruskal–Wallis across the 
 
 Catalogue logic: Grade against signed distance along the hole to each contact between candidate domains, binned at composite length up to ± `max_dist_m`. A step model and a linear-ramp (gradational) model are fitted and compared by AIC. A transition width ≥ 2 composite lengths → INFO "soft boundary: share samples across the contact in estimation"; otherwise "hard boundary". Informs domaining; not an error test.
 
+### CRS-008 — QC sample carried as a downhole interval
+
+*نمونهٔ کنترلی ثبت‌شده به‌عنوان بازهٔ درون‌چاهی* · category F (Cross-table consistency) · v2 REC-06
+
+REC-06 and the catalogue rule. (a) A database assay row whose type is CRM, BLANK, PULP_DUP or UMPIRE (its own
+sample-type column, or the laboratory file's SAMPLE_TYPE for the same SAMPLE_ID) and which carries a hole and depths
+→ CRITICAL: it would be composited as a downhole interval. Field or coarse duplicates carried with depths that repeat
+their parent's interval → CRITICAL; with no depths → ERROR (QC in the primary table). (b) QC samples the database
+types as QC but the laboratory file does not contain → ERROR (expected QC missing). (c) Unknown SAMPLE_TYPE codes in
+the laboratory file → WARNING with counts; those rows are not used until the code is added to `lab_sample_types`.
+(d) Laboratory QC rows with no analysed value at all → WARNING.
+
+Catalogue logic: Any row whose type (from the register, or inferred by QAQ-006 or QAQ-013) is CRM, BLANK, PULP_DUP, LAB_* or UMPIRE and which carries `hole_id`, `from_m`, `to_m` in an assay interval table used for export → CRITICAL. Field or coarse duplicates occupying the same interval as their parent in the interval table (a double sample) → CRITICAL. Routine samples with no depths → ERROR. Export pipelines exclude flagged rows.
+
 ### DEN-001 — Implausible density for the lithology
 
 *چگالی غیرمحتمل برای سنگ‌شناسی* · category F (Cross-table consistency) · v2 XTB-04
+
+XTB-04. Outside the absolute bounds → ERROR. Outside the user's range for the logged code (profile
+`density_ranges` {field: {code: [lo, hi]}}) → ERROR (brief: Major). Otherwise beyond median ± `k_mad`·1.4826·MAD
+of the same code (n ≥ 20), or of all samples when the code is unknown or rare → WARNING.
 
 Catalogue logic: `density_gcm3` outside `abs_bounds_gcm3` → ↑ERROR (no rock has that density; a unit or keying error). Within the absolute bounds: outside the profile's `density_bounds_gcm3[group]` for the lithology group, or outside the robust fence median ± `k_mad`·1.4826·MAD of that lithology (n ≥ 20) → WARNING. The issue reports both bounds and the lithology statistics. Descriptive rule (§1.9).
 
@@ -523,6 +626,18 @@ Catalogue logic: Row hashes of the value columns; sliding windows of k ≥ `min_
 
 Catalogue logic: Flags `hole_id` NULL or empty, or `from_m`/`to_m` NULL (including raw text nulled by IMP-005), per row. The row is kept, but interval rules cannot place it.
 
+### INT-011 — Low coverage of an expected table per hole or within mineralised intervals
+
+*پوشش کم جدول موردانتظار در گمانه یا در بازه‌های کانه‌دار* · category F (Cross-table consistency) · v2 XTB-05
+
+XTB-05. Per hole and table kind (lithology, alteration, weathering, geotech, assay): covered length (union of
+intervals) against the hole's EOH (or the deepest logged depth). An expected kind (`expected_tables`) covering less
+than `cov_warn_frac` of the hole, or absent from a hole other tables cover → WARNING, one issue per hole listing
+every coverage. Within zones logged as mineralised, a logging kind covering less than `min_cov_mineralised_frac`
+→ WARNING (JORC T1.04: share of relevant intersections logged). The holes × tables matrix feeds the heat map.
+
+Catalogue logic: ⟦`drv_hole_summary`, `drv_interval_master`⟧ For each hole and each table the profile expects (by drilling method and hole type): coverage = covered length / (eoh_m − allowed top gap). Coverage < `cov_warn_frac` → WARNING, and an expected table that is absent → "logged but not assayed" or the like. **Coverage within mineralised intervals** for every logging table (lithology, alteration, recovery, RQD, density) is reported separately, because JORC T1.04 asks for the length and percentage of relevant intersections logged; < `min_cov_mineralised_frac` → WARNING. Feeds the holes × tables completeness heat map.
+
 ### INT-012 — Depth precision or rounding artefacts
 
 *دقت عمق ناسازگار یا اثر گردکردن* · category D (Intervals and samples) · v2 INT-03, INT-04
@@ -590,6 +705,49 @@ Catalogue logic: ⟦`drv_qaqc_blank`⟧ (a) A result above `blank_warn_x_dl`·DL
 
 Catalogue logic: ⟦`drv_qaqc_pair`⟧ Only pairs with `valid_for_precision` and a valid linkage (QAQ-010) are used. Per pair type × analyte × lab × period: the share of pairs with `hard_pct > hard_limit_pct[type]`, tested against `max_fail_frac` (one-sided binomial; MDE §1.9). Exceeding → WARNING. A share above 2 × `max_fail_frac` on **pulp** duplicates (analytical precision) → ERROR. The issue carries RMS CV (§1.10), the ranked-HARD curve, signed MPD and the Thompson–Howarth fit `s = s₀ + k·c` (bins of ≥ 11 pairs ordered by pair mean), so the reviewer sees precision against concentration.
 
+### QAQ-006 — Probable mislabelled CRM (result matches another CRM or a blank)
+
+*احتمال برچسب اشتباه ماده مرجع* · category G (Laboratory and QA/QC reconciliation)
+
+Probable mislabelled CRM. For a CRM row failing its declared CRM (|z| > `sd_fail` on any analyte), every other
+certified CRM is tested on all analytes of that row: exactly one CRM matching within `match_sd` SD on at least
+`min_analytes_match` analytes (all, if fewer are certified) → WARNING "probable mislabel X → Y". A row whose
+values all lie below `blank_x_dl` × the column's detection limit → WARNING "probable CRM/blank swap". A suggestion
+for the reviewer; the CRM ID is never changed.
+
+Catalogue logic: ⟦`drv_qaqc_crm.mislabel_candidate`⟧ For a result failing its declared CRM (|z| > `qaqc.sd_fail`), test it against every CRM used in the project and certified for the same method class, and against the blanks. Exactly one CRM with |z| < `match_sd`, agreeing on ≥ `min_analytes_match` certified analytes where available → WARNING "probable mislabel X → Y". A match to a blank → "CRM/blank swap". No match, but the value is consistent with neighbouring routine samples → handed to QAQ-014 (sample swap).
+
+### QAQ-007 — Inter-laboratory (umpire) bias
+
+*اریبی بین آزمایشگاهی (آزمایشگاه داور)* · category G (Laboratory and QA/QC reconciliation)
+
+Inter-laboratory (umpire) bias: check-laboratory results paired with the primary results by SAMPLE_ID (the
+laboratory file when loaded, else the database). Per element with ≥ `min_pairs` pairs above 10 × DL: median relative
+difference (umpire − primary)/primary and a Wilcoxon signed-rank test on the log ratio. WARNING when |median| >
+`warn_pct` with p < `alpha`; ERROR above `err_pct`. Pairs are kept for the QQ chart.
+
+Catalogue logic: ⟦`drv_qaqc_pair` where `pair_type = UMPIRE`⟧ Primary-lab vs umpire-lab pairs, `valid_for_precision` only. RMA regression (slope, intercept, bootstrap CI), Wilcoxon signed-rank on `log(b/a)`, and the mean relative difference, overall and by grade class (below cut-off, cut-off to median, above median). |bias| ≥ `bias_warn_pct` with p < `alpha` → WARNING; ≥ `bias_err_pct` → ERROR. Also flags umpire selections that miss the grade range (< `min_above_cutoff_frac` of pairs above cut-off), since a low-grade-only umpire programme cannot test bias at ore grade.
+
+### QAQ-008 — CRM identity or certified value unresolved, or certified for an incompatible method
+
+*هویت یا مقدار تأییدشدهٔ ماده مرجع نامشخص یا ناسازگار با روش آنالیز* · category G (Laboratory and QA/QC reconciliation)
+
+CRM identity: a CRM row without CRM_ID, or whose CRM_ID has no certificate (IDs compare case-insensitively after
+trimming spaces; profile `crm_id_aliases` maps spellings explicitly). The closest certificate IDs are suggested,
+never applied. ERROR: those CRM results cannot be judged. WARNING when no certificate file is loaded at all.
+
+Catalogue logic: Runs **before** QAQ-002. Each company CRM result must resolve to `crm_id` (through `crm.synonyms`) and to a `crm_value` row for (analyte, method class compatible with the determination's `method.digestion`). Flags: unknown or blank `crm_id`; analyte not certified for that CRM; certified value only for a different digestion class (partial vs total); `sd_1` missing; unit mismatch → ERROR. An indicative value used as certified → WARNING. Without this rule, comparing an aqua-regia result with a total-digestion certified value manufactures a false low bias.
+
+### QAQ-010 — Duplicate–parent linkage invalid
+
+*پیوند نامعتبر نمونهٔ تکراری با نمونهٔ اصلی* · category G (Laboratory and QA/QC reconciliation)
+
+Duplicate–parent linkage: a field, coarse or pulp duplicate without PARENT_ID, or whose PARENT_ID is not a sample
+in the same file (nor in the database for a laboratory file). The link is never inferred from the ID (no suffix
+stripping). WARNING; ERROR when more than 10 % of the duplicates are unlinked.
+
+Catalogue logic: Each `*_DUP`, `UMPIRE` and `LAB_REPEAT` must reference a parent. Flags: parent missing or unknown; parent is itself a QC sample; parent in another hole; a FIELD duplicate whose interval differs from its parent's by > `interval_tol_m`; parent with no result for the analyte; a PULP or COARSE duplicate in a different lab job from its parent and not typed `UMPIRE`; a type inconsistent with the preparation codes. Invalid pairs are excluded from QAQ-004, QAQ-016 and QAQ-017 and counted.
+
 ### SMP-001 — Sample ID not unique project-wide
 
 *شناسهٔ نمونه در کل پروژه یکتا نیست* · category A (Schema and identifiers) · v2 INT-07
@@ -609,6 +767,18 @@ jumps larger than `max_gap_n` (100) start a new block (INFO). (b) Original sampl
 (or decrease) monotonically downhole. WARNING (Minor).
 
 Catalogue logic: The numeric part of each prefix series is parsed per dispatch and per hole. Gaps not explained by `sample_status` VOID, LOST or NOT_SENT, or by QC slots → INFO. ↑WARNING when the gap lies inside a mineralised interval, or exceeds `gap_share_max_frac` of a dispatch.
+
+### SMP-004 — Orphan result: sample not in the register or any dispatch
+
+*نتیجهٔ یتیم: نمونه در ثبت نمونه یا محموله‌ها وجود ندارد* · category G (Laboratory and QA/QC reconciliation) · v2 REC-01
+
+REC-01. (a) Routine samples of the laboratory file whose SAMPLE_ID is not in any database assay table → ERROR.
+(b) Database samples not in the laboratory file → ERROR; when the laboratory file carries HOLE_ID, (b) is limited to
+the holes it covers, so a file for one campaign does not flag the rest of the database. QC samples are excluded from
+(a); CRS-008 deals with them. The same ID in another letter case, or the closest ID (difflib ratio ≥ `suggest_cutoff`),
+is offered as a suggestion, never applied.
+
+Catalogue logic: Each result's `sample_id` is tested against the union of the sample and QC registers. Not found → ERROR. Candidate matches are proposed: leading-zero and prefix normalisation, Levenshtein ≤ `fuzzy_max_distance`, adjacent-digit transposition, lab suffixes (`-R`, `DUP`, `RPT`); only candidates whose dispatch and lab job agree are shown. Found, but in a different dispatch or lab than the certificate states → WARNING "mis-routed". Orphan results do not enter `drv_assay_wide` until resolved.
 
 ### SUR-001 — Survey HoleID not in collar
 
@@ -761,4 +931,54 @@ azimuth swings above `az_swing_deg` (5°) between consecutive stations while dip
 (0.5°). WARNING (Minor). Gyro surveys and near-vertical stations are skipped.
 
 Catalogue logic: (a) **Station QC**, where the tool reports raw QC values (`mag_field_nt`, `mag_dip_deg`, gravity). B_ref and I_ref come from IGRF14 at the station position and corrected date. |B − B_ref| > `b_tol_nt` or |I_m − I_ref| > `mag_dip_tol_deg` → azimuth invalid. |G − 1 g| > `g_tol_g` → dip and azimuth invalid. (b) **Environment**, magnetic tools only. Station depth ≤ casing depth + `casing_buffer_m`, or surveyed inside rods without non-magnetic spacing → ERROR. Within ±`neighbourhood_m` of MS > `magsus_thr_e3_si`, logged magnetite/pyrrhotite ≥ `mt_po_thr_pct`, or Fe ≥ the profile threshold → WARNING. This catches the smooth, persistent bias that never forms a SUR-013 spike.
+
+### VER-001 — Holes added or removed between versions
+
+*گمانه‌های افزوده یا حذف‌شده بین نسخه‌ها* · category I (Versions)
+
+Catalogue logic: Diff by `hole_id` through the alias map. Added holes → INFO (one summary). A removed hole → WARNING; it is listed with its metres and assays, and VER-006 tests whether the removal was documented.
+
+### VER-002 — Collar coordinates or EOH changed
+
+*تغییر مختصات یا عمق نهایی دهانهٔ گمانه* · category I (Versions)
+
+Catalogue logic: Per hole: Δx, Δy, Δz and ΔEOH. Above `tol_xy_m`, `tol_z_m` or `tol_eoh_m` → INFO each. A **common shift** shared by ≥ `shift_min_frac` of the changed holes (median Δ vector with small MAD), or a rotation or scale fitted by Helmert → WARNING "datum or projection change", with the PROJ candidate shared with COL-006 and COL-024.
+
+### VER-003 — Survey stations changed
+
+*تغییر ایستگاه‌های انحراف‌سنجی* · category I (Versions)
+
+Catalogue logic: Stations added, removed or modified per hole. A change of the desurveyed EOH position > `pos_tol_m` → WARNING; otherwise INFO.
+
+### VER-004 — Intervals added, removed, split or merged
+
+*بازه‌های افزوده، حذف، تقسیم یا ادغام‌شده* · category I (Versions)
+
+Catalogue logic: Geometric matching of intervals per hole and table detects splits and merges (one interval ↔ several with the same outer bounds) as well as additions and removals. INFO summary per table. Sampled metres inside mineralised intervals decreasing → WARNING.
+
+### VER-005 — Field values or codes changed
+
+*تغییر مقادیر یا کدها* · category I (Versions)
+
+Catalogue logic: Per field: count of changed values, absolute and relative magnitude, and direction. A 1:1 (bijective) code substitution across all rows → INFO "renamed code". Assay changes ≥ `upward_share` upward with n ≥ `min_n` (sign test) → WARNING (see ASY-021).
+
+### VER-009 — Change to a hole locked in the last accepted snapshot
+
+*تغییر در گمانهٔ قفل‌شدهٔ آخرین تصویر پذیرفته‌شده* · category I (Versions) · v2 VER-01
+
+Brief VER-01: per-hole hashes against the last accepted snapshot. A locked hole changed or deleted → CRITICAL;
+other differences → INFO summary; a different rule profile or program version → INFO.
+
+Catalogue logic: An accepted snapshot (v2 F6) is a JSON manifest written when a reviewer accepts a dataset version: file hashes, per-hole canonical hashes, profile hash, program version, reviewer, date, note and the locked holes. Each run compares the current per-hole hashes with the last accepted manifest. A locked hole whose hash changed, or which is missing → CRITICAL. Unlocked changes and added holes → INFO summary; a different profile or program version → INFO.
+
+### WTH-001 — Illogical oxidation or weathering sequence downhole
+
+*توالی غیرمنطقی اکسیداسیون یا هوازدگی در طول گمانه* · category F (Cross-table consistency) · v2 XTB-06
+
+XTB-06. Downhole order of weathering / oxidation codes by rank (0 = leached … 5 = fresh; profile
+`weathering_rank` adds project codes). An inversion is a more weathered zone ≥ `min_inversion_m` thick below a
+fresher one. One issue per hole lists every inversion: WARNING, or INFO when a fault or shear is logged within
+`fault_buffer_m` (deep oxidation along faults is real). Unknown codes are ignored and counted.
+
+Catalogue logic: Expected downhole order by `sequence_rank`: oxidation LEACHED → OXIDE → MIXED → SUPERGENE → PRIMARY; weathering grade decreasing from W6 to W1. An inversion is a higher rank above a lower one, with the out-of-order zone ≥ `min_inversion_m` thick. One WARNING per hole lists all inversions. ↓INFO "fault-controlled" when a FAULT or SHEAR structure, or a FAULTED contact, lies within `fault_buffer_m` of the inverted zone, since deep oxidation along faults is real.
 

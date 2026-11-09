@@ -208,6 +208,40 @@ def _draw(kind: str, c: str, p: QPainter):
         p.drawPath(path)
         p.drawLine(17, 24, 22, 29)
         p.drawLine(22, 29, 31, 19)
+    elif kind == "layers":      # cross-table: stacked layers
+        for y in (14, 24, 34):
+            path = QPainterPath(QPointF(8, y))
+            path.lineTo(24, y - 6)
+            path.lineTo(40, y)
+            path.lineTo(24, y + 6)
+            path.closeSubpath()
+            p.drawPath(path)
+    elif kind == "beaker":      # laboratory: beaker with a level line
+        path = QPainterPath(QPointF(15, 7))
+        path.lineTo(15, 20)
+        path.lineTo(8, 40)
+        path.lineTo(40, 40)
+        path.lineTo(33, 20)
+        path.lineTo(33, 7)
+        p.drawPath(path)
+        p.drawLine(12, 7, 36, 7)
+        p.drawLine(12, 30, 36, 30)
+    elif kind == "mountain":    # topography: two peaks and a contour
+        path = QPainterPath(QPointF(5, 38))
+        path.lineTo(18, 14)
+        path.lineTo(26, 26)
+        path.lineTo(32, 18)
+        path.lineTo(43, 38)
+        path.closeSubpath()
+        p.drawPath(path)
+        p.drawLine(13, 24, 22, 24)
+    elif kind == "branch":      # versions: two commits and a branch
+        for x, y in ((14, 10), (14, 38), (34, 18)):
+            p.drawEllipse(QRectF(x - 4, y - 4, 8, 8))
+        p.drawLine(14, 14, 14, 34)
+        path = QPainterPath(QPointF(34, 22))
+        path.cubicTo(34, 30, 14, 26, 14, 32)
+        p.drawPath(path)
     elif kind == "lang":
         f = QFont()
         f.setPixelSize(22)

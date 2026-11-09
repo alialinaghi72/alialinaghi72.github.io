@@ -19,7 +19,6 @@ from .core.context import Ctx
 from .core.fingerprint import dataset_hash, hole_hashes
 from .core.issues import SEV_RANK, IssueLog, rules_meta
 from .core.registry import aliases, category, is_enabled, profile_hash, standards_refs
-from .core.normalise import header_key, parse_numbers
 from .core.project import TableInput, build_canonical
 from .io.mapping import propose_mapping, detect_kind
 from .io.readers import read_file, sha256_of
@@ -133,6 +132,20 @@ def _build_tables(ctx: Ctx, inputs, log: IssueLog) -> None:
         if st.notna().any() or (cls != "ORIGINAL").any():
             t.df["qc_class"] = cls
     _dip_convention(ctx)
+
+
+def load_folder(folder: str) -> tuple[list, list[str]]:
+    """Every readable table of a folder (CSV, TXT, XLSX, XLS) with automatic table types and mappings; files that cannot
+    be read as a table (a README, a report) are skipped and named."""
+    inputs, skipped = [], []
+    for p in sorted(Path(folder).glob("*")):
+        if p.suffix.lower() not in (".csv", ".txt", ".xlsx", ".xls") or p.name.lower().startswith(("readme", "manifest")):
+            continue
+        try:
+            inputs += [i for i in load_inputs([str(p)]) if i.kind != "ignore"]
+        except Exception as e:
+            skipped.append(f"{p.name}: {e}")
+    return inputs, skipped
 
 
 def build_baseline(inputs, params: dict) -> Ctx:

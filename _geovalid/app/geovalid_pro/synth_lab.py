@@ -133,3 +133,48 @@ def generate(folder: str, inject: bool = True, seed: int = 7) -> dict:
             "db": str(out / "assay_db.csv"), "injected": injected,
             "reassayed": ["LB00041", "LB00042"], "mislabel": lab.loc[std[1], "SAMPLE_ID"], "blank_swap": lab.loc[std[2], "SAMPLE_ID"],
             "orphan_duplicate": lab.loc[fd, "SAMPLE_ID"]}
+
+
+CODES = {"ORIGINAL": "SAMPLE", "CRM": "STD", "BLANK": "BLANK", "FIELD_DUP": "FD", "COARSE_DUP": "CD", "PULP_DUP": "PD"}
+
+
+def from_database(folder: str, out: str | None = None, seed: int = 11) -> dict:
+    """GEOQAQC laboratory and umpire files for the program's synthetic database (`synth.generate`), so the sample
+    project shows a working reconciliation: the laboratory file is the database's assay table in GEOQAQC form, with a
+    few laboratory-side differences (two samples the database lacks, three results the database transcribed wrongly,
+    one re-assay) and an umpire subset with a small bias."""
+    rng = np.random.default_rng(seed)
+    src = Path(folder) / "assay.csv"
+    a = pd.read_csv(src, dtype=str, keep_default_na=False)
+    o = Path(out or Path(folder) / "lab")
+    o.mkdir(parents=True, exist_ok=True)
+    lab = pd.DataFrame({"SAMPLE_ID": a["SampleID"], "SAMPLE_TYPE": a["SampleType"].map(CODES).fillna(a["SampleType"]),
+                        "CRM_ID": a["StdID"], "PARENT_ID": a["ParentID"], "BATCH": a["Batch"], "SEQ": np.arange(1, len(a) + 1),
+                        "HOLE_ID": a["HoleID"], "FROM": a["From"], "TO": a["To"], "LAB": "LAB-1"})
+    elems = [c for c in a.columns if "_" in c and c.split("_")[0] in ("Cu", "Au", "Mo", "S", "Fe", "Ag", "Zn", "Pb")]
+    for c in elems:
+        lab[c] = a[c]
+    routine = lab.index[lab["SAMPLE_TYPE"] == "SAMPLE"]
+    changed = []
+    for i in rng.choice(routine[200:], 3, replace=False):           # the database holds a mistyped value for these
+        v = lab.at[i, "Cu_pct"]
+        try:
+            lab.at[i, "Cu_pct"] = f"{float(v) * 1.37:.4f}"
+            changed.append(lab.at[i, "SAMPLE_ID"])
+        except ValueError:
+            pass
+    extra = lab.loc[routine[:2]].copy()                              # results the database never received
+    extra["SAMPLE_ID"] = ["S900001", "S900002"]
+    re = lab.loc[routine[50:51]].copy()                              # one re-assay in a later batch
+    re["BATCH"], re["SEQ"] = "B999", len(lab) + 3
+    re["Cu_pct"] = [f"{float(x) * 1.05:.4f}" if x.replace('.', '', 1).isdigit() else x for x in re["Cu_pct"]]
+    lab = pd.concat([lab, extra, re], ignore_index=True)
+    lab.to_csv(o / "lab_qaqc.csv", index=False)
+    pick = rng.choice(routine, 60, replace=False)
+    ump = pd.DataFrame({"SAMPLE_ID": lab.loc[pick, "SAMPLE_ID"], "LAB": "LAB-2 (umpire)", "BATCH": "U-01"})
+    for c in ("Cu_pct", "Au_ppm"):
+        if c in lab:
+            v = pd.to_numeric(lab.loc[pick, c], errors="coerce")
+            ump[c] = [f"{x * 1.02 * float(np.exp(rng.normal(0, 0.03))):.4f}" if pd.notna(x) and x > 0 else lab.at[i, c] for x, i in zip(v, pick)]
+    ump.to_csv(o / "umpire.csv", index=False)
+    return {"lab": str(o / "lab_qaqc.csv"), "umpire": str(o / "umpire.csv"), "changed": changed}

@@ -8,7 +8,6 @@ import pandas as pd
 
 from ..analysis import collar_method
 from ..analysis.spatial import clark_evans, distance_to_polyline, nn_distances, point_in_polygon
-from ..core.normalise import hole_key
 from .base import rule
 
 T = "collar"

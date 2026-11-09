@@ -966,3 +966,131 @@ def survey_qa(st: pd.DataFrame, hole: str, warn: float = 3.0, err: float = 6.0, 
         fig.suptitle(_L(f"Survey QA — {hole}", f"کنترل انحراف‌سنجی — {hole}", lang), fontsize=10, fontweight="semibold",
                      color=theme.ink, x=0.99 if lang == "fa" else 0.01, ha="right" if lang == "fa" else "left")
         return fig
+
+
+# ---- Phase 2 charts -----------------------------------------------------------------------------------------------
+def coverage_heatmap(cov: pd.DataFrame, lang="en", theme=T.IVORY, max_holes: int = 40):
+    """Holes × tables coverage (XTB-05): share of each hole's length covered by each table; worst holes first."""
+    if cov is None or cov.empty:
+        return None
+    kinds = [c for c in ("lithology", "alteration", "weathering", "geotech", "assay") if c in cov]
+    if not kinds:
+        return None
+    d = cov[kinds].astype(float)
+    d = d.loc[d.min(axis=1).sort_values().index][:max_holes]
+    with styled(theme):
+        h = min(8.5, 1.6 + 0.16 * len(d))
+        fig, ax = _new(6.6, h, theme)
+        ax = ax[0, 0]
+        im = ax.imshow(100 * d.to_numpy(), aspect="auto", cmap=theme.seq if hasattr(theme, "seq") else "viridis", vmin=0, vmax=100)
+        ax.set_xticks(range(len(kinds)))
+        names = {"lithology": ("Lithology", "سنگ‌شناسی"), "alteration": ("Alteration", "دگرسانی"), "weathering": ("Weathering", "هوازدگی"),
+                 "geotech": ("Geotech", "ژئوتکنیک"), "assay": ("Assay", "آنالیز")}
+        ax.set_xticklabels([_L(*names[k], lang) for k in kinds], fontsize=8)
+        ax.set_yticks(range(len(d)))
+        ax.set_yticklabels([str(x) for x in d.index], fontsize=6.5)
+        ax.grid(False)
+        for i in range(len(d)):
+            for j in range(len(kinds)):
+                v = 100 * d.iat[i, j]
+                if v < 99.5 and len(d) <= 40:
+                    ax.text(j, i, f"{v:.0f}", ha="center", va="center", fontsize=6.5, color="white" if v < 50 else theme.ink)
+        cb = fig.colorbar(im, ax=ax, shrink=0.8, pad=0.01)
+        cb.set_label(_L("coverage of the hole (%)", "پوشش طول گمانه (درصد)", lang))
+        cb.outline.set_visible(False)
+        _head(ax, _L("Table coverage per hole", "پوشش جدول‌ها در هر گمانه", lang),
+              _L(f"{len(d)} holes with the lowest coverage first", f"{len(d)} گمانه، کم‌پوشش‌ترین در بالا", lang), lang, theme)
+        return fig
+
+
+def umpire_scatter(pairs: dict, lang="en", theme=T.IVORY):
+    """Primary vs umpire laboratory (QAQ-007) on log axes with the 1:1 line and ±10 % bounds."""
+    if not pairs:
+        return None
+    items = [(k, v) for k, v in pairs.items() if v is not None and len(v)]
+    if not items:
+        return None
+    with styled(theme):
+        fig, axs = _new(3.4 * len(items[:3]) + 0.6, 3.6, theme, ncols=len(items[:3]))
+        for k, (an, df) in enumerate(items[:3]):
+            ax = axs[0, k]
+            x, y = df["primary"].to_numpy(float), df["umpire"].to_numpy(float)
+            lo, hi = float(min(x.min(), y.min())) * 0.8, float(max(x.max(), y.max())) * 1.25
+            g = np.geomspace(lo, hi, 50)
+            ax.plot(g, g, color=theme.axis, lw=1)
+            ax.fill_between(g, g * 0.9, g * 1.1, color=T.CAT[0], alpha=0.10, lw=0)
+            ax.scatter(x, y, s=16, color=T.CAT[1], edgecolor=theme.bg, lw=0.5, zorder=3)
+            ax.set_xscale("log")
+            ax.set_yscale("log")
+            ax.set_xlim(lo, hi)
+            ax.set_ylim(lo, hi)
+            med = float(np.median(100 * (y - x) / x))
+            ax.set_xlabel(_L("primary laboratory", "آزمایشگاه اصلی", lang))
+            ax.set_ylabel(_L("umpire laboratory", "آزمایشگاه داور", lang))
+            _head(ax, f"{an} (n {len(df)})", _L(f"median difference {med:+.1f} %", f"اختلاف میانه {med:+.1f} درصد", lang), lang, theme)
+        return fig
+
+
+def metal_delta(metal: pd.DataFrame, lang="en", theme=T.IVORY):
+    """Metal-weighted change per analyte between versions (Σ length × grade), all holes vs common holes (v2 F6)."""
+    if metal is None or metal.empty:
+        return None
+    d = metal.dropna(subset=["delta_pct"])
+    if d.empty:
+        return None
+    an = list(dict.fromkeys(d["analyte"]))[:10]
+    with styled(theme):
+        fig, ax = _new(6.8, 3.6, theme)
+        ax = ax[0, 0]
+        w = 0.38
+        for k, (scope, lab) in enumerate((("all holes", _L("all holes", "همهٔ گمانه‌ها", lang)), ("common holes", _L("common holes", "گمانه‌های مشترک", lang)))):
+            s = d[d["scope"] == scope].set_index("analyte").reindex(an)
+            vals = s["delta_pct"].astype(float).to_numpy()
+            xs = np.arange(len(an)) + (k - 0.5) * w
+            bars = ax.bar(xs, vals, width=w, color=T.CAT[k], label=lab)
+            for b, v in zip(bars, vals):
+                if np.isfinite(v):
+                    ax.text(b.get_x() + b.get_width() / 2, v, f" {v:+.2f}% " if abs(v) < 100 else f" {v:+.0f}% ", ha="center",
+                            va="bottom" if v >= 0 else "top", fontsize=6.5, rotation=90)
+        ax.axhline(0, color=theme.axis, lw=0.8)
+        lo, hi = ax.get_ylim()
+        ax.set_ylim(lo - 0.18 * (hi - lo) * (lo < 0), hi + 0.22 * (hi - lo))      # room for the rotated labels
+        ax.set_xticks(range(len(an)))
+        ax.set_xticklabels(an)
+        ax.set_ylabel(_L("change in metal Σ(length × grade), %", "تغییر فلز Σ(طول × عیار)، درصد", lang))
+        ax.legend(fontsize=7.5)
+        _head(ax, _L("Metal change between versions", "تغییر فلز بین نسخه‌ها", lang),
+              _L("all holes includes added and deleted holes; common holes isolates re-assays and re-segmentation",
+                 "«همه» شامل گمانه‌های افزوده و حذف‌شده است؛ «مشترک» اثر آنالیز مجدد و تقسیم‌بندی را جدا می‌کند", lang), lang, theme)
+        return fig
+
+
+def reconciliation_bar(values: list, lang="en", theme=T.IVORY):
+    """Laboratory vs database comparison per column (REC-02/03/04): share of pairs by outcome."""
+    if not values:
+        return None
+    d = pd.DataFrame(values)
+    cols = ["match", "rounded", "coding", "scale", "mismatch", "missing in database", "no laboratory result"]
+    cols = [c for c in cols if c in d]
+    if d.empty or not cols:
+        return None
+    colours = {"match": T.CAT[0], "rounded": T.SEVERITY["INFO"], "coding": T.SEVERITY["WARNING"], "scale": T.SEVERITY["CRITICAL"],
+               "mismatch": T.SEVERITY["ERROR"], "missing in database": T.CAT[3], "no laboratory result": T.CAT[4]}
+    fa = {"match": "مطابق", "rounded": "گردشده", "coding": "کدگذاری", "scale": "مقیاس", "mismatch": "مغایرت", "missing in database": "نبود در پایگاه", "no laboratory result": "بدون نتیجهٔ آزمایشگاه"}
+    with styled(theme):
+        fig, ax = _new(7.6, 1.2 + 0.42 * len(d), theme)
+        ax = ax[0, 0]
+        left = np.zeros(len(d))
+        tot = d[cols].sum(axis=1).replace(0, 1).to_numpy(float)
+        for c in cols:
+            v = 100 * d[c].to_numpy(float) / tot
+            ax.barh(range(len(d)), v, left=left, color=colours[c], label=_L(c, fa[c], lang), height=0.6)
+            left += v
+        ax.set_yticks(range(len(d)))
+        ax.set_yticklabels(d["column"])
+        ax.set_xlim(0, 100)
+        ax.set_xlabel(_L("share of compared samples (%)", "سهم نمونه‌های مقایسه‌شده (درصد)", lang))
+        ax.legend(fontsize=6.8, ncol=1, loc="upper left", bbox_to_anchor=(1.01, 1.0), frameon=False)
+        _head(ax, _L("Database vs laboratory file", "پایگاه داده در برابر فایل آزمایشگاه", lang),
+              _L("per assay column, matched by sample ID", "به تفکیک ستون، جفت‌شده با شناسهٔ نمونه", lang), lang, theme)
+        return fig

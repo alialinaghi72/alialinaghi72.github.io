@@ -74,13 +74,30 @@ def build(res) -> dict:
         "fixes": {"applied": bool(fix_log is not None and len(fix_log)), "log_file": "fix_log.csv" if fix_log is not None else None,
                   "by_class": fix_log.groupby("fix_class").size().to_dict() if fix_log is not None and len(fix_log) else {},
                   "log": _records(fix_log, ["fix_class", "rule", "file", "row", "field", "old", "new", "timestamp", "user"], 500)},
-        "version_comparison": ctx.stats.get("version_summary") or {"status": "not run"},
+        "version_comparison": _versions(ctx),
+        "topography": {"surfaces": ctx.stats.get("topography") or [], "licence": ctx.stats.get("licence_info"),
+                       "sanity": {k: v for k, v in (ctx.stats.get("topo_sanity") or {}).items()} or {"status": "not run"}},
         "qaqc_reconciliation": {"status": "QA/QC rules" if qaqc_rules else "not run", "rules": qaqc_rules,
                                 "insertion_rates": {k: {"originals": n, **{kk: round(float(v), 3) for kk, v in r.items()}} for k, (n, r) in rates.items()},
                                 "lab_file_reconciliation": ctx.stats.get("lab_reconciliation") or {"status": "not run"}},
         "random_audit": ctx.stats.get("random_audit") or {"status": "not run"},
         "qp_sections": {k: "" for k, _, _ in QP_SECTIONS},
     }
+
+
+def _versions(ctx) -> dict:
+    """v2 F6: comparison summary (holes, change classes, metal) and the accepted snapshot checked by VER-009."""
+    out = dict(ctx.stats.get("version_summary") or {"status": "not run"})
+    if "version" in ctx.stats:
+        out["change_log_file"] = "change_log.csv"
+    snap = ctx.stats.get("snapshot")
+    if snap:
+        iss = ctx.log.rows
+        locked_changed = sorted({r["hole_id"] for r in iss if r["rule_id"] == "VER-009" and r["severity"] == "CRITICAL" and r["hole_id"]})
+        out["accepted_snapshot"] = {"file": snap.get("_file"), "accepted_at": snap.get("accepted_at"), "reviewer": snap.get("reviewer"),
+                                    "note": snap.get("note"), "app_version": snap.get("app_version"), "dataset_hash": snap.get("dataset_hash"),
+                                    "locked_holes": len(snap.get("locked_holes", [])), "locked_holes_changed": locked_changed}
+    return out
 
 
 def _h(x) -> str:
@@ -144,16 +161,82 @@ def to_html(pack: dict, lang: str = "en") -> str:
     sec(n, T("Fixes applied (fix log)", "اصلاحات اعمال‌شده (گزارش اصلاح)"), body)
     n += 1
     vc = pack["version_comparison"]
-    sec(n, T("Version comparison", "مقایسهٔ نسخه‌ها"), f"<pre class='ltr'>{_h(json.dumps(vc, ensure_ascii=False, indent=1)[:4000])}</pre>")
+    if vc.get("status") == "not run" and not vc.get("accepted_snapshot"):
+        body = f"<p>{T('No previous version or accepted snapshot was supplied.', 'نسخهٔ قبلی یا تصویر پذیرفته‌شده‌ای داده نشده است.')}</p>"
+    else:
+        body = ""
+        if vc.get("holes"):
+            body += table(pd.DataFrame([vc["holes"]])) + f"<p class='note'>{T('Unchanged holes are identified by their canonical hash and skipped.', 'گمانه‌های بدون تغییر با اثرانگشت شناسایی و کنار گذاشته شدند.')}</p>"
+        if vc.get("change_classes"):
+            body += f"<h3>{T('Change classes', 'گونه‌های تغییر')}</h3>" + table(pd.DataFrame(sorted(vc["change_classes"].items(), key=lambda kv: -kv[1]), columns=["class", "n"]))
+        if vc.get("metal"):
+            m = pd.DataFrame(vc["metal"])
+            for c in ("old_metres", "new_metres"):
+                m[c] = m[c].map(lambda v: f"{v:,.1f}")
+            for c in ("old_metal", "new_metal", "delta_metal", "old_grade", "new_grade"):
+                m[c] = m[c].map(lambda v: "" if v is None or pd.isna(v) else f"{v:,.4g}")
+            m["delta_pct"] = m["delta_pct"].map(lambda v: "" if v is None or pd.isna(v) else f"{v:+.2f} %")
+            body += f"<h3>{T('Metal and grade reconciliation', 'تطبیق فلز و عیار')}</h3>" + table(m)
+        if vc.get("deleted_holes"):
+            body += f"<p>{T('Deleted holes', 'گمانه‌های حذف‌شده')}: {_h(', '.join(vc['deleted_holes'][:50]))}</p>"
+        if vc.get("change_log_file"):
+            body += f"<p class='note'>{T('Full change log', 'گزارش کامل تغییرات')}: change_log.csv</p>"
+        snap = vc.get("accepted_snapshot")
+        if snap:
+            ch = snap.get("locked_holes_changed") or []
+            body += (f"<h3>{T('Accepted snapshot', 'تصویر پذیرفته‌شده')}</h3>" + table(pd.DataFrame([{k: v for k, v in snap.items() if k != 'locked_holes_changed'}]))
+                     + f"<p>{T('Locked holes changed since acceptance (VER-009)', 'گمانه‌های قفل‌شدهٔ تغییرکرده (VER-009)')}: "
+                     + (f"<b>{_h(', '.join(ch[:50]))}</b>" if ch else T("none", "هیچ")) + "</p>")
+    sec(n, T("Version comparison", "مقایسهٔ نسخه‌ها"), body)
     n += 1
+    tp = pack.get("topography") or {}
+    if tp.get("surfaces") or tp.get("licence"):
+        rows = [{"file": t.get("file"), "label": t.get("label"), "date": t.get("date"), "format": t.get("format"),
+                 "extent": ", ".join(f"{v:,.1f}" for v in (t.get("extent") or [])), "resolution": t.get("resolution"),
+                 "points / cells": t.get("n_points") or t.get("n_cells") or t.get("n_triangles"),
+                 "crs": ", ".join(f"{k}={v}" for k, v in (t.get("crs") or {}).items() if k != "wkt")} for t in tp.get("surfaces", [])]
+        body = table(pd.DataFrame(rows)) if rows else ""
+        notes = [n_ for t in tp.get("surfaces", []) for n_ in t.get("notes", [])]
+        if tp.get("licence"):
+            li = tp["licence"]
+            body += f"<p>{T('Licence boundary', 'محدودهٔ پروانه')}: {_h(li['format'])}, {li['polygons']} polygon(s), {li['rings']} ring(s), {li['vertices']} vertices</p>"
+            notes += li.get("notes", []) + li.get("alignment", [])
+        san = tp.get("sanity") or {}
+        if san.get("findings"):
+            body += "<ul>" + "".join(f"<li><b>{_h(sv)}</b> {_h(m)}</li>" for sv, m in san["findings"]) + "</ul>"
+        if notes:
+            body += "<ul class='note'>" + "".join(f"<li>{_h(x)}</li>" for x in dict.fromkeys(notes)) + "</ul>"
+        sec(n, T("Topography and licence boundary", "توپوگرافی و محدودهٔ پروانه"), body)
+        n += 1
     q = pack["qaqc_reconciliation"]
     qr = pd.DataFrame(q["rules"])
     body = (table(qr, ["id", "name", "result", "n_issues", "worst"]) if not qr.empty else "") + \
-        (table(pd.DataFrame([{"table": k, **v} for k, v in q["insertion_rates"].items()])) if q["insertion_rates"] else "") + \
-        f"<p>{T('Laboratory-file reconciliation', 'تطبیق با فایل آزمایشگاه')}: {_h(q['lab_file_reconciliation'].get('status'))}</p>"
+        (table(pd.DataFrame([{"table": k, **v} for k, v in q["insertion_rates"].items()])) if q["insertion_rates"] else "")
+    lr = q["lab_file_reconciliation"]
+    if lr.get("status") == "not run":
+        body += f"<p>{T('Laboratory-file reconciliation: no laboratory file supplied.', 'تطبیق با فایل آزمایشگاه: فایل آزمایشگاه داده نشده است.')}</p>"
+    else:
+        body += f"<h3>{T('Laboratory-file reconciliation', 'تطبیق با فایل آزمایشگاه')} — {_h(lr.get('lab_file'))}</h3>"
+        if lr.get("samples"):
+            body += table(pd.DataFrame([lr["samples"]]))
+        if lr.get("values"):
+            body += table(pd.DataFrame(lr["values"]))
+        er = lr.get("error_rate")
+        if er:
+            body += (f"<p>{T('Project error rate', 'نرخ خطای پروژه')}: <b>{er['rate_pct']:.2f} %</b> ({er['mismatched']} / {er['compared']}); "
+                     f"{T('95 % Clopper–Pearson upper bound', 'حد بالای ۹۵ درصد کلاپر–پیرسون')} {er['upper95_pct']:.2f} %</p>")
     sec(n, T("QA/QC and laboratory reconciliation", "کنترل کیفیت و تطبیق آزمایشگاه"), body)
     n += 1
-    sec(n, T("Random verification audit", "ممیزی تصادفی راستی‌آزمایی"), f"<p>{_h(pack['random_audit'].get('status'))}</p>")
+    ra = pack["random_audit"]
+    body = f"<p>{_h(ra.get('status'))}</p>"
+    keys = ["seed", "pct", "population", "selected", "checked", "verified", "discrepancies", "unchecked", "rate_pct", "upper95_pct", "selection_matches"]
+    if any(k in ra for k in keys):
+        body += table(pd.DataFrame([{k: ra.get(k) for k in keys if k in ra}]))
+    if ra.get("selection_hash"):
+        body += f"<p class='note ltr'>selection SHA-256 {_h(ra['selection_hash'])}</p>"
+    if ra.get("discrepancy_rows"):
+        body += f"<h3>{T('Discrepancies found by the reviewer', 'مغایرت‌های یافته‌شده توسط بازبین')}</h3>" + table(pd.DataFrame(ra["discrepancy_rows"]))
+    sec(n, T("Random verification audit", "ممیزی تصادفی راستی‌آزمایی"), body)
     n += 1
     qp = "".join(f"<h3>{_h(T(en, fa_))}</h3><div style='min-height:140px;border:1.5px dashed #B07D3A;border-radius:10px;padding:12px;color:#8A7A60'>"
                  f"{T('To be written by the Qualified / Competent Person. GEOVALID PRO does not express an opinion.', 'توسط شخص صلاحیت‌دار نوشته شود. این نرم‌افزار نظری ارائه نمی‌کند.')}</div>"

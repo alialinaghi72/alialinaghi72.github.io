@@ -19,6 +19,7 @@ from .. import APP_NAME, __version__
 from ..io.mapping import FIELDS, KINDS, propose_mapping
 from ..report import theme as T
 from . import style
+from .pages_p2 import TR_P2, P2Pages
 from .pages_v2 import TR_V2, V2Pages
 
 TR = {
@@ -70,6 +71,7 @@ TR = {
                      "Grade against lithology, alteration, weathering and other logged attributes"),
 }
 TR.update(TR_V2)
+TR.update(TR_P2)
 SEV_COLORS = {"CRITICAL": "#C0392B", "ERROR": "#E07B24", "WARNING": "#E9B000", "INFO": "#1BA6A6"}
 
 THRESHOLDS = [  # (rule, key, label_fa, label_en, step)
@@ -356,7 +358,7 @@ class ChartView(QWidget):
         self.canvas.draw_idle()
 
 
-class MainWindow(V2Pages, QMainWindow):
+class MainWindow(P2Pages, V2Pages, QMainWindow):
     def __init__(self):
         super().__init__()
         from ..engine import default_params
@@ -416,7 +418,8 @@ class MainWindow(V2Pages, QMainWindow):
         self.status = self.statusBar()
         self.pages = {}
         for key, builder in (("data", self._page_data), ("dash", self._page_dash), ("issues", self._page_issues),
-                             ("survey", self._page_survey), ("values", self._page_values), ("geo", self._page_geo),
+                             ("survey", self._page_survey), ("values", self._page_values), ("xtable", self._page_xtable),
+                             ("lab", self._page_lab), ("topo", self._page_topo), ("versions", self._page_versions), ("geo", self._page_geo),
                              ("rules", self._page_rules), ("profiles", self._page_profiles), ("evidence", self._page_evidence),
                              ("log", self._page_log)):
             self.pages[key] = self.stack.addWidget(builder())
@@ -461,7 +464,8 @@ class MainWindow(V2Pages, QMainWindow):
         self.nav.setExclusive(True)
         self.nav_btns = {}
         for key, ic, tk in (("data", "data", "nav_data"), ("dash", "dash", "nav_dash"), ("issues", "issues", "nav_issues"),
-                            ("survey", "compass", "nav_survey"), ("values", "sample", "nav_values"), ("geo", "geo", "nav_geo"),
+                            ("survey", "compass", "nav_survey"), ("values", "sample", "nav_values"), ("xtable", "layers", "nav_xtable"),
+                            ("lab", "beaker", "nav_lab"), ("topo", "mountain", "nav_topo"), ("versions", "branch", "nav_versions"), ("geo", "geo", "nav_geo"),
                             ("rules", "rules", "nav_rules"), ("profiles", "sliders", "nav_profiles"),
                             ("evidence", "shield", "nav_evidence"), ("log", "log", "nav_log")):
             b = QPushButton()
@@ -550,16 +554,20 @@ class MainWindow(V2Pages, QMainWindow):
         og.setHorizontalSpacing(8)
         og.setVerticalSpacing(6)
         self.paths = {}
-        for r, key in enumerate(("dem", "licence", "crm", "profile", "out")):
-            lab = self.tr_(label("Muted", 9), key)
+        for r, key in enumerate(("dem", "licence", "crm", "lab", "umpire", "baseline", "snapshot", "profile", "out")):
+            lab = self.tr_(label("Muted", 9), key)          # one row per input: label, path, browse (nine inputs fit)
+            lab.setWordWrap(True)
+            lab.setMinimumWidth(120)
             le = QLineEdit()
+            le.setMinimumHeight(30)
             btn = QPushButton("…")
-            btn.setFixedWidth(36)
+            btn.setFixedSize(36, 30)
             btn.clicked.connect(lambda _=False, k=key: self.browse(k))
-            og.addWidget(lab, 2 * r, 0, 1, 2)
-            og.addWidget(le, 2 * r + 1, 0)
-            og.addWidget(btn, 2 * r + 1, 1)
+            og.addWidget(lab, r, 0)
+            og.addWidget(le, r, 1)
+            og.addWidget(btn, r, 2)
             self.paths[key] = le
+        og.setColumnStretch(1, 1)
         self.paths["out"].setText(str(Path.home() / "GEOVALID_PRO" / "output"))
         l2.addLayout(og)
         right.addWidget(c2)
@@ -932,8 +940,15 @@ class MainWindow(V2Pages, QMainWindow):
             if d:
                 self.paths["out"].setText(d)
             return
-        filt = {"dem": "DEM (*.asc *.xyz *.csv *.txt)", "licence": "Polygon (*.csv *.txt *.xlsx)",
-                "crm": "CRM (*.csv *.xlsx)", "profile": "YAML (*.yaml *.yml)"}[key]
+        if key == "baseline":
+            d = QFileDialog.getExistingDirectory(self, self.t(key), self.paths[key].text())
+            if d:
+                self.paths[key].setText(d)
+            return
+        filt = {"dem": "Topography (*.asc *.grd *.tif *.tiff *.bil *.bip *.bsq *.flt *.hgt *.xyz *.csv *.txt *.dxf *.str *.dtm *.obj *.stl *.ply *.shp *.kml *.kmz)",
+                "licence": "Boundary (*.kml *.kmz *.shp *.geojson *.json *.dxf *.csv *.txt *.xlsx)",
+                "crm": "CRM (*.csv *.xlsx)", "lab": "GEOQAQC (*.csv *.xlsx *.xls *.txt)", "umpire": "Umpire (*.csv *.xlsx *.xls *.txt)",
+                "snapshot": "Snapshot (*.json)", "profile": "Profile (*.yaml *.yml *.json)"}[key]
         f, _ = QFileDialog.getOpenFileName(self, self.t(key), "", filt + ";;All (*)")
         if f:
             self.paths[key].setText(f)
@@ -947,6 +962,13 @@ class MainWindow(V2Pages, QMainWindow):
         self.paths["dem"].setText(str(d / "dem.asc"))
         self.paths["licence"].setText(str(d / "licence.csv"))
         self.paths["crm"].setText(str(d / "crm_standards.csv"))
+        from .. import synth_lab
+        lab = synth_lab.from_database(str(d))                       # GEOQAQC laboratory and umpire files for the sample
+        self.paths["lab"].setText(lab["lab"])
+        self.paths["umpire"].setText(lab["umpire"])
+        clean = Path.home() / "GEOVALID_PRO" / "sample_clean"       # the clean twin stands in for the previous version
+        synth.generate(str(clean), inject=False)
+        self.paths["baseline"].setText(str(clean))
         self.e_name.setText("Sample porphyry Cu-Au-Mo (synthetic)")
         self.log(f"sample data: {d}  (manifest.csv lists the injected errors)")
 
@@ -970,8 +992,16 @@ class MainWindow(V2Pages, QMainWindow):
         if prof:
             params = _merge(load_params(prof), {"rules": self.params["rules"]})
         g = lambda k: self.paths[k].text().strip() or None
+        base = None
+        if g("baseline"):
+            from ..engine import load_folder
+            base, skipped = load_folder(g("baseline"))
+            base = base or None
+            for m in skipped:
+                self.log(f"baseline: skipped {m.splitlines()[0]}")
         spec = ProjectSpec([i for i in self.inputs if i.enabled and i.kind != "ignore"], g("dem"), g("licence"), g("crm"),
-                           None, self.e_name.text().strip() or "GEOVALID project", params)
+                           None, self.e_name.text().strip() or "GEOVALID project", params,
+                           lab_path=g("lab"), umpire_path=g("umpire"), baseline_inputs=base, snapshot_path=g("snapshot"))
         out = self.paths["out"].text().strip() or str(Path.home() / "GEOVALID_PRO" / "output")
         self.b_run.setEnabled(False)
         self.prog.setValue(0)
@@ -1039,6 +1069,7 @@ class MainWindow(V2Pages, QMainWindow):
         self._fill_selectors()
         self.refresh_charts()
         self._refresh_v2()
+        self._refresh_p2()
 
     def _findings_html(self, res):
         from ..analysis import categorical as C
@@ -1422,7 +1453,8 @@ def main() -> int:
         steps = [("dash", None, "gui_smoke.png"), ("geo", "box", "gui_smoke_grade.png"), ("geo", "twoway", "gui_smoke_twoway.png"),
                  ("geo", "strip", "gui_smoke_strip.png"), ("issues", None, "gui_smoke_issues.png"), ("data", None, "gui_smoke_data.png"),
                  ("survey", None, "gui_smoke_survey.png"), ("values", None, "gui_smoke_values.png"),
-                 ("profiles", None, "gui_smoke_profiles.png"), ("evidence", None, "gui_smoke_evidence.png")]
+                 ("xtable", None, "gui_smoke_xtable.png"), ("lab", None, "gui_smoke_lab.png"), ("topo", None, "gui_smoke_topo.png"),
+                 ("versions", None, "gui_smoke_versions.png"), ("profiles", None, "gui_smoke_profiles.png"), ("evidence", None, "gui_smoke_evidence.png")]
 
         def step(i):
             if i >= len(steps):

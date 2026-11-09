@@ -1,5 +1,74 @@
 # Changelog — GEOVALID PRO
 
+## 0.4.0 — v2 upgrade, Phase 2 (2026-11-09)
+
+Brief: `../docs/06_v2_upgrade_brief.md` (F6–F9, R1, R2). Laboratory format: `../docs/QAQC_FORMAT.md`. 90 → 109 rules.
+
+**Laboratory and QA/QC reconciliation (F7, R1 — GEOQAQC format inferred from the owner's sample files, confirmed)**
+- Readers (`io/lab.py`): laboratory / QA-QC file, umpire file, CRM certificates with declared units. Sample-type codes
+  SAMPLE, STD/CRM, BLANK, CBLK, PBLK, FD, CD, PD; `<x` = below detection; IS and LNR = not analysed; repeated
+  SAMPLE_ID = re-assay. Unknown codes are kept and reported.
+- REC-01…06 (`rules/reconcile.py`): SMP-004 samples missing either way (suggestions only from the other side's orphans),
+  ASY-020 value / scale / detection-coding mismatches, rounding, sample-ID offset runs, project error rate with the
+  95 % Clopper–Pearson bound, ASY-009 re-assays listed (never chosen) and umpire results held in the database, CRS-008
+  QC samples stored as intervals, unknown codes, QC rows without results.
+- QA/QC on the laboratory file when the database has no QC: QAQ-006 mislabelled CRM and CRM/blank swap (new),
+  QAQ-007 umpire bias (new), QAQ-008 CRM identity (no silent ID matching; `crm_id_aliases`), QAQ-010 duplicate–parent
+  link (new); QAQ-002 converts certified values by the declared unit, flags CRMs reported below detection and probable
+  unit errors. SMP-002 counts laboratory-issued numbers as used.
+- REC-07 random verification audit (`audit.py`): seeded, reproducible selection; checklist export (XLSX/CSV); results
+  import with a selection-hash check; summary and discrepancies in the evidence pack.
+
+**Cross-table consistency (F8)**
+- ASY-008 (XTB-01) mineralised zones without assay coverage; INT-011 (XTB-05) per-hole table coverage and coverage
+  within mineralised zones (heat map); WTH-001 (XTB-06) weathering inversions with fault control; CRS-001 (XTB-07) high
+  grade in barren-logged units and low grade in logged ore zones.
+- GEO-001 recovered length beyond the interval (XTB-02); DEN-001 user density ranges by logged code and robust fences
+  per code × weathering (XTB-04). Mineralised / barren codes are the project's own (profile or app dialog).
+
+**Topography and licence boundary (F9, R2)**
+- Topography readers (`io/topo.py`, `io/tiff.py`, `io/vector.py`): ESRI ASCII, Surfer DSAA/DSBB/DSRB, BIL/BIP/BSQ/FLT,
+  GeoTIFF (strips and tiles; none, Deflate, LZW, PackBits; predictors 2 and 3; BigTIFF; GeoKeys; GDAL_NODATA;
+  windowed reading), SRTM `.hgt`, regular XYZ grids and point clouds, DXF points / contours / 3DFACE / polyface,
+  Surpac `.str` + `.dtm`, OBJ, STL, PLY, Shapefile PointZ / PolylineZ, KML/KMZ. Auto-detection by extension and magic
+  bytes, manual override; each reader reports what it read. Points and contours: local Delaunay with a support
+  distance (no full-area TIN); meshes: grid-indexed point-in-triangle.
+- WGS 84 ↔ UTM (`io/geo.py`, Krüger series, sub-millimetre); geographic surfaces and boundaries are bridged to the
+  declared zone (or the inferred one, reported); other datums are reported, never shifted.
+- Licence boundary (`io/boundary.py`): KML/KMZ, Shapefile (+ .prj), GeoJSON, DXF closed polylines, CSV/TXT/XLSX vertex
+  lists; multipart polygons and holes (even–odd ray casting). COL-005 buffer tolerance.
+- COL-025 sanity checks before any ΔZ comparison: no overlap (swapped E/N, false easting or northing, another zone,
+  another CRS), feet vs metres (ratio ≈ 3.28), collars outside the topography reported as not checked. COL-011
+  exemptions through a chosen collar field and topography chosen by date; COL-012 vertical-datum offset (COL-06b).
+
+**Version comparison (F6)**
+- `versions.py`: per-hole hashes skip unchanged holes; collar, survey (end-of-hole shift) and three-stage interval diff
+  (exact key match, overlap clustering, true additions / removals); change classes; metal-weighted deltas and grade
+  reconciliation for all holes and common holes; change log (`change_log.csv`, XLSX export).
+- Accepted snapshots (JSON manifest: file, per-hole and profile hashes, version, reviewer, date, note, locked holes).
+  VER-009 (brief VER-01) reports any change to a locked hole as CRITICAL. VER-001…005 on the comparison.
+
+**Desktop app**
+- New pages: Cross-table (coverage heat map, code dialog), Lab & QA/QC (reconciliation chart, CRM, umpire and HARD
+  charts, audit export / import), Topography & boundary (what was read, sanity checks, ΔZ map), Versions (metal change
+  chart, change classes, filterable change log, accept snapshot).
+- New optional inputs: laboratory file, umpire file, previous version folder, accepted snapshot; topography and
+  boundary file filters list every format. The sample project now includes matching laboratory files and a previous
+  version. Evidence-pack page columns no longer overflow.
+
+**Reports and command line**
+- Evidence pack: version comparison (holes, change classes, metal reconciliation, accepted snapshot and locked holes
+  changed), topography and boundary, laboratory reconciliation with the error rate, random audit summary.
+- CLI: `--lab`, `--umpire`, `--baseline`, `--snapshot`, `--accept-snapshot --reviewer --note --lock`,
+  `--audit-export`, `--audit-results`, `--topo-format`.
+- Column mapping takes the best match across all fields first (`RecM` = recovered length, not recovery %).
+
+**Tests:** 126 (+69): laboratory reconciliation with one discrepancy of each class and a clean twin, the owner's
+GEOQAQC reference counts (run locally only; the files are not in the public repository), cross-table cases, every
+topography format reading a plane back within 1e-6 m, UTM round trip < 1 mm, boundary formats with parts and holes,
+sanity checks, dated topographies, version comparison and snapshots. GeoTIFF decoding was also cross-checked against
+files written by Pillow (libtiff) and tifffile.
+
 ## 0.3.0 — v2 upgrade, Phase 1 (2026-11-09)
 
 Brief: `../docs/06_v2_upgrade_brief.md`; plan and gap table: `../docs/07_v2_gap_analysis.md`.

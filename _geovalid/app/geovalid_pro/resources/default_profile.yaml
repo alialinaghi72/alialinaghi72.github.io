@@ -1,7 +1,7 @@
 # GEOVALID PRO — base validation profile (03 rule catalogue defaults).
 # Copy this file, edit thresholds and load it in the program (Settings → Profile) or with --profile.
 profile: base
-version: 0.3.0
+version: 0.4.0
 key_analytes: [Au, Cu, Zn, Pb, Ag, Mo, Fe, Ni, Co, Cr2O3, Al2O3, Mn, U]
 depth_eps_m: 0.001          # global depth tolerance (v2 §5.4): smaller overlaps and gaps are precision artefacts (INT-012)
 # Severity overrides (v2 brief §7 defaults; Critical = CRITICAL, Major = ERROR, Minor = WARNING, Info = INFO).
