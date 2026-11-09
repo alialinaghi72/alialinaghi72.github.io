@@ -4,7 +4,7 @@ Read first: `06_v2_upgrade_brief.md` (the brief) and `07_v2_gap_analysis.md` (ga
 
 ## Current phase
 
-**Phase 1 (P1) — complete, awaiting owner approval** (GEOVALID PRO 0.3.0). Phase 2 starts after approval.
+**Phase 2 (P2) — in progress.** Phase 1 (GEOVALID PRO 0.3.0) was approved by the owner on 2026-11-09.
 
 ## Decisions
 
@@ -18,6 +18,7 @@ Read first: `06_v2_upgrade_brief.md` (the brief) and `07_v2_gap_analysis.md` (ga
 | D6 | The brief's default severities are a `severity_overrides` block in the default profile (editable, removable), not code changes, except where one rule emits different severities by case (INT-001, INT-002, SUR-013, SUR-015, SUR-023, INT-007). | P1 |
 | D7 | SUR-023 compares the collar with the first station only when that station is within 50 m (`max_first_depth_m`). | P1 |
 | D8 | ASY-030 "above detection" = above the column's largest DL and above its lowest reported value (unstated reporting floor). | P1 |
+| D10 | R1 option B: GEOQAQC format inferred from sample files; sample-type codes, IS/LNR = not analysed, CRM certified values converted by the declared UNIT, repeated SAMPLE_ID = re-assay (report all). | Owner, 2026-11-09 |
 | D9 | Per-hole hashes use parsed values (trailing zeros, row and column order do not change them) and the table kind, not the file name. | P1 |
 
 ## Done
@@ -38,5 +39,5 @@ Read first: `06_v2_upgrade_brief.md` (the brief) and `07_v2_gap_analysis.md` (ga
 
 ## Open questions
 
-1. **R1:** GEOQAQC source (`GEOQAQC.py`) or sample files, so the lab / QA-QC file format is identical. Needed for P2 reconciliation.
+1. ~~R1: GEOQAQC format~~ — resolved 2026-11-09: sample files received, format and assumptions confirmed by the owner (`QAQC_FORMAT.md`). The sample files are kept local in `reference/qaqc_samples/` and are not committed, because the repository is public; ask the owner before publishing them.
 2. Packaging: GEOVALID PRO is built by `.github/workflows/geovalid-windows.yml` (PyInstaller, one portable folder with `GEOVALID.exe` and a console `geovalid-cli.exe`). Confirm this remains the delivery workflow.

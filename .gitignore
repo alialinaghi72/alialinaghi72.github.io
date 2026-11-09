@@ -5,3 +5,6 @@ _geovalid/app/dist/
 _geovalid/app/build/
 _geovalid/app/.venv/
 .pytest_cache/
+
+# GEOQAQC sample files from the owner: kept local, not published (public repository)
+_geovalid/reference/qaqc_samples/
