@@ -6,3 +6,5 @@ release/
 selftest_out/
 exe_selftest/
 dist_out/
+# real project data: kept local only, never committed
+tests/data/*.csv
