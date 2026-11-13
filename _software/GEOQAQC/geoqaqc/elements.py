@@ -87,6 +87,12 @@ DEFAULT_PROFILE = {
     "outlier_action": "ask",
     "outlier_preselect": "keep",
     "single_vote": False,                     # may vote alone in C16 (R5)
+    "criteria": {},                           # R10: criterion key -> 5 cuts
+    "blank_warn": None, "blank_warn_unit": "x DL",   # R12: x QC DL or absolute
+    "blank_fail": None, "blank_fail_unit": "x DL",
+    "high_grade": None, "high_grade_unit": "",       # R13: carry-over predecessor
+    "cv_avg_limit": {},                       # CV_avg limit per class (spec 4.4)
+    "umpire_limit": {},                       # mean difference, RMA slope (4.5)
 }
 _LOW_NUGGET = ("Cu", "Mo", "Pb", "Zn", "Fe", "S")
 ELEMENT_DEFAULTS = {s: {"outlier_hard": {T_FDUP: 67.0, T_CDUP: 50.0, T_PDUP: 50.0},
@@ -112,6 +118,8 @@ class ElementBook:
     def __init__(self, state=None):
         self.overrides = {}          # symbol -> partial profile
         self.column_methods = {}     # column -> method family
+        self.primary = {}            # symbol -> method of a column not set
+        self.preset = ""             # name of the loaded project standard
         if state:
             self.from_state(state)
 
@@ -122,8 +130,9 @@ class ElementBook:
         return _merge(p, self.overrides.get(sym))
 
     def method(self, column):
+        sym = element_symbol(column)
         return norm_method(self.column_methods.get(column)) or \
-            primary_method(element_symbol(column))
+            norm_method(self.primary.get(sym)) or primary_method(sym)
 
     def qc_dl(self, column, unit):
         """QC reference DL in the column's unit, or None."""
@@ -132,6 +141,26 @@ class ElementBook:
             return None
         f = unit_factor(p["qc_dl_unit"], unit) if p["qc_dl_unit"] and unit else 1
         return p["qc_dl"] * (f if f is not None else 1)
+
+    def _abs(self, column, unit, key, dl):
+        """A limit stored as 'x DL' (times dl) or as an absolute value with a
+        unit, in the column's unit; None when not set."""
+        p = self.profile(column)
+        v, u = p[key], p[f"{key}_unit"]
+        if v is None:
+            return None
+        if u in ("x DL", "xDL", "x QC DL"):
+            return v * dl if dl else None
+        f = unit_factor(u, unit) if u and unit else 1
+        return v * (f if f is not None else 1)
+
+    def blank_limits(self, column, unit, dl):
+        """(warning, failure) blank limits in the column's unit, or None."""
+        return (self._abs(column, unit, "blank_warn", dl),
+                self._abs(column, unit, "blank_fail", dl))
+
+    def high_grade(self, column, unit):
+        return self._abs(column, unit, "high_grade", None)
 
     def upper(self, column, unit):
         p = self.profile(column)
@@ -163,12 +192,33 @@ class ElementBook:
             self.column_methods.pop(column, None)
 
     def reset(self):
-        self.overrides, self.column_methods = {}, {}
+        self.overrides, self.column_methods, self.primary = {}, {}, {}
+        self.preset = ""
 
     def to_state(self):
         return {"overrides": copy.deepcopy(self.overrides),
-                "column_methods": dict(self.column_methods)}
+                "column_methods": dict(self.column_methods),
+                "primary": dict(self.primary), "preset": self.preset}
 
     def from_state(self, st):
         self.overrides = copy.deepcopy((st or {}).get("overrides") or {})
         self.column_methods = dict((st or {}).get("column_methods") or {})
+        self.primary = dict((st or {}).get("primary") or {})
+        self.preset = (st or {}).get("preset") or ""
+
+
+def criteria_for(C, RB, element):
+    """The criteria of one element (R10): the defaults with that element's
+    overrides of the five rating boundaries."""
+    if RB is None or not element:
+        return C
+    ov = RB.el.profile(element).get("criteria") or {}
+    if not ov:
+        return C
+    out = dict(C)
+    for k, cuts in ov.items():
+        if k in out and cuts and len(cuts) == 5:
+            d = dict(out[k])
+            d["cuts"] = [float(x) for x in cuts]
+            out[k] = d
+    return out

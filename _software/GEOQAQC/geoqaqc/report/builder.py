@@ -17,7 +17,7 @@ from ..core import (BLANK_TYPES, DUP_TYPES, R_NA, RATING_ORDER, T_NORMAL, T_PDUP
                     fa_digits, fa_num)
 from ..diagnosis import SEVERITIES, STAGES
 from ..figures import figure_catalog
-from ..elements import METHOD_LABEL
+from ..elements import METHOD_LABEL, criteria_for
 from ..exclusions import REASONS_FA, provisional
 from ..model import usable
 from ..protocol import DEFAULT_CRITERIA, DEFAULT_SETTINGS, RULES
@@ -110,6 +110,8 @@ def detail_elements(project, meta):
 # ===========================================================================
 def build_report(project, R, diagnosis, meta, F, C, S, RB, log=print):
     meta = meta if isinstance(meta, ReportMeta) else ReportMeta.from_dict(meta)
+    if not meta.standard and RB is not None:
+        meta.standard = RB.el.preset            # R19: the standard the limits came from
     ctx = _Ctx(project, R, diagnosis, meta, F, C, S, RB, log)
     doc = Document(meta)
     _guard(ctx, doc, "جلد", _cover)
@@ -419,7 +421,7 @@ def _el_precision(ctx, doc, el):
         doc.add(Para(note))
     rows = []
     for dt, r in recs:
-        crit = ctx.C[_DUP_CRIT[dt]]
+        crit = criteria_for(ctx.C, ctx.RB, el)[_DUP_CRIT[dt]]
         rows.append([T.TYPE_FA[dt], _n(r["n"], 0), _p(r["hard_p90"], 1),
                      T.lim(crit["cuts"][2]), _p(100.0 - r["maxmin"]["fail_pct"], 0),
                      _p(r["rd_mean"], 2), _rating(r["ratings"].get(_DUP_CRIT[dt], R_NA))])
@@ -587,7 +589,8 @@ def _exclusions(ctx, doc):
         side.append([_el(el), T.TYPE_FA[dt],
                      f"{_n(a['n'], 0) if a else '—'} / {_n(b['n'], 0)}",
                      f"{_p(a['hard_p90'], 1) if a else '—'} / {_p(b['hard_p90'], 1)}",
-                     f"{_p(_within(a, ctx.C, dt), 0)} / {_p(_within(b, ctx.C, dt), 0)}",
+                     f"{_p(_within(a, criteria_for(ctx.C, ctx.RB, el), dt), 0)} / "
+                     f"{_p(_within(b, criteria_for(ctx.C, ctx.RB, el), dt), 0)}",
                      f"{_p(_cv_avg(a), 1)} / {_p(_cv_avg(b), 1)}",
                      f"{_p(a['rd_mean'], 2) if a else '—'} / {_p(b['rd_mean'], 2)}",
                      f"{_n(a['rma_b']) if a else '—'} / {_n(b['rma_b'])}",
@@ -642,8 +645,34 @@ def _app_methods(ctx, doc):
     doc.add(Bullets([r for r in T.REFERENCES]))
 
 
+def _limit_text(v, unit):
+    if v is None:
+        return "—"
+    return f"{T.lim(v, '')} {unit}".strip() if unit != "x DL" else f"{T.lim(v, '')} × حد تشخیص"
+
+
 def _app_criteria(ctx, doc):
     doc.add(Heading(1, T.H["app_criteria"], "app-criteria", ""))
+    preset = ctx.RB.el.preset
+    doc.add(Para(T.PRESET_USED.format(name=preset) if preset else T.PRESET_NONE))
+    # R10: the acceptance limits actually used, per element
+    rows = []
+    EB = ctx.RB.el
+    for el in ctx.project.elements:
+        pr = EB.profile(el)
+        Ce = criteria_for(ctx.C, ctx.RB, el)
+        good = [T.lim(Ce[k]["cuts"][2]) for k in ("fdup_hard90", "cdup_hard90", "pdup_hard90",
+                                                  "th_precision", "ump_hard90")]
+        rows.append([_el(el), _ltr(METHOD_LABEL.get(EB.method(el), EB.method(el))),
+                     _limit_text(pr["qc_dl"], pr["qc_dl_unit"]),
+                     _limit_text(pr["upper"], pr["upper_unit"]),
+                     _limit_text(pr["blank_warn"], pr["blank_warn_unit"]),
+                     _limit_text(pr["blank_fail"], pr["blank_fail_unit"])] + good)
+    if rows:
+        ctx.table(doc, ["عنصر", "روش", "حد تشخیص مرجع", "حد بالا", "هشدار شاهد",
+                        "ردشدگی شاهد", "HARD صحرایی", "HARD درشت", "HARD پالپ",
+                        "تامپسون-هوارث", "HARD داور"], rows,
+                  "حدهای پذیرش به‌کاررفته برای هر عنصر (مرز «خوب» هر معیار)", compact=True)
     rows = []
     for k, d in ctx.C.items():
         changed = k in DEFAULT_CRITERIA and [float(x) for x in d["cuts"]] != [
@@ -653,7 +682,8 @@ def _app_criteria(ctx, doc):
                     + [Cell("تغییریافته", "warn") if changed else ""])
     ctx.table(doc, ["معیار", "واحد"] + [T.RATING_FA[r] for r in RATING_ORDER[:5]]
               + ["وضعیت"], rows,
-              "مرزهای رتبه‌بندی؛ مقدار بدتر از آخرین مرز «خیلی بد» است", compact=True)
+              "مرزهای رتبه‌بندی پیش‌فرض (عنصرهایی که مرز خود را ندارند)؛ مقدار بدتر از "
+              "آخرین مرز «خیلی بد» است", compact=True)
     # the per-method ratings, for diagnosis only: no composite number (R22)
     doc.add(Para(T.DIAGNOSTIC_GRID))
     ctx.figure(doc, "scores", "رتبهٔ هر روش برای هر عنصر (تشخیصی؛ بدون عدد ترکیبی)")

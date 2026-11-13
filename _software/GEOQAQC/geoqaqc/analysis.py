@@ -19,6 +19,7 @@ from .core import (BLANK_TYPES, DUP_TYPES, R_NA, R_VBAD, SAMPLE_TYPES,
                    cusum, element_unit, linreg, linreg_stats, mean, paired_t,
                    pctile, rma,
                    spearman, stdev, t_two_tail_p, wilcoxon)
+from .elements import criteria_for
 from .exclusions import excluded_sets, review_rows
 from .exclusions import summary as exclusion_summary
 from .model import build_samples, detection_limit, pairable, usable
@@ -45,6 +46,7 @@ def analyse_crm(project, F, C, S, RB, log=print):
         subset = [s for s in crm_samples if s.crm_key == code]
         subset.sort(key=lambda s: (s.order if s.order is not None else 0))
         for el in project.elements:
+            Ce = criteria_for(C, RB, el)
             cert = project.certs.get((code, el))
             series = [(s, s.vals.get(el)) for s in subset if usable(s, el)]
             excluded = [{"sample": s.sid, "reason": s.excl_all or s.excl.get(el, "")}
@@ -75,7 +77,7 @@ def analyse_crm(project, F, C, S, RB, log=print):
                 rec["rsd_pct"] = F.calc("crm_pooled_sd_pct",
                                         obs_sd=obs_sd or 0.0, obs_mean=obs_mean or 1.0)
                 if RB["crm_rate_uncertified"]:          # 1.1 rated repeatability
-                    rec["ratings"]["crm_rsd"] = rate(rec["rsd_pct"], C["crm_rsd"])
+                    rec["ratings"]["crm_rsd"] = rate(rec["rsd_pct"], Ce["crm_rsd"])
                     rec["rating"], rec["score"] = combine_ratings(
                         [rec["ratings"]["crm_rsd"]])
                 out[key] = rec
@@ -177,10 +179,10 @@ def analyse_crm(project, F, C, S, RB, log=print):
             _crm_extras(rec, S, RB)
 
             if len(series) >= S["min_crm"]:
-                rec["ratings"]["crm_bias"] = rate(rec["abs_bias"], C["crm_bias"])
-                rec["ratings"]["crm_fail"] = rate(rec["fail_pct"], C["crm_fail"])
-                rec["ratings"]["crm_warn"] = rate(rec["warn_pct"], C["crm_warn"])
-                rec["ratings"]["crm_rsd"] = rate(rec["rsd_pct"], C["crm_rsd"])
+                rec["ratings"]["crm_bias"] = rate(rec["abs_bias"], Ce["crm_bias"])
+                rec["ratings"]["crm_fail"] = rate(rec["fail_pct"], Ce["crm_fail"])
+                rec["ratings"]["crm_warn"] = rate(rec["warn_pct"], Ce["crm_warn"])
+                rec["ratings"]["crm_rsd"] = rate(rec["rsd_pct"], Ce["crm_rsd"])
                 rec["rating"], rec["score"] = combine_ratings(
                     [rec["ratings"]["crm_bias"], rec["ratings"]["crm_fail"],
                      rec["ratings"]["crm_warn"], rec["ratings"]["crm_rsd"]],
@@ -215,9 +217,13 @@ def _analyse_blank_type(project, F, C, S, RB, btype, blanks, live, order_index):
     out = {}
     for el in project.elements:
         dl = detection_limit(project, el, S)
+        unit = element_unit(el)
+        dl = RB.el.qc_dl(el, unit) or dl          # R11: the QC reference DL
         if dl is None or dl <= 0:
             continue
-        limit = F.calc("blank_limit", dl=dl, k_dl=S["k_dl"])
+        warn_lim, fail_lim = RB.el.blank_limits(el, unit, dl)     # R12
+        limit = fail_lim if fail_lim is not None else \
+            F.calc("blank_limit", dl=dl, k_dl=S["k_dl"])
         pts, fails = [], 0
         for s in blanks:
             if not usable(s, el):
@@ -230,10 +236,11 @@ def _analyse_blank_type(project, F, C, S, RB, btype, blanks, live, order_index):
             carry = (F.calc("blank_carry", meas=v, prev=prev_v)
                      if prev_v not in (None, 0) else None)
             bad = limit is not None and v > limit
+            warn = (not bad and warn_lim is not None and v > warn_lim)
             if bad:
                 fails += 1
             pts.append({"sample": s.sid, "order": s.order, "batch": s.batch,
-                        "value": v, "ratio": ratio, "limit": limit,
+                        "value": v, "ratio": ratio, "limit": limit, "warn": warn,
                         "prev_sample": prev.sid if prev else "",
                         "prev_value": prev_v, "carry_pct": carry,
                         "fail": bad, "row": s.row_n})
@@ -241,14 +248,16 @@ def _analyse_blank_type(project, F, C, S, RB, btype, blanks, live, order_index):
             continue
         vals = [p["value"] for p in pts]
         rec = {"element": el, "btype": btype, "n": len(pts), "dl": dl,
-               "limit": limit,
+               "limit": limit, "warn_limit": warn_lim,
+               "n_warn": sum(1 for p in pts if p.get("warn")),
                "points": pts, "n_fail": fails,
                "fail_pct": 100.0 * fails / len(pts),
                "max": max(vals), "mean": mean(vals),
                "max_ratio": max(p["ratio"] for p in pts if p["ratio"] is not None),
                "ratings": {}, "rating": R_NA, "score": None}
-        rec["ratings"]["blank_fail"] = rate(rec["fail_pct"], C["blank_fail"])
-        rec["ratings"]["blank_max"] = rate(rec["max_ratio"], C["blank_max"])
+        Ce = criteria_for(C, RB, el)
+        rec["ratings"]["blank_fail"] = rate(rec["fail_pct"], Ce["blank_fail"])
+        rec["ratings"]["blank_max"] = rate(rec["max_ratio"], Ce["blank_max"])
         rec["rating"], rec["score"] = combine_ratings(
             [rec["ratings"]["blank_fail"], rec["ratings"]["blank_max"]], [3.0, 1.0])
         # carry-over evidence
@@ -258,7 +267,9 @@ def _analyse_blank_type(project, F, C, S, RB, btype, blanks, live, order_index):
                         and p["prev_value"] > S["carry_kdl"] * dl]
         routine = sorted(s.vals[el] for s in live if s.stype == T_NORMAL
                          and usable(s, el) and s.flags.get(el) != "<")
-        hi_cut = max(pctile(routine, RB["carry_pctile"]) or 0.0, S["carry_kdl"] * dl)
+        hg = RB.el.high_grade(el, unit)            # R13: an absolute grade
+        hi_cut = hg if hg is not None else max(pctile(routine, RB["carry_pctile"]) or 0.0,
+                                               S["carry_kdl"] * dl)
         _blank_extras(rec, hi_cut)
         out[(btype, el)] = rec
     return out
@@ -436,18 +447,19 @@ def analyse_duplicates(project, F, C, S, RB, pairs, log=print, th_input=None,
             rec["within"] = {}
             for lim in (5, 10, 15, 20, 30):
                 rec["within"][lim] = 100.0 * sum(1 for h in hards if h <= lim) / len(hards)
-            _dup_extras(rec, F, C, S, RB, crit_key[dtype])
+            Ce = criteria_for(C, RB, el)
+            _dup_extras(rec, F, Ce, S, RB, crit_key[dtype])
 
             if len(rows) >= S["min_pairs"]:
                 rec["ratings"][crit_key[dtype]] = rate(rec["hard_p90"],
-                                                       C[crit_key[dtype]])
+                                                       Ce[crit_key[dtype]])
                 rec["ratings"]["dup_bias"] = rate(
                     abs(rec["rd_mean"]) if rec["rd_mean"] is not None else None,
-                    C["dup_bias"])
-                rec["ratings"]["dup_r"] = rate(rec["r"], C["dup_r"])
+                    Ce["dup_bias"])
+                rec["ratings"]["dup_r"] = rate(rec["r"], Ce["dup_r"])
                 rec["ratings"]["dup_rma_slope"] = rate(
                     abs(rma_b - 1.0) if rma_b is not None else None,
-                    C["dup_rma_slope"])
+                    Ce["dup_rma_slope"])
                 rec["rating"], rec["score"] = combine_ratings(
                     [rec["ratings"][crit_key[dtype]], rec["ratings"]["dup_bias"],
                      rec["ratings"]["dup_r"], rec["ratings"]["dup_rma_slope"]],
@@ -551,7 +563,7 @@ def _th_bins(rows, g):
     return out
 
 
-def analyse_th(project, F, C, S, dups, log=print, th_input=None):
+def analyse_th(project, F, C, S, dups, log=print, th_input=None, RB=None):
     """Thompson & Howarth binned precision regression.
 
     The 1978 paper bins 11 pairs at a time, but that is a convention, not a
@@ -618,7 +630,10 @@ def analyse_th(project, F, C, S, dups, log=print, th_input=None):
         # never read the curve below the lowest bin -- that is extrapolation
         # into the region the regression knows nothing about
         c_lo, c_hi = min(cs), max(cs)
-        c_req = (dl * S["th_at_dl"]) if dl else bins[len(bins) // 2]["conc"]
+        # R11: precision is read at k x the QC reference DL when one is set
+        qdl = RB.el.qc_dl(el, element_unit(el)) if RB is not None else None
+        ref = qdl or dl
+        c_req = (ref * S["th_at_dl"]) if ref else bins[len(bins) // 2]["conc"]
         c_ref = min(max(c_req, c_lo), c_hi)
         clamped = abs(c_ref - c_req) > 1e-12
         prec = F.calc("th_precision", a_int=a_int, b_slope=b_slope, c=c_ref)
@@ -641,7 +656,8 @@ def analyse_th(project, F, C, S, dups, log=print, th_input=None):
             if p is not None:
                 rr["curve"].append((c, p))
         rr["ratings"]["th_precision"] = rate(
-            abs(prec) if prec is not None else None, C["th_precision"])
+            abs(prec) if prec is not None else None,
+            criteria_for(C, RB, el)["th_precision"])
         rr["rating"], rr["score"] = combine_ratings([rr["ratings"]["th_precision"]])
         rr["group_requested"] = g_req
         out[(dtype, el)] = rr
@@ -812,13 +828,14 @@ def analyse_umpire(project, F, C, S, RB, log=print):
                "ratings": {}, "rating": R_NA, "score": None}
 
         if len(rows) >= S["min_pairs"]:
+            Ce = criteria_for(C, RB, el)
             rec["ratings"]["ump_wbias"] = rate(
-                abs(wbias) if wbias is not None else None, C["ump_wbias"])
+                abs(wbias) if wbias is not None else None, Ce["ump_wbias"])
             rec["ratings"]["ump_pbias"] = rate(
                 abs(rec["pbias"]) if rec["pbias"] is not None else None,
-                C["ump_pbias"])
-            rec["ratings"]["ump_hard90"] = rate(rec["hard_p90"], C["ump_hard90"])
-            rec["ratings"]["ump_grade_range"] = rate(worst_q, C["ump_grade_range"])
+                Ce["ump_pbias"])
+            rec["ratings"]["ump_hard90"] = rate(rec["hard_p90"], Ce["ump_hard90"])
+            rec["ratings"]["ump_grade_range"] = rate(worst_q, Ce["ump_grade_range"])
             rec["rating"], rec["score"] = combine_ratings(
                 [rec["ratings"]["ump_wbias"], rec["ratings"]["ump_pbias"],
                  rec["ratings"]["ump_hard90"], rec["ratings"]["ump_grade_range"]],
@@ -895,13 +912,13 @@ def run_analysis(project, F, C, S, RB, log=print):
     dup = analyse_duplicates(project, F, C, S, RB, pairs, log=log, th_input=th_input,
                              low=low, outliers=outl)
     log("Fitting Thompson-Howarth precision ...")
-    th = analyse_th(project, F, C, S, dup, log=log, th_input=th_input)
+    th = analyse_th(project, F, C, S, dup, log=log, th_input=th_input, RB=RB)
     # R5: the same statistics with every outlier kept, side by side
     th_all_in = {}
     dup_all = analyse_duplicates(project, F, C, S, RB, pairs, log=lambda m: None,
                                  th_input=th_all_in, low=low, outliers=None)
     th_all = analyse_th(project, F, C, S, dup_all, log=lambda m: None,
-                        th_input=th_all_in)
+                        th_input=th_all_in, RB=RB)
     th_all.pop("_skipped", None)
     th_skipped = th.pop("_skipped", [])
     for dt, el, why in th_skipped:
@@ -1394,7 +1411,7 @@ def analyse_batches(project, crm, blank, S, RB):
         for (bt, e), rec in blank.items():
             if e == el:
                 blank_pts += [(p["batch"] or "(not recorded)", p["sample"], p["fail"],
-                               bt, p["order"]) for p in rec["points"]]
+                               bt, p["order"], p.get("warn")) for p in rec["points"]]
         rows = []
         for b in batch_order:
             cp = [x for x in crm_pts if x[4] == b]
@@ -1418,9 +1435,12 @@ def analyse_batches(project, crm, blank, S, RB):
                 blank_status = "NONE"
             else:
                 bad = [x for x in bp if x[2]]
-                blank_status = ("PASS" if not bad else
-                                "FAIL" if RB["batch_blank_fail"] else "WARN")
+                warned = [x for x in bp if x[5]]
+                blank_status = ("FAIL" if bad and RB["batch_blank_fail"] else
+                                "WARN" if bad or warned else "PASS")
                 reasons += [f"{x[3].lower()} failed at {x[1]}" for x in bad]
+                reasons += [f"{x[3].lower()} above its warning limit at {x[1]}"
+                            for x in warned]
             rank = {"NONE": 0, "PASS": 1, "WARN": 2, "FAIL": 3}
             worst = max((crm_status, blank_status), key=lambda x: rank[x])
             rows.append({"batch": b, "n": n_by_batch[b], "crm_status": crm_status,

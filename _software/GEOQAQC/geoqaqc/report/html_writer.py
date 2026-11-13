@@ -293,6 +293,7 @@ def _doccontrol(w, b):
     m = b.meta
     d = m.the_date()
     rows = [("عنوان", T.REPORT_TITLE), ("پروژه", m.project), ("شمارهٔ گزارش", m.report_no),
+            ("استاندارد کنترل کیفیت", m.standard),
             ("ویرایش", fa_digits(m.revision)), ("تاریخ", jalali_str(d))]
     body = "".join(f"<tr><th>{t(k)}</th><td>{t(v or '—')}</td></tr>" for k, v in rows)
     people = [("تهیه‌کننده", m.author, m.author_title), ("بازبین", m.reviewer, ""),

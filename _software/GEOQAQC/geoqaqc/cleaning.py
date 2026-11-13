@@ -631,7 +631,8 @@ def _crm_swaps(project, S, RB, L):
 
 def _crm_is_blank(project, S, RB, L):
     kdl = RB["crm_blank_kdl"]
-    dls = {el: detection_limit(project, el, S) for el in project.elements}
+    dls = {el: RB.el.qc_dl(el, element_unit(el)) or detection_limit(project, el, S)
+           for el in project.elements}
     for s in project.samples:
         if s.stype != T_CRM or s.dropped or s.excl_all or not s.crm_key:
             continue
@@ -653,7 +654,8 @@ def _crm_is_blank(project, S, RB, L):
 
 
 def _blank_is_crm(project, S, RB, L):
-    dls = {el: detection_limit(project, el, S) for el in project.elements}
+    dls = {el: RB.el.qc_dl(el, element_unit(el)) or detection_limit(project, el, S)
+           for el in project.elements}
     for s in project.samples:
         if s.stype not in BLANK_TYPES or s.dropped or s.excl_all:
             continue
@@ -739,7 +741,8 @@ def clean_pairs(project, pairs, S, RB, log=print):
                   f"{why}; this duplicate is not in the precision statistics")
     if not _on(RB, "C16"):
         return
-    dls = {el: detection_limit(project, el, S) for el in project.elements}
+    dls = {el: RB.el.qc_dl(el, element_unit(el)) or detection_limit(project, el, S)
+           for el in project.elements}
     multi = len(project.elements) >= RB["mispair_min_el"]
     for dtype, plist in pairs.items():
         for so, sd_ in plist:

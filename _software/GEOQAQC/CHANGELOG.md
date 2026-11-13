@@ -1,5 +1,27 @@
 # Changelog
 
+## 2.1 (P1, first part) — 2026-11-13
+
+- **R10** Acceptance limits per element: every criterion (the five rating
+  boundaries; GOOD is the acceptance limit) can be set for one element on the
+  Criteria page ("Element" selector); elements without their own boundaries
+  use the defaults. The analysis, the findings, the charts (including the
+  max-min acceptance line) and the report use each element's limits. The
+  protocol appendix prints the limits actually used per element.
+- **R11** QC reference DL per element (Elements page): it replaces the
+  laboratory DL in the blank limits, the low-grade pair cut, the
+  Thompson-Howarth reference grade and the C14 / C15 / C16 grade filters.
+- **R12** Blank warning and failure limits per element, as x QC DL or as an
+  absolute value with unit. A blank above the warning limit makes the batch
+  "accepted with conditions"; above the failure limit it fails the batch.
+- **R13** High-grade predecessor of the carry-over test as an absolute grade
+  per element (otherwise the percentile rule as before).
+- **R19** One-click preset **NLR-QAQC-SPC-001 Rev. 0** (Elements page):
+  methods, QC DLs, upper limits, absolute blank limits, duplicate / Thompson-
+  Howarth / umpire boundaries per element and class, CRM rules and the global
+  parameters of section 4. The preset name is saved in the session and shown
+  in the document control table and the protocol appendix.
+
 ## 2.1 (P0) — 2026-11-13
 
 Correctness fixes from the review of NLR Batch 16 (NLR-QAQC-SPC-001 Rev. 0).

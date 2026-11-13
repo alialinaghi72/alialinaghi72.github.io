@@ -401,6 +401,7 @@ class _DW:
         m = b.meta
         self.para(self.d, T.H["control"], style="Heading 2", before=0)
         rows = [("عنوان", T.REPORT_TITLE), ("پروژه", m.project), ("شمارهٔ گزارش", m.report_no),
+            ("استاندارد کنترل کیفیت", m.standard),
                 ("ویرایش", fa_digits(m.revision)), ("تاریخ", jalali_str(m.the_date()))]
         t = self.table(len(rows), 2, [40, CONTENT_W - 40])
         _borders(t)

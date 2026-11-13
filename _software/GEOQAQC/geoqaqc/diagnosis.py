@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 
 from .core import (BLANK_TYPES, DUP_TYPES, R_BAD, R_POOR, R_VBAD,
                    T_CBLANK, T_CDUP, T_CRM, T_FDUP, T_PBLANK, T_PDUP, mean)
+from .elements import criteria_for
 from .exclusions import provisional
 from .protocol import rate
 from .report import texts_fa as T
@@ -171,6 +172,8 @@ class Diagnosis:
         if not pts:
             return "NOT_ASSESSABLE", ["no result of a CRM certified for this element"], []
         cond = []
+        if any(r.get("blank_status") == "WARN" for r in b.get("rows", [])):
+            cond.append("blank above its warning limit")
         if [x for x in pts if x[3] & warn_rules]:
             cond.append("CRM result between the warning and action limits")
         for f in self.by_element(el):
@@ -217,10 +220,11 @@ def diagnose(project, results, C, S, RB):
            if a.rule == "C19"]
     sev = lambda rating: severity_from_rating(rating, RB)     # noqa: E731
     for el in project.elements:
-        _crm(d, el, R, C, S, RB, sev)
-        _blanks(d, el, R, C, S, RB, sev)
-        _dups(d, el, R, C, S, RB, sev)
-        _umpire(d, el, R, C, S, RB, sev)
+        Ce = criteria_for(C, RB, el)            # R10: the element's own limits
+        _crm(d, el, R, Ce, S, RB, sev)
+        _blanks(d, el, R, Ce, S, RB, sev)
+        _dups(d, el, R, Ce, S, RB, sev)
+        _umpire(d, el, R, Ce, S, RB, sev)
     _programme(d, project, R, C, S, RB, sev)
     _data(d, project, R, C, S, RB, sev)
     return d

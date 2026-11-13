@@ -17,9 +17,10 @@ from .. import APP_NAME, APP_SUB, APP_VER, session
 from ..analysis import dup_stats, group_breakdown, group_rows, group_values, run_analysis
 from ..cleaning import RULE_TITLES
 from ..core import (GROUP_CHOICES, GROUP_KEYS, R_NA, RATING_ORDER, T_CDUP, T_FDUP,
-                    T_PDUP, fmt_num, linreg, mean, pctile, rma)
+                    T_PDUP, element_symbol, fmt_num, linreg, mean, pctile, rma)
 from ..diagnosis import STAGE_EN, diagnose
-from ..elements import ACTIONS, METHOD_CHOICES
+from ..elements import ACTIONS, METHOD_CHOICES, criteria_for
+from ..presets import NLR, apply_preset
 from ..export_csv import export_results
 from ..figures import (fig_accuracy_curve, fig_batch_matrix, fig_blank,
                        fig_blank_prev, fig_coverage, fig_crm_batch, fig_crm_bias,
@@ -435,6 +436,13 @@ class App(tk.Tk):
                           "Finding severities follow these ratings (see Rules).",
                   style="Dim.TLabel").pack(anchor="w")
         bb = self._bar(f)
+        # R10: the boundaries of all elements, or one element's own
+        self.crit_scope = tk.StringVar(value=self._ALL_ELEMENTS)
+        ttk.Label(bb, text="Element", style="Sec.TLabel").pack(side="left", padx=(0, 6))
+        self.crit_scope_cb = ttk.Combobox(bb, textvariable=self.crit_scope, state="readonly",
+                                          width=24, values=[self._ALL_ELEMENTS])
+        self.crit_scope_cb.pack(side="left", padx=(0, 12))
+        self.crit_scope_cb.bind("<<ComboboxSelected>>", lambda e: self._load_criteria_scope())
         ttk.Button(bb, text="Apply criteria", style="Accent.TButton",
                    command=self.apply_criteria).pack(side="left")
         ttk.Button(bb, text="Restore defaults", command=self.reset_criteria).pack(
@@ -484,6 +492,10 @@ class App(tk.Tk):
                    command=self.apply_elements).pack(side="left")
         ttk.Button(bb, text="Restore defaults", command=self.reset_elements).pack(
             side="left", padx=6)
+        ttk.Button(bb, text=f"Load preset {NLR}", command=self.load_preset).pack(
+            side="left", padx=(24, 6))
+        self.preset_lbl = ttk.Label(bb, text="", style="Dim.TLabel")
+        self.preset_lbl.pack(side="left")
         sf = ScrollFrame(f)
         sf.pack(fill="both", expand=True)
         self.el_box_cfg = sf.inner
@@ -553,6 +565,35 @@ class App(tk.Tk):
             ttk.Combobox(box, textvariable=v["outlier_preselect"], values=("exclude", "keep"),
                          width=7, state="readonly").grid(row=i, column=14, padx=3)
             ttk.Checkbutton(box, variable=v["single_vote"]).grid(row=i, column=15, padx=3)
+        bx = ttk.Frame(box, style="Panel.TFrame")      # its own grid, own widths
+        bx.grid(row=len(cols) + 2, column=0, columnspan=16, sticky="w")
+        r0 = 0
+        ttk.Label(bx, text="Blanks and carry-over", style="Sec.TLabel").grid(
+            row=r0, column=0, columnspan=4, sticky="w", pady=(14, 2))
+        for j, h in enumerate(["Column", "Blank warning", "unit", "Blank failure", "unit",
+                               "High-grade sample", "unit"]):
+            ttk.Label(bx, text=h, style="Sec.TLabel").grid(row=r0 + 1, column=j, sticky="w",
+                                                            padx=2, pady=2)
+        bunits = ["x DL"] + self._EL_UNITS[1:]
+        for i, col in enumerate(cols, start=r0 + 2):
+            pr = EB.profile(col)
+            v = self.el_cfg_vars[col]
+            for key in ("blank_warn", "blank_fail", "high_grade"):
+                v[key] = tk.StringVar(value="" if pr[key] is None else f"{pr[key]:g}")
+                v[f"{key}_unit"] = tk.StringVar(value=pr[f"{key}_unit"])
+            ttk.Label(bx, text=col).grid(row=i, column=0, sticky="w", padx=3)
+            for j, key in enumerate(("blank_warn", "blank_fail", "high_grade")):
+                ttk.Entry(bx, textvariable=v[key], width=6).grid(row=i, column=1 + 2 * j,
+                                                                  padx=2)
+                ttk.Combobox(bx, textvariable=v[f"{key}_unit"], width=5, state="readonly",
+                             values=bunits if key != "high_grade" else self._EL_UNITS
+                             ).grid(row=i, column=2 + 2 * j, padx=2)
+        r1 = r0 + 2 + len(cols)
+        ttk.Label(bx, text="Blank limits as 'x DL' (times the QC DL) or an absolute value; empty "
+                            "failure = 'Blank contamination limit' in Settings. An empty "
+                            "high-grade value uses the percentile rule.",
+                  style="Dim.TLabel", wraplength=1100, justify="left").grid(
+            row=r1, column=0, columnspan=16, sticky="w", pady=(6, 0))
         ttk.Label(box, text="Low: action for low-grade pairs; Outlier: action for outlier pairs. "
                             "Empty 'Low xDL' = the rule default (10). 'Alone': a large "
                             "difference in this element alone makes a pulp or coarse pair a "
@@ -560,6 +601,8 @@ class App(tk.Tk):
                             "before the results; 'Pre-set' is the decision proposed there.",
                   style="Dim.TLabel", wraplength=1100, justify="left").grid(
             row=len(cols) + 1, column=0, columnspan=16, sticky="w", pady=(10, 0))
+        if hasattr(self, "preset_lbl"):
+            self.preset_lbl.configure(text=f"loaded: {EB.preset}" if EB.preset else "")
 
     def apply_elements(self, quiet=False):
         """Validate and store the Elements page. Returns the rejected entries."""
@@ -588,12 +631,31 @@ class App(tk.Tk):
             for key in ("low_action", "outlier_action", "outlier_preselect"):
                 EB.set(col, key, v[key].get())
             EB.set(col, "single_vote", bool(v["single_vote"].get()))
+            for key in ("blank_warn", "blank_fail", "high_grade"):
+                if key in v:
+                    EB.set(col, key, num(v[key].get(), f"{col} {key}"))
+                    EB.set(col, f"{key}_unit", v[f"{key}_unit"].get())
         if bad and not quiet:
             messagebox.showerror(APP_NAME, "These entries were rejected:\n\n"
                                  + "\n".join(bad), parent=self)
         if not bad:
             self.log("Element settings applied.")
         return bad
+
+    def load_preset(self, name=None):
+        """R19: load a project standard into elements, criteria, rules and
+        settings with one click."""
+        name = apply_preset(name or NLR, self.RB, self.C, self.S)
+        self.refresh_elements()
+        if hasattr(self, "_refresh_rule_vars"):
+            self._refresh_rule_vars()
+        for key, v in self._svars.items():
+            if key in self.S:
+                v.set(self.S[key] if isinstance(v, tk.BooleanVar) else str(self.S[key]))
+        if hasattr(self, "crit_scope"):
+            self._load_criteria_scope()
+        self.log(f"Preset loaded: {name}. Press RUN QA/QC to apply it.")
+        return name
 
     def reset_elements(self):
         self.RB.el.reset()
@@ -790,6 +852,8 @@ class App(tk.Tk):
         if cols != getattr(self, "_el_cfg_cols", None):
             self._el_cfg_cols = cols
             self.refresh_elements()
+            if hasattr(self, "crit_scope_cb"):
+                self.crit_scope_cb.configure(values=self._criteria_scope_values())
 
     def set_badge(self):
         """The header shows the batch decision (spec rules), worst first."""
@@ -1218,16 +1282,17 @@ class App(tk.Tk):
         rec, key, val, rows = ctx
         dt = rec["type"]
         crit_key = CRIT_BY_DUP[dt]
+        Ce = criteria_for(self.C, self.RB, rec["element"])     # R10
         mode = self.dup_chart.get()
         view = dict(rec)
         view["rows"] = rows
-        st = dup_stats(rows, self.F, self.C, self.S, crit_key)
+        st = dup_stats(rows, self.F, Ce, self.S, crit_key)
         if st:
             view.update(st)
         if mode.startswith("Compare groups") and key:
-            bd = group_breakdown(rec, key, self.F, self.C, self.S, crit_key)
+            bd = group_breakdown(rec, key, self.F, Ce, self.S, crit_key)
             self.dup_view.show(fig_group_summary(bd, self.dup_groupby.get(), self.S,
-                                                 self.C[crit_key]))
+                                                 Ce[crit_key]))
             self.duptree.master.pack_forget()
             self.dupgrouptree.master.pack(fill="both", expand=True)
             fill(self.dupgrouptree, [(g["group"], g["n"], _f(g["hard_p90"]),
@@ -1251,7 +1316,7 @@ class App(tk.Tk):
         elif mode.startswith("Max") and full:
             fig = fig_dup_maxmin(view, self.S)
         elif mode.startswith("Precision by") and full:
-            fig = fig_dup_quartile(view, self.S, self.C)
+            fig = fig_dup_quartile(view, self.S, Ce)
         elif mode.startswith("Q-Q"):
             fig = fig_dup_qq(view, self.S)
         elif mode.startswith("Relative"):
@@ -1259,7 +1324,7 @@ class App(tk.Tk):
         elif mode.startswith("HARD dist"):
             fig = fig_dup_hist(view, self.S)
         else:
-            fig = fig_dup_rank_hard(view, self.S, self.C)
+            fig = fig_dup_rank_hard(view, self.S, Ce)
         self.dup_view.show(fig)
         bits = [f"RATING {view.get('rating', R_NA)}", f"n = {view['n']} pairs"]
         if val:
@@ -1375,7 +1440,7 @@ class App(tk.Tk):
         elif mode.startswith("Bias vs"):
             fig = fig_ump_bias_grade(rec, self.S)
         elif mode.startswith("Bias by"):
-            fig = fig_ump_quartile(rec, self.S, self.C)
+            fig = fig_ump_quartile(rec, self.S, criteria_for(self.C, self.RB, rec['element']))
         elif mode.startswith("Ranked"):
             fig = fig_ump_ratio(rec, self.S)
         else:
@@ -1465,7 +1530,28 @@ class App(tk.Tk):
             v.set(self.F.expr(key))
         self.log("Formulas restored to defaults.")
 
-    def apply_criteria(self):
+    _ALL_ELEMENTS = "All elements (default)"
+
+    def _criteria_scope_values(self):
+        syms = []
+        for col in self._element_columns():
+            sym = element_symbol(col)
+            if sym not in syms:
+                syms.append(sym)
+        return [self._ALL_ELEMENTS] + syms
+
+    def _load_criteria_scope(self):
+        """Show the boundaries of the chosen scope: the defaults, or one
+        element's (its overrides on top of the defaults)."""
+        scope = self.crit_scope.get()
+        C = self.C if scope == self._ALL_ELEMENTS else criteria_for(self.C, self.RB, scope)
+        for key, vs in self._cvars.items():
+            for v, c in zip(vs, C[key]["cuts"]):
+                v.set(f"{c:g}")
+
+    def apply_criteria(self, quiet=False):
+        scope = self.crit_scope.get() if hasattr(self, "crit_scope") else self._ALL_ELEMENTS
+        new = {}
         try:
             for key, vs in self._cvars.items():
                 cuts = [float(v.get()) for v in vs]
@@ -1474,18 +1560,32 @@ class App(tk.Tk):
                                                                                    reverse=True)
                 if not ok:
                     raise ValueError(f"'{d['label']}': boundaries must run from best to worst.")
-                d["cuts"] = cuts
+                new[key] = cuts
         except ValueError as ex:
-            messagebox.showerror(APP_NAME, str(ex), parent=self)
-            return
-        self.log("Criteria applied. Press RUN QA/QC to re-rate.")
+            if not quiet:
+                messagebox.showerror(APP_NAME, str(ex), parent=self)
+            return False
+        if scope == self._ALL_ELEMENTS:
+            for key, cuts in new.items():
+                self.C[key]["cuts"] = cuts
+            self.log("Criteria applied to every element without its own boundaries. "
+                     "Press RUN QA/QC to re-rate.")
+        else:
+            # keep only what differs from the defaults: the element's own limits
+            own = {k: c for k, c in new.items() if c != [float(x) for x in self.C[k]["cuts"]]}
+            self.RB.el.overrides.setdefault(scope, {})["criteria"] = own
+            self.log(f"Criteria of {scope} applied ({len(own)} own boundary set(s)). "
+                     f"Press RUN QA/QC to re-rate.")
+        return True
 
     def reset_criteria(self):
-        self.C = {k: dict(v) for k, v in DEFAULT_CRITERIA.items()}
-        for key, vs in self._cvars.items():
-            for v, c in zip(vs, self.C[key]["cuts"]):
-                v.set(f"{c:g}")
-        self.log("Criteria restored to defaults.")
+        scope = self.crit_scope.get() if hasattr(self, "crit_scope") else self._ALL_ELEMENTS
+        if scope == self._ALL_ELEMENTS:
+            self.C = {k: dict(v) for k, v in DEFAULT_CRITERIA.items()}
+        else:
+            self.RB.el.overrides.get(scope, {}).pop("criteria", None)
+        self._load_criteria_scope()
+        self.log(f"Criteria restored to defaults ({scope}).")
 
     def apply_rules(self, quiet=False):
         """Validate every rule entry through the RuleBook. Returns the list of

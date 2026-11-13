@@ -15,7 +15,7 @@ lines (certified value, 1:1) are ink, never a series colour.
 from __future__ import annotations
 
 from .core import RATING_ORDER, R_NA, T_CDUP, T_FDUP, T_PDUP, fmt_num, mean
-from .elements import METHOD_LABEL
+from .elements import METHOD_LABEL, criteria_for
 from .protocol import DEFAULT_CRITERIA, rate
 
 SEP = " · "
@@ -860,18 +860,21 @@ def figure_catalog(project, R, diagnosis, S, C, RB=None):
     def put(fid, fn, *args):
         cat[fid] = lambda fn=fn, args=args: fn(*args)
 
+    def ce(el):                                  # R10: the element's own limits
+        return criteria_for(C, RB, el)
+
     for (lab, el), rec in sorted(R.get("crm", {}).items()):
         base = f"crm/{lab}/{el}"
         put(f"{base}/control", fig_crm_control, rec, S)
         if rec.get("cert") is None:
             continue
-        put(f"{base}/bias", fig_crm_bias, rec, S, C)
+        put(f"{base}/bias", fig_crm_bias, rec, S, ce(el))
         put(f"{base}/z", fig_crm_zhist, rec, S)
         put(f"{base}/cusum", fig_crm_cusum, rec, S, RB)
-        put(f"{base}/batch", fig_crm_batch, rec, S, C)
+        put(f"{base}/batch", fig_crm_batch, rec, S, ce(el))
     for el, dr in R.get("drift", {}).items():
         if not dr.get("insufficient"):
-            put(f"drift/{el}", fig_crm_drift, dr, el, S, C)
+            put(f"drift/{el}", fig_crm_drift, dr, el, S, ce(el))
     for el, acc in R.get("accuracy", {}).items():
         if acc["n_crm"] >= 2:
             put(f"accuracy/{el}", fig_accuracy_curve, acc, el)
@@ -882,10 +885,10 @@ def figure_catalog(project, R, diagnosis, S, C, RB=None):
         put(f"blankprev/{bt}/{el}", fig_blank_prev, rec, S)
     for (dt, el), rec in sorted(R.get("dup", {}).items()):
         base = f"dup/{dt}/{el}"
-        put(f"{base}/rank", fig_dup_rank_hard, rec, S, C)
+        put(f"{base}/rank", fig_dup_rank_hard, rec, S, ce(el))
         put(f"{base}/scatter", fig_dup_scatter, rec, S)
         put(f"{base}/maxmin", fig_dup_maxmin, rec, S)
-        put(f"{base}/quartile", fig_dup_quartile, rec, S, C)
+        put(f"{base}/quartile", fig_dup_quartile, rec, S, ce(el))
         put(f"{base}/qq", fig_dup_qq, rec, S)
         put(f"{base}/hrd", fig_dup_mean_hrd, rec, S)
         put(f"{base}/hist", fig_dup_hist, rec, S)
@@ -896,7 +899,7 @@ def figure_catalog(project, R, diagnosis, S, C, RB=None):
         put(f"umpire/{el}/qq", fig_ump_qq, rec, S)
         put(f"umpire/{el}/scatter", fig_ump_scatter, rec, S)
         put(f"umpire/{el}/bias", fig_ump_bias_grade, rec, S)
-        put(f"umpire/{el}/quartile", fig_ump_quartile, rec, S, C)
+        put(f"umpire/{el}/quartile", fig_ump_quartile, rec, S, ce(el))
         put(f"umpire/{el}/ratio", fig_ump_ratio, rec, S)
     if R.get("insertion"):
         put("insertion", fig_insertion, R["insertion"], S)

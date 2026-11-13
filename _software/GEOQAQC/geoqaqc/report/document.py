@@ -23,6 +23,7 @@ class ReportMeta:
     revision: str = "0"
     date: str = ""                  # ISO yyyy-mm-dd; today when empty
     location: str = ""
+    standard: str = ""              # project QA/QC standard (preset name)
     logo_path: str = ""
     font_fa: str = "B Nazanin"      # Word only; the HTML embeds Vazirmatn
     font_latin: str = "Times New Roman"

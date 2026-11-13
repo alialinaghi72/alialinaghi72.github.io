@@ -104,3 +104,21 @@ def test_review_window_records_decisions(app):
     dlg._apply()
     d = app.project.pair_decisions["COARSE DUP|Cu_pct|S1|C1"]
     assert d["decision"] == "exclude" and d["reason"] == REASONS[0]
+
+
+def test_preset_and_element_criteria_scope(app):
+    from geoqaqc.elements import criteria_for
+    from geoqaqc.presets import NLR
+    app.select_page("Elements")
+    assert app.load_preset() == NLR
+    app.update()
+    assert app.RB.el.preset == NLR and app.S["min_pairs"] == 20
+    app.select_page("Criteria")
+    app.crit_scope.set("Cu")
+    app._load_criteria_scope()
+    assert app._cvars["pdup_hard90"][2].get() == "5"
+    app._cvars["pdup_hard90"][2].set("6")
+    assert app.apply_criteria(quiet=True)
+    assert criteria_for(app.C, app.RB, "Cu_pct")["pdup_hard90"]["cuts"][2] == 6
+    assert criteria_for(app.C, app.RB, "Au_ppm")["pdup_hard90"]["cuts"][2] == 15
+    app.RB.el.reset()

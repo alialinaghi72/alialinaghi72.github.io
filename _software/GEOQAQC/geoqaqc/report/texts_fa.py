@@ -828,6 +828,7 @@ BATCH_DECISION_TONE = {"ACCEPTED": "ok", "CONDITIONAL": "warn", "REJECTED": "cri
                  "NOT_ASSESSABLE": "muted"}
 DECISION_REASON_FA = {
     "blank failure": "ردشدگی شاهد",
+    "blank above its warning limit": "شاهد بالاتر از حد هشدار",
     "no result of a CRM certified for this element": "هیچ نتیجه‌ای از نمونهٔ استاندارد "
                                                      "گواهی‌شده برای این عنصر نیست",
     "CRM result between the warning and action limits": "نتیجهٔ نمونهٔ استاندارد بین حد "
@@ -850,6 +851,11 @@ DIAGNOSTIC_GRID = ("جدول زیر رتبهٔ هر روش کنترلی را ب�
 
 ROOT_FA = {"DATA": "مدیریت داده", "LAB": "آزمایشگاه", "SAMPLING": "نمونه‌برداری",
            "PROGRAMME": "طراحی برنامهٔ کنترل کیفیت"}
+
+PRESET_USED = ("حدهای این گزارش از استاندارد کنترل کیفیت پروژه «{name}» بارگذاری شده‌اند؛ "
+               "هر تغییر نسبت به آن در جدول‌های زیر و پیوست پروتکل آمده است.")
+PRESET_NONE = ("هیچ استاندارد پروژه‌ای بارگذاری نشده است؛ حدهای پیش‌فرض نرم‌افزار و تغییرات "
+               "کاربر به کار رفته‌اند.")
 
 INTRO = [
     ("هدف این گزارش، ارزیابی مستقل کیفیت نتایج تجزیهٔ شیمیایی نمونه‌های اکتشافی و تعیین "
