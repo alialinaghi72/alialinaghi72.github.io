@@ -129,3 +129,11 @@ def test_fa_num_never_uses_exponents():
     assert fa_num(-0.0005) == "‪−۰٫۰۰۰۵‬"
     for v in (1e-7, 3.2e-5, 2.5e6, 7.7e9):
         assert "e" not in fa_num(v) and "," not in fa_num(v)
+
+
+def test_classify_misspelled_duplicate_types():
+    # as written in the NLR Batch 16 file
+    assert classify_type("course duplicate") == "COARSE DUP"
+    assert classify_type("filde duplicate") == "FIELD DUP"
+    assert classify_type(" pulp duplicate") == "PULP DUP"
+    assert classify_type("coarse blank") == "COARSE BLANK"

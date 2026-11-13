@@ -182,7 +182,13 @@ def analyse_crm(project, F, C, S, RB, log=print):
                 rec["ratings"]["crm_bias"] = rate(rec["abs_bias"], Ce["crm_bias"])
                 rec["ratings"]["crm_fail"] = rate(rec["fail_pct"], Ce["crm_fail"])
                 rec["ratings"]["crm_warn"] = rate(rec["warn_pct"], Ce["crm_warn"])
-                rec["ratings"]["crm_rsd"] = rate(rec["rsd_pct"], Ce["crm_rsd"])
+                if RB["rsd_by_ratio"] and rec.get("rsd_ratio") is not None:
+                    # R16: against the certificate; absolute RSD for information
+                    rec["ratings"]["crm_rsd"] = rate(rec["rsd_ratio"], Ce["crm_rsd_ratio"])
+                    rec["rsd_basis"] = "ratio"
+                else:
+                    rec["ratings"]["crm_rsd"] = rate(rec["rsd_pct"], Ce["crm_rsd"])
+                    rec["rsd_basis"] = "absolute"
                 rec["rating"], rec["score"] = combine_ratings(
                     [rec["ratings"]["crm_bias"], rec["ratings"]["crm_fail"],
                      rec["ratings"]["crm_warn"], rec["ratings"]["crm_rsd"]],
@@ -851,9 +857,15 @@ def analyse_umpire(project, F, C, S, RB, log=print):
 # ===========================================================================
 #  Insertion rates
 # ===========================================================================
-def analyse_insertion(project, F, C, S, pairs, log=print):
+_TARGET_KEY = {T_CRM: "CRM", T_CBLANK: "CBLANK", T_PBLANK: "PBLANK", T_BLANK: "BLANK",
+               T_FDUP: "FDUP", T_CDUP: "CDUP", T_PDUP: "PDUP", T_UMP: "UMP"}
+
+
+def analyse_insertion(project, F, C, S, pairs, log=print, RB=None, n_umpire=0):
     """Insertion rates. A mislabelled control (C13-C15) was still inserted and
-    still counts; only rows that are not samples at all (C02, C03) do not."""
+    still counts; only rows that are not samples at all (C02, C03) do not.
+    With RB['ins_by_target'] each class is rated against its own target
+    (R15); otherwise every class against the single 5 % convention."""
     live = [s for s in project.samples if not s.dropped]
     n_total = len(live)
     counts = {t: 0 for t in SAMPLE_TYPES}
@@ -861,28 +873,48 @@ def analyse_insertion(project, F, C, S, pairs, log=print):
         counts[s.stype] = counts.get(s.stype, 0) + 1
     out = {"n_total": n_total, "rows": [], "rating": R_NA, "score": None}
     ratings = []
+    by_target = RB is not None and RB["ins_by_target"]
     n_blank_all = sum(counts.get(t, 0) for t in BLANK_TYPES)
-    for t in (T_CRM, T_BLANK, T_FDUP, T_CDUP, T_PDUP):
-        n = n_blank_all if t == T_BLANK else counts.get(t, 0)
+    typed = counts.get(T_CBLANK, 0) or counts.get(T_PBLANK, 0)
+    if by_target:
+        classes = [T_CRM] + ([T_CBLANK, T_PBLANK] if typed else [T_BLANK]) + \
+            [T_FDUP, T_CDUP, T_PDUP]
+    else:
+        classes = [T_CRM, T_BLANK, T_FDUP, T_CDUP, T_PDUP]
+    for t in classes:
+        n = n_blank_all if (t == T_BLANK and not by_target) else counts.get(t, 0)
+        if t == T_BLANK and by_target:
+            n = counts.get(T_BLANK, 0)
         pct = F.calc("insert_rate", n_control=n, n_total=n_total) if n_total else None
         every = (F.calc("insert_interval", n_control=n, n_total=n_total)
                  if n else None)
-        r = rate(pct, C["insert_rate"]) if n_total else R_NA
+        target = RB[f"ins_target_{_TARGET_KEY[t]}"] if by_target else None
+        if by_target and n_total:
+            r = rate(100.0 * (pct or 0) / target, C["insert_target"])
+        else:
+            r = rate(pct, C["insert_rate"]) if n_total else R_NA
         # a control class that is simply absent is a finding in itself
         if n == 0:
             r = R_VBAD
         out["rows"].append({"type": t, "n": n, "pct": pct, "every": every,
-                            "rating": r})
+                            "target": target, "rating": r})
         ratings.append(r)
-    # coarse and pulp blanks are listed for information; the 5 % convention
-    # applies to blanks as a class
-    for t in (T_CBLANK, T_PBLANK):
-        n = counts.get(t, 0)
-        if n:
-            out["rows"].append({
-                "type": t, "n": n, "info_only": True, "rating": R_NA,
-                "pct": F.calc("insert_rate", n_control=n, n_total=n_total),
-                "every": F.calc("insert_interval", n_control=n, n_total=n_total)})
+    if not by_target:
+        # coarse and pulp blanks are listed for information; the 5 % convention
+        # applies to blanks as a class
+        for t in (T_CBLANK, T_PBLANK):
+            n = counts.get(t, 0)
+            if n:
+                out["rows"].append({
+                    "type": t, "n": n, "info_only": True, "rating": R_NA,
+                    "pct": F.calc("insert_rate", n_control=n, n_total=n_total),
+                    "every": F.calc("insert_interval", n_control=n, n_total=n_total)})
+    elif n_umpire:
+        pct = F.calc("insert_rate", n_control=n_umpire, n_total=n_total)
+        out["rows"].append({"type": T_UMP, "n": n_umpire, "pct": pct, "info_only": True,
+                            "target": RB["ins_target_UMP"], "rating": R_NA,
+                            "every": F.calc("insert_interval", n_control=n_umpire,
+                                            n_total=n_total)})
     out["counts"] = counts
     out["rating"], out["score"] = combine_ratings(ratings)
     return out
@@ -926,7 +958,8 @@ def run_analysis(project, F, C, S, RB, log=print):
     log("Analysing check / umpire assays ...")
     ump = analyse_umpire(project, F, C, S, RB, log=log)
     log("Checking insertion rates ...")
-    ins = analyse_insertion(project, F, C, S, pairs, log=log)
+    ins = analyse_insertion(project, F, C, S, pairs, log=log, RB=RB,
+                            n_umpire=max((u["n"] for u in ump.values()), default=0))
     log("Accuracy curve, grade coverage, error budget, batch acceptance ...")
     accuracy = analyse_accuracy_curve(crm)
     drift = analyse_drift(crm, RB)
@@ -1147,11 +1180,26 @@ def analyse_coverage(project, RB):
         lo_q, hi_q = min(pcts), max(pcts)
         mid_q = sorted(pcts)[len(pcts) // 2]
         cv = [c for _, c in certs]
-        out[el] = {"pcts": pcts, "certs": certs, "n": len(vals),
+        # R18: the economic range, the cut-off and the reach of the method
+        p25, p90 = pctile(vals, 25.0), pctile(vals, 90.0)
+        unit = element_unit(el)
+        cut = RB.el.cutoff(el, unit) if RB is not None else None
+        band = RB["coverage_band"] / 100.0 if RB is not None else 0.5
+        upper = RB.el.upper(el, unit) if RB is not None else None
+        near = [(lab, c) for lab, c in certs
+                if cut and abs(c - cut) <= band * cut]
+        out[el] = {"pcts": pcts, "certs": certs, "n": len(vals), "unit": unit,
                    "quantiles": [(q, pctile(vals, float(q))) for q in range(101)],
                    "below_p50_only": bool(cv) and max(cv) < pcts[mid_q],
                    "none_above_p90": bool(cv) and max(cv) < pcts[hi_q],
-                   "none_below_p10": bool(cv) and min(cv) > pcts[lo_q]}
+                   "none_below_p10": bool(cv) and min(cv) > pcts[lo_q],
+                   "p25": p25, "p90": p90,
+                   "gap_p25_p90": bool(cv) and not any(p25 <= c <= p90 for c in cv),
+                   "cutoff": cut, "band_pct": band * 100.0, "near_cutoff": near,
+                   "no_cutoff_crm": bool(cut) and bool(cv) and not near,
+                   "upper": upper,
+                   "above_upper": [(lab, c) for lab, c in certs
+                                   if upper is not None and c > upper]}
     return out
 
 

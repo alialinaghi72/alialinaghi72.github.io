@@ -25,6 +25,12 @@ def auto_table(kind, path, name=None):
         raise ValueError(f"{os.path.basename(path)} has no readable rows.")
     t = DataTable(kind, name or os.path.splitext(os.path.basename(path))[0].upper(),
                   path, header, rows, delim)
+    return map_table(t)
+
+
+def map_table(t):
+    """Guess the column roles, element columns and type codes of a table."""
+    kind, header = t.kind, t.header
     taken = []
     for role in ROLES[kind]:
         g = guess_role(header, role, taken)

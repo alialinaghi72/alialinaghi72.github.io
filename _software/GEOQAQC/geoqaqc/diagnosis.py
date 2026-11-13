@@ -44,6 +44,8 @@ TITLE_EN = {
     "CRM_CLUSTER": "CRM failures clustered in batches",
     "CRM_RSD": "Poor repeatability on CRM", "CRM_SHIFT": "Step shift of a CRM", "CRM_NOCERT": "CRM without certificate",
     "CRM_COVERAGE": "CRMs do not cover the grade range",
+    "CRM_GAP": "No CRM between P25 and P90", "CRM_CUTOFF": "No CRM near the cut-off grade",
+    "CRM_ABOVE_UPPER": "CRM above the upper limit of the method",
     "BLK_FAIL": "Blank failures", "BLK_CARRY": "Carry-over contamination",
     "BLK_MATERIAL": "Blank material not barren",
     "BLK_PREP": "Contamination in sample preparation",
@@ -189,6 +191,30 @@ class Diagnosis:
         if cond:
             return "CONDITIONAL", sorted(set(cond)), []
         return "ACCEPTED", [], []
+
+    def batch_matrix(self):
+        """R20: the acceptance of every batch x element from the spec rules.
+        ([batches in analytical order], {batch: {element: (decision,
+        [re-assay ranges of that batch])}})."""
+        R = getattr(self, "R", None) or {}
+        order, out = [], {}
+        for el, b in (R.get("batches") or {}).items():
+            for row in b.get("rows", []):
+                bt = row["batch"]
+                if bt not in out:
+                    order.append(bt)
+                    out[bt] = {}
+                if row["status"] == "FAIL":
+                    code = "REJECTED"
+                elif row["crm_status"] == "NONE":
+                    code = "NOT_ASSESSABLE"
+                elif row["status"] == "WARN":
+                    code = "CONDITIONAL"
+                else:
+                    code = "ACCEPTED"
+                ra = [r for r in b.get("reassay", []) if r["batch"] == bt]
+                out[bt][el] = (code, ra)
+        return order, out
 
     def matrix(self):
         """{element: {stage: worst severity or None}}. Project-wide findings
@@ -340,9 +366,29 @@ def _crm(d, el, R, C, S, RB, sev):
               "LAB", "ONGOING", [f"crm/{w['crm']}/{el}"])
 
     cov = R.get("coverage", {}).get(el)
-    if cov and cov["certs"] and (cov["none_above_p90"] or cov["none_below_p10"]):
+    if cov and cov["certs"]:
+        _coverage(d, el, cov)
+
+
+def _coverage(d, el, cov):
+    """R18: CRM grade coverage against P25-P90, the cut-off grade and the
+    upper limit of the routine method."""
+    cv = [c for _, c in cov["certs"]]
+    if cov.get("gap_p25_p90"):
+        d.add("CRM_GAP", el, "PROGRAMME", "MATERIAL",
+              T.f_CRM_GAP(el, cov["p25"], cov["p90"], cov["certs"], cov.get("unit", "")),
+              "GEOLOGY", "ONGOING", [f"coverage/{el}"])
+    if cov.get("no_cutoff_crm"):
+        d.add("CRM_CUTOFF", el, "PROGRAMME", "MATERIAL",
+              T.f_CRM_CUTOFF(el, cov["cutoff"], cov["band_pct"], cov["certs"],
+                             cov.get("unit", "")),
+              "GEOLOGY", "ONGOING", [f"coverage/{el}"])
+    if cov.get("above_upper"):
+        d.add("CRM_ABOVE_UPPER", el, "PROGRAMME", "MATERIAL",
+              T.f_CRM_ABOVE_UPPER(el, cov["above_upper"], cov["upper"], cov.get("unit", "")),
+              "GEOLOGY", "ONGOING", [f"coverage/{el}"])
+    if cov["none_above_p90"] or cov["none_below_p10"]:
         q = sorted(cov["pcts"])
-        cv = [c for _, c in cov["certs"]]
         d.add("CRM_COVERAGE", el, "PROGRAMME", "MINOR",
               T.f_CRM_COVERAGE(el, cov["pcts"][q[-1]], max(cv), cov["pcts"][q[0]],
                                min(cv), cov["none_above_p90"], cov["none_below_p10"]),
@@ -549,7 +595,7 @@ def _programme(d, project, R, C, S, RB, sev):
                   "GEOLOGY", "ONGOING", ["insertion"], subject=r["type"])
         else:
             d.add("INS_RATE", "", "PROGRAMME", s,
-                  T.f_INS_RATE(r["type"], r["n"], r["pct"], r["every"]),
+                  T.f_INS_RATE(r["type"], r["n"], r["pct"], r["every"], r.get("target")),
                   "GEOLOGY", "ONGOING", ["insertion"], subject=r["type"])
     if not R.get("umpire"):
         d.add("INS_MISSING", "", "PROGRAMME", "MINOR",

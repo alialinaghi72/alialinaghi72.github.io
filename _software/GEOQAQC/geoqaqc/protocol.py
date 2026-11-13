@@ -305,6 +305,13 @@ DEFAULT_CRITERIA = {
         "note": "Repeatability of the laboratory on a homogeneous material. "
                 "Should be comparable with the certified standard deviation."},
 
+    "crm_rsd_ratio": {
+        "group": "CRM", "label": "Observed / certified RSD ratio", "unit": "x",
+        "cuts": [1.0, 1.25, 1.5, 2.0, 3.0], "dir": "low",
+        "note": "R16: the laboratory's repeatability on a CRM against the "
+                "round robin that certified it. A ratio near 1 is the best a "
+                "laboratory can be expected to do; 1.5 is the action level."},
+
     "blank_fail": {
         "group": "BLANK", "label": "Blank failure rate %", "unit": "%",
         "cuts": [1.0, 2.0, 5.0, 10.0, 20.0], "dir": "low",
@@ -401,6 +408,12 @@ DEFAULT_CRITERIA = {
         "note": "The 5% per control class convention, i.e. one in twenty. "
                 "Below 2% the control population is too small to support any "
                 "statistical statement about the data."},
+    "insert_target": {
+        "group": "INSERTION", "label": "Insertion rate, % of the class target",
+        "unit": "%", "cuts": [100.0, 90.0, 75.0, 50.0, 25.0], "dir": "high",
+        "note": "Each control class against its own target (Rules, PROGRAMME): a "
+                "programme that meets its specification rates excellent; at 75 % "
+                "of the target it is still acceptable."},
 }
 
 DEFAULT_SETTINGS = {
@@ -625,6 +638,11 @@ _r("sys_min_crm", "CRM", "Systematic bias: minimum number of CRMs", "int", 2,
 _r("rsd_ratio", "CRM", "Observed / certified RSD ratio", "float", 1.5,
    "The laboratory repeats a CRM less well than the round robin that "
    "certified it when the ratio exceeds this.", 1.0, 5.0)
+_r("rsd_by_ratio", "CRM", "Rate CRM repeatability on observed / certified RSD",
+   "bool", True, "R16: the repeatability of a CRM is rated on the ratio of its "
+   "observed RSD to the RSD of its certificate; the absolute RSD is shown for "
+   "information. Off: rated on the absolute RSD as in 2.0. A certificate "
+   "without an SD falls back to the absolute RSD.")
 _r("cluster_frac", "CRM", "Failure clustering: share of failures", "float", 0.5,
    "Share of all CRM failures that falls in the worst batches.", 0.2, 1.0)
 _r("cluster_batches", "CRM", "Failure clustering: share of batches (%)",
@@ -635,8 +653,11 @@ _r("cusum_k", "CRM", "CUSUM reference value k (SD)", "float", 0.5,
 _r("cusum_h", "CRM", "CUSUM decision interval h (SD)", "float", 5.0,
    "Standard choice with k = 0.5.", 1.0, 20.0)
 _r("coverage_pcts", "CRM", "Grade percentiles the CRMs should cover", "list",
-   [10.0, 50.0, 90.0], "CRMs should bracket the low, median and high grade "
-   "of the routine samples.")
+   [10.0, 25.0, 50.0, 90.0], "CRMs should bracket the low, median and high grade "
+   "of the routine samples (R18: P10, P25, median, P90).")
+_r("coverage_band", "CRM", "Cut-off coverage: CRM within +/- % of the cut-off",
+   "float", 50.0, "R18: at least one CRM should be certified within this "
+   "distance of the cut-off grade set for the element.", 5.0, 200.0)
 
 # ---- blanks ----
 _r("carry_frac", "BLANK", "Carry-over: share of failures after high grade",
@@ -673,6 +694,15 @@ _r("ump_min_kdl", "DUPLICATE", "Check laboratory: minimum pair mean (x DL)",
    "float", 10.0, "Check / umpire pairs whose mean is below this multiple of "
    "the detection limit are left out of the inter-laboratory comparison. "
    "0 = keep every pair above the DL, as in 1.1.", 0.0, 100.0)
+_r("ins_by_target", "PROGRAMME", "Rate each control class against its own target",
+   "bool", True, "R15: each class is rated on its insertion rate as a share of its "
+   "own target below. Off: every class against the single 5 % convention (1.1).")
+for _k, _lab, _v in (("CRM", "CRM", 5.0), ("CBLANK", "coarse blank", 3.0),
+                     ("PBLANK", "pulp blank", 2.0), ("BLANK", "blank (type not given)", 5.0),
+                     ("FDUP", "field duplicate", 2.5), ("CDUP", "coarse duplicate", 2.5),
+                     ("PDUP", "pulp duplicate", 2.5), ("UMP", "umpire", 5.0)):
+    _r(f"ins_target_{_k}", "PROGRAMME", f"Insertion target: {_lab} (%)", "float", _v,
+       "Share of the samples submitted.", 0.1, 50.0)
 _r("crm_rate_uncertified", "CRM", "Rate the repeatability of uncertified CRMs",
    "bool", False, "Version 1.1 rated a CRM without a certified value on its "
    "repeatability alone. The project spec says such a CRM is not evaluated for "
@@ -709,7 +739,8 @@ _r("verdict_stages", "SEVERITY", "Stages where a critical finding blocks use",
    "A critical finding in one of these stages makes the verdict 'usable after "
    "remediation'. Allowed: " + ", ".join(STAGE_CHOICES))
 
-RULE_GROUPS = ["CLEANING", "CRM", "BLANK", "DUPLICATE", "BATCH", "SEVERITY"]
+RULE_GROUPS = ["CLEANING", "CRM", "BLANK", "DUPLICATE", "BATCH", "PROGRAMME",
+               "SEVERITY"]
 
 
 def _as_bool(v):

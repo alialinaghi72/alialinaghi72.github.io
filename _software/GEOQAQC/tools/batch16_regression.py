@@ -32,6 +32,7 @@ with open(os.path.join(inp, "crm_synthetic.csv"), "w", newline="", encoding="utf
 
 p = load_project(os.path.join(inp, "BATH16_synthetic.csv"), os.path.join(inp, "crm_synthetic.csv"))
 rb = RuleBook(); rb.el.set_method("Au_ppb", "FA"); rb.el.set_method("Cu_PPm", "TOTAL")
+rb.el.set("Cu_PPm", "upper", 1.0); rb.el.set("Cu_PPm", "upper_unit", "%")   # ICP limit (spec 4.1)
 F = FormulaBook(DEFAULT_FORMULAS); C = {k: dict(v) for k, v in DEFAULT_CRITERIA.items()}; S = dict(DEFAULT_SETTINGS)
 R = run_analysis(p, F, C, S, rb, log=lambda m: None)
 d = diagnose(p, R, C, S, rb)
@@ -72,7 +73,7 @@ checks = [
  ("3", "GBM922-12 step shift", "after result 3", f"after result {gbm['shift']['after']} (bias {gbm['shift']['bias_before']:.1f} % -> {gbm['shift']['bias_after']:.1f} %)", gbm["shift"] and gbm["shift"]["after"] == 3),
  ("3", "Drift finding", "none (5 results < 10)", "none" if not drift_crit else f"{len(drift_crit)}", not drift_crit),
  ("3", "Cu re-assay range", "start of batch -> 4th GBM922-12", f"{r_cu['from_sample']} .. {r_cu['to_sample']} ({r_cu['n_samples']}), bracket {r_cu['bracket_from']} -> {r_cu['bracket_to']}", r_cu["bracket_from"] == "(start of batch)" and r_cu["bracket_to"] == "STD-GBM-3"),
- ("3", "GBM922-12 above ICP upper limit", "flagged (R18)", "P1 (R18) - not in P0", None),
+ ("3", "GBM922-12 above ICP upper limit", "flagged (R18)", ", ".join(f"{l} {c:g}" for l, c in R["coverage"]["Cu_PPm"]["above_upper"]) or "not flagged", any("922" in l for l, _ in R["coverage"]["Cu_PPm"]["above_upper"]) and "CRM_ABOVE_UPPER" in {f.code for f in d.by_element("Cu_PPm")}),
  ("4", "OREAS906 Cu certificate", "0.310 %, not 0.259 %", "0.310 % (3100 ppm) - synthetic fixture test", True),
  ("4", "OREAS906 Mo 4.05 ppm", "monitoring only (< 10 x QC DL)", "MONITORING - synthetic fixture test", True),
  ("5", "Two '>5%' Cu values", "over-limit, listed for ore-grade re-assay", f"{len(ol)} finding, samples NLR-0060, NLR-0140" if ol else "missing", bool(ol)),

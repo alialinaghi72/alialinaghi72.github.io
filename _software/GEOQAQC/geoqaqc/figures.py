@@ -149,6 +149,29 @@ def _limits(C, key):
 # ===========================================================================
 #  CRM
 # ===========================================================================
+def _batch_marks(f, pts):
+    """R20: vertical lines where the batch changes, labelled with the batch.
+    Returns the number of batches."""
+    bs = [p.get("batch") for p in pts]
+    n = len(set(bs))
+    if n < 2:
+        return n
+    changes = [i for i in range(1, len(bs)) if bs[i] != bs[i - 1]]
+    for i in changes:
+        f.vline(i + 0.5, "muted", 0.9, "dot", None,
+                f"batch {bs[i]}" if len(changes) <= 20 else None)
+    return n
+
+
+def _running_mean(vals):
+    out, s, n = [], 0.0, 0
+    for v in vals:
+        if v is not None:
+            s, n = s + v, n + 1
+        out.append(s / n if n else None)
+    return out
+
+
 def fig_crm_control(rec, S):
     f = Figure(f"CRM control chart{SEP}{rec['crm']}{SEP}{rec['element']}",
                "Each result in analytical order against the certified value",
@@ -171,6 +194,10 @@ def fig_crm_control(rec, S):
         hi = max(ys + [cert + (kf + 0.8) * sd])
         f.set_range(yr=(lo, hi))
     f.line(xs, ys, "muted", 1.0)
+    if _batch_marks(f, pts) > 1:
+        rm = _running_mean(ys)
+        f.line([x for x, v in zip(xs, rm) if v is not None], [v for v in rm if v is not None],
+               "s2", 1.6, "dash", "cumulative mean")
     groups = {"ok": ([], [], []), "warn": ([], [], []), "crit": ([], [], [])}
     for x, p in zip(xs, pts):
         z = p["z"]
@@ -216,6 +243,10 @@ def fig_crm_bias(rec, S, C=None):
     if rec.get("bias") is not None:
         f.hline(rec["bias"], "s2", 1.8, None, "mean bias", f"mean {rec['bias']:+.2f} %")
     f.line(xs, ys, "muted", 1.0)
+    if _batch_marks(f, pts) > 1:
+        rm = _running_mean(ys)
+        f.line([x for x, v in zip(xs, rm) if v is not None], [v for v in rm if v is not None],
+               "s2", 1.6, "dash", "cumulative bias")
     f.points(xs, ys, "s1", label="result", ids=[p["sample"] for p in pts])
     return f
 
@@ -357,6 +388,10 @@ def fig_coverage(cov, el):
         f.line([], [], "s2", 1.4, label="certified value of a CRM")
     for pct_ in sorted(cov["pcts"]):
         f.hline(pct_, "muted", 0.8, "dot", None, f"P{pct_:g}")
+    if cov.get("cutoff"):
+        f.vline(cov["cutoff"], "warn", 1.6, "dash", None, "cut-off")
+    if cov.get("upper") is not None:
+        f.vline(cov["upper"], "crit", 1.2, "dot", None, "method upper limit")
     f.set_range(yr=(0, 100))
     return f
 
@@ -717,16 +752,26 @@ def fig_ump_ratio(rec, S):
 #  Programme-wide
 # ===========================================================================
 def fig_insertion(ins, S):
+    rows = [r for r in ins["rows"] if not r.get("info_only")]
+    targeted = any(r.get("target") for r in rows)
     f = Figure("Control sample insertion rates",
+               "Share of all submitted samples, against the target of each class"
+               if targeted else
                "Share of all submitted samples, against the 5 % convention", "",
                "insertion rate %")
-    rows = [r for r in ins["rows"] if not r.get("info_only")]
     xs = list(range(1, len(rows) + 1))
     hs = [r["pct"] or 0.0 for r in rows]
-    f.hline(5, "good", 1.2, "dash", None, "5 % convention")
+    if targeted:
+        tg = [r.get("target") or 0.0 for r in rows]
+        for x, t in zip(xs, tg):
+            f.line([x - 0.38, x + 0.38], [t, t], "good", 1.6, "dash")
+        f.note("dashed line: class target")
+    else:
+        tg = [5.0]
+        f.hline(5, "good", 1.2, "dash", None, "5 % convention")
     f.bars(xs, hs, [r["rating"] for r in rows], 0.55, texts=[f"{h:.1f} %" for h in hs])
     f.set_xticks(xs, [_TYPE_LABEL.get(r["type"], r["type"]) for r in rows])
-    f.set_range(yr=(0, max(hs + [6.5]) * 1.25))
+    f.set_range(yr=(0, max(hs + tg + [6.5]) * 1.25))
     return f
 
 

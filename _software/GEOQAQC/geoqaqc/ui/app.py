@@ -31,7 +31,9 @@ from ..figures import (fig_accuracy_curve, fig_batch_matrix, fig_blank,
                        fig_insertion, fig_source_matrix, fig_th, fig_th_curve,
                        fig_ump_bias_grade, fig_ump_qq, fig_ump_quartile, fig_ump_ratio,
                        fig_ump_scatter, figure_catalog)
-from ..loader import auto_table
+from ..loader import auto_table, map_table
+from ..project_mode import (BATCH_COL, SEQ_COL, SOURCE_COL, merge_assay_files,
+                            run_project)
 from ..model import Project, read_table
 from ..protocol import (DEFAULT_CRITERIA, DEFAULT_FORMULAS, DEFAULT_SETTINGS, RULES,
                         FormulaBook, FormulaError, RuleBook)
@@ -160,6 +162,8 @@ class App(tk.Tk):
                            command=lambda k=key: self.do_import(k))
             b.pack(fill="x", pady=2)
             self.step_btns[key] = b
+        ttk.Button(sf, text="  1+  Several batch files ...", style="Step.TButton",
+                   command=self.import_batches).pack(fill="x", pady=2)
         ttk.Label(sf, text="CSV, TXT or Excel (.xlsx). Only the assay table is required.",
                   style="Dim.TLabel", justify="left", wraplength=220).pack(anchor="w",
                                                                          pady=(4, 0))
@@ -568,30 +572,31 @@ class App(tk.Tk):
         bx = ttk.Frame(box, style="Panel.TFrame")      # its own grid, own widths
         bx.grid(row=len(cols) + 2, column=0, columnspan=16, sticky="w")
         r0 = 0
-        ttk.Label(bx, text="Blanks and carry-over", style="Sec.TLabel").grid(
+        ttk.Label(bx, text="Blanks, carry-over and CRM coverage", style="Sec.TLabel").grid(
             row=r0, column=0, columnspan=4, sticky="w", pady=(14, 2))
         for j, h in enumerate(["Column", "Blank warning", "unit", "Blank failure", "unit",
-                               "High-grade sample", "unit"]):
+                               "High-grade sample", "unit", "Cut-off grade", "unit"]):
             ttk.Label(bx, text=h, style="Sec.TLabel").grid(row=r0 + 1, column=j, sticky="w",
                                                             padx=2, pady=2)
         bunits = ["x DL"] + self._EL_UNITS[1:]
         for i, col in enumerate(cols, start=r0 + 2):
             pr = EB.profile(col)
             v = self.el_cfg_vars[col]
-            for key in ("blank_warn", "blank_fail", "high_grade"):
+            for key in ("blank_warn", "blank_fail", "high_grade", "cutoff"):
                 v[key] = tk.StringVar(value="" if pr[key] is None else f"{pr[key]:g}")
                 v[f"{key}_unit"] = tk.StringVar(value=pr[f"{key}_unit"])
             ttk.Label(bx, text=col).grid(row=i, column=0, sticky="w", padx=3)
-            for j, key in enumerate(("blank_warn", "blank_fail", "high_grade")):
+            for j, key in enumerate(("blank_warn", "blank_fail", "high_grade", "cutoff")):
                 ttk.Entry(bx, textvariable=v[key], width=6).grid(row=i, column=1 + 2 * j,
                                                                   padx=2)
                 ttk.Combobox(bx, textvariable=v[f"{key}_unit"], width=5, state="readonly",
-                             values=bunits if key != "high_grade" else self._EL_UNITS
+                             values=bunits if key.startswith("blank") else self._EL_UNITS
                              ).grid(row=i, column=2 + 2 * j, padx=2)
         r1 = r0 + 2 + len(cols)
         ttk.Label(bx, text="Blank limits as 'x DL' (times the QC DL) or an absolute value; empty "
                             "failure = 'Blank contamination limit' in Settings. An empty "
-                            "high-grade value uses the percentile rule.",
+                            "high-grade value uses the percentile rule. Cut-off grade: "
+                            "at least one CRM should be certified near it (R18).",
                   style="Dim.TLabel", wraplength=1100, justify="left").grid(
             row=r1, column=0, columnspan=16, sticky="w", pady=(6, 0))
         ttk.Label(box, text="Low: action for low-grade pairs; Outlier: action for outlier pairs. "
@@ -631,7 +636,7 @@ class App(tk.Tk):
             for key in ("low_action", "outlier_action", "outlier_preselect"):
                 EB.set(col, key, v[key].get())
             EB.set(col, "single_vote", bool(v["single_vote"].get()))
-            for key in ("blank_warn", "blank_fail", "high_grade"):
+            for key in ("blank_warn", "blank_fail", "high_grade", "cutoff"):
                 if key in v:
                     EB.set(col, key, num(v[key].get(), f"{col} {key}"))
                     EB.set(col, f"{key}_unit", v[f"{key}_unit"].get())
@@ -802,6 +807,13 @@ class App(tk.Tk):
                    command=lambda: self.generate_report(pdf=False, word=True, html=False)).pack(
             side="left")
         ttk.Button(bb, text="Open folder", command=self._open_out).pack(side="left", padx=6)
+        pb = ttk.Frame(root, style="Panel.TFrame")
+        pb.pack(fill="x", pady=4)
+        ttk.Button(pb, text="Project: combined + one report per batch",
+                   command=self.generate_project_reports).pack(side="left")
+        ttk.Label(pb, text="  Combined report with the batch x element acceptance matrix, "
+                           "and a report for every batch in a 'batches' sub-folder.",
+                  style="Dim.TLabel").pack(side="left")
         self.rep_lbl = tk.Label(root, text="", bg=BG1, fg=FG_DIM, font=MONO, anchor="w",
                                 justify="left")
         self.rep_lbl.pack(fill="x", pady=6)
@@ -895,6 +907,66 @@ class App(tk.Tk):
         self.project.clear_results()
         self.log(f"Imported {kind}: {dlg.result.name} -- {len(r)} rows, {len(h)} columns.")
         self._sync()
+
+    def import_batches(self, paths=None):
+        """R20: several batch files as one project. Columns are matched by
+        name; a file without a batch column is one batch named after it."""
+        if paths is None:
+            paths = filedialog.askopenfilenames(
+                parent=self, title="Select the batch files (in analytical order)",
+                filetypes=[("Tables", "*.csv *.txt *.tsv *.xlsx *.xlsm"), ("All files", "*.*")])
+        paths = list(paths or [])
+        if not paths:
+            return
+        try:
+            t = merge_assay_files(paths, log=self.log)
+        except Exception as ex:                          # noqa: BLE001
+            messagebox.showerror(APP_NAME, f"Could not read the batch files:\n{ex}",
+                                 parent=self)
+            return
+        map_table(t)
+        if SEQ_COL in t.header:
+            t.mapping["order"] = SEQ_COL
+        if BATCH_COL in t.header and not t.mapping.get("batch"):
+            t.mapping["batch"] = BATCH_COL
+        t.value_cols = [(c, k) for c, k in t.value_cols
+                        if c not in (SOURCE_COL, SEQ_COL, BATCH_COL)]
+        self.project.assay = t
+        self.project.clear_results()
+        self.log(f"Imported {len(paths)} batch file(s) as one project: {len(t.rows)} rows. "
+                 f"Check the mapping with '1. Assay / results' if needed.")
+        self._sync()
+
+    def generate_project_reports(self, folder=None, base=None, pdf=True, wait=False):
+        """R20: the combined report and one report per batch."""
+        if self._busy:
+            return None
+        if not self.project.assay:
+            if not wait:
+                messagebox.showinfo(APP_NAME, "Import the batch files first.", parent=self)
+            return None
+        folder = folder or self.out_dir.get()
+        base = (base or self.out_base.get() or "QAQC_report").strip()
+        if not os.path.isdir(folder):
+            messagebox.showwarning(APP_NAME, "Choose a valid output folder.", parent=self)
+            return None
+        meta = self._meta()
+        if not self.R:
+            self.log("Tip: run RUN QA/QC first so that the exclusion review decisions are "
+                     "saved; pairs still pending take their pre-set decision here.")
+
+        def work(progress):
+            res = run_project(self.project, self.F, self.C, self.S, self.RB, folder, base,
+                              meta, per_batch=True, pdf=pdf, log=progress)
+            n = len(res["batches"])
+            files = res["combined"][2] + [f for _, _, fs in res["batches"] for f in fs]
+            progress(f"Project reports written: combined + {n} batch report(s).")
+            return files
+
+        if wait:
+            return work(lambda m: None)
+        self._start_job("report", "Generating the project reports", work, self._report_done)
+        return None
 
     def load_files(self, assay, crm=None, umpire=None, pairs=None):
         """Load tables with the automatic mapping (the guesses the dialog pre-fills)."""

@@ -225,6 +225,19 @@ def export_results(project, F, C, S, RB, diagnosis, folder, base, log=print):
 
     _export_v2(project, R, F, C, S, RB, diagnosis, out)
     _export_p0(project, R, RB, out)
+    if diagnosis is not None and hasattr(diagnosis, "batch_matrix"):
+        border, bm = diagnosis.batch_matrix()
+        els = list(project.elements)
+        mx = []
+        for bt in border:
+            row = {"Batch": bt}
+            for el in els:
+                code, ra = bm[bt].get(el, ("NOT_ASSESSABLE", []))
+                row[el] = code
+                row[f"{el} re-assay samples"] = sum(r["n_samples"] for r in ra)
+            mx.append(row)
+        out("batch_matrix", mx, ["Batch"] + [k for el in els
+                                             for k in (el, f"{el} re-assay samples")])
 
     # ---- protocol: every formula, criterion, setting and rule actually used ----
     proto = []

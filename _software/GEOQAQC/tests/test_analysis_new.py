@@ -74,7 +74,8 @@ def test_coverage():
               "Au_ppm": "0.5"} for i in range(20)]
     _, R = analyse(rows, CU_CERTS, ("Cu_pct", "Au_ppm"))
     cov = R["coverage"]["Cu_pct"]
-    assert set(cov["pcts"]) == {10.0, 50.0, 90.0}
+    assert set(cov["pcts"]) == {10.0, 25.0, 50.0, 90.0}      # R18 adds P25
+    assert cov["gap_p25_p90"] is True                    # 0.283 below P25
     # only CRMs that were actually inserted count towards coverage
     assert cov["certs"] == [("OREAS-501b", pytest.approx(0.283))]
     assert cov["none_above_p90"] is True                 # P90 = 2.31 % Cu

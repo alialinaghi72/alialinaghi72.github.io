@@ -43,7 +43,30 @@ def test_demo_stage_attribution(dx):
     assert ag and "تناسبی" in ag[0].evidence_fa
     proj = {(f.code, f.subject) for f in d.findings if not f.element}
     assert ("DATA_SWAP", "") in {(c, "") for c, _ in proj}
-    assert any(c == "INS_RATE" and s == "COARSE DUP" for c, s in proj)
+    # R15: 2.46 % coarse duplicates meet the 2.5 % class target (98 %)
+    assert not any(c == "INS_RATE" and s == "COARSE DUP" for c, s in proj)
+
+
+def test_insertion_by_class_target_or_single_convention():
+    from geoqaqc.analysis import run_analysis
+    from geoqaqc.loader import load_project
+    from geoqaqc.protocol import DEFAULT_FORMULAS, FormulaBook
+    import os
+    from conftest import DATA
+    for by_target, expect in ((True, False), (False, True)):
+        p = load_project(*(os.path.join(DATA, f) for f in (
+            "demo_assay.csv", "demo_crm_certificates.csv", "demo_umpire.csv")))
+        rb = RuleBook()
+        rb.set("ins_by_target", by_target)
+        C = {k: dict(v) for k, v in DEFAULT_CRITERIA.items()}
+        S = dict(DEFAULT_SETTINGS)
+        R = run_analysis(p, FormulaBook(DEFAULT_FORMULAS), C, S, rb, log=lambda m: None)
+        d = diagnose(p, R, C, S, rb)
+        low = any(f.code == "INS_RATE" and f.subject == "COARSE DUP" for f in d.findings)
+        assert low is expect
+        rows = {r["type"]: r for r in R["insertion"]["rows"]}
+        if by_target:
+            assert rows["PULP BLANK"]["target"] == 2.0 and rows["CRM"]["target"] == 5.0
 
 
 def test_umpire_cross_check_names_the_primary_lab_for_ag(dx):

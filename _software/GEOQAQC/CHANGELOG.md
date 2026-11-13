@@ -1,5 +1,44 @@
 # Changelog
 
+## 2.1 (P1, second part) — 2026-11-13
+
+- **R15** Insertion rate per control class against its own target (rule
+  `ins_by_target`, on): CRM 5 %, coarse blank 3 %, pulp blank 2 %, field /
+  coarse / pulp duplicates 2.5 % each, umpire 5 % (information). Each class is
+  rated on rate / target (criterion `insert_target`); the report table and
+  the chart show the target of every class. Off: one 5 % convention as in 2.0.
+- **R16** CRM repeatability is rated on the ratio of the observed RSD to the
+  certified RSD (rule `rsd_by_ratio`, on; criterion `crm_rsd_ratio`, 1.5 is
+  the action level). The absolute RSD is shown for information. A
+  certificate without an SD falls back to the absolute RSD.
+- **R17** (verified, no change) A CRM certified below 10 x QC DL is
+  monitoring only; cumulative bias is rated from 10 results; Westgard rules
+  run per batch, 2-2s also across two CRMs of one batch.
+- **R18** CRM grade coverage per element: percentiles P10, P25, median, P90
+  of the routine samples and a new **cut-off grade** per element (Elements
+  page). New findings (Important, root "programme design"): no CRM between
+  P25 and P90; no CRM within +/-50 % of the cut-off (rule `coverage_band`);
+  a CRM certified above the upper limit of the routine method (e.g.
+  GBM922-12 at 1.40 % Cu against a 1 % ICP limit). The report adds a coverage
+  table; the chart marks the cut-off and the upper limit.
+- **R20** Project mode for many batches. "Several batch files ..." in the
+  workflow rail imports the batch files as one project: columns are matched
+  by name; a file without a batch column is one batch named after the file;
+  when the analytical order restarts from file to file a `PROJECT_SEQ`
+  column keeps the files in the order given (original columns unchanged;
+  `SOURCE_FILE` records the file of every row). Duplicates pair across
+  batches; parents still missing get suggestions (normalised ID, edit
+  distance <= 2) in `orphan_duplicates.csv`, never applied. "Project:
+  combined + one report per batch" (Report page) writes the combined report
+  and a report for every batch in a `batches` sub-folder. With more than one
+  batch the summary shows a **batch x element acceptance matrix** (accepted /
+  with conditions / rejected with the number of re-assay samples / not
+  assessable), also exported as `batch_matrix.csv`. CRM control and bias
+  charts mark the batch boundaries and draw the cumulative mean / cumulative
+  bias.
+- Finding texts on CRM repeatability and coverage use «نمونه استاندارد» for
+  CRM.
+
 ## 2.1 (P1, first part) — 2026-11-13
 
 - **R10** Acceptance limits per element: every criterion (the five rating

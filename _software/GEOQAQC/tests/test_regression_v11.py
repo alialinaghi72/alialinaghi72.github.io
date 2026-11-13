@@ -91,6 +91,8 @@ def test_v11_parity_cleaning_off():
             rb.set(k, False)
     rb.set("dup_min_kdl", 0)                  # 1.1 kept every pair above the DL
     rb.set("crm_rate_uncertified", True)      # 1.1 rated uncertified CRMs
+    rb.set("rsd_by_ratio", False)             # 1.1 rated the absolute RSD
+    rb.set("ins_by_target", False)            # 1.1: one 5 % convention
     rb.set("ump_min_kdl", 0)
     _, R = analyse(rb)
     got = _flat(R)

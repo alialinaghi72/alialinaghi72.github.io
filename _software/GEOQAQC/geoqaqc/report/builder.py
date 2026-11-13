@@ -187,6 +187,22 @@ def _summary(ctx, doc):
                      why, T.ranges_text(ranges) or "—"])
     ctx.table(doc, ["عنصر", "تصمیم", "دلیل", "بازهٔ آنالیز مجدد"], rows,
               "تصمیم پذیرش بچ به تفکیک عنصر (قواعد مشخصهٔ فنی)", widths=[12, 16, 34, 38])
+    border, bm = d.batch_matrix()
+    if len(border) > 1:
+        ctx.sub(doc, T.BATCH_MATRIX_TITLE)
+        doc.add(Para(T.BATCH_MATRIX_INTRO))
+        mrows = []
+        for bt in border:
+            row = [_ltr(bt)]
+            for el in p.elements:
+                code, ra = bm[bt].get(el, ("NOT_ASSESSABLE", []))
+                n = sum(r["n_samples"] for r in ra)
+                txt = T.BATCH_DECISION_FA[code] + (f" ({_n(n, 0)} نمونه)" if n else "")
+                row.append(Cell(txt, T.BATCH_DECISION_TONE[code]))
+            mrows.append(row)
+        ctx.table(doc, ["بچ"] + [_el(el) for el in p.elements], mrows,
+                  "ماتریس پذیرش بچ × عنصر (قواعد مشخصهٔ فنی)؛ عدد داخل پرانتز تعداد نمونه‌های "
+                  "بازهٔ آنالیز مجدد است")
     ctx.sub(doc, T.ADEQUACY_TITLE)
     doc.add(VerdictGrid([(T.el_fa(el), el, d.verdict(el)[0], d.counts(el))
                          for el in p.elements]))
@@ -275,11 +291,12 @@ def _programme(ctx, doc):
     if ins:
         rows = [[T.TYPE_FA.get(r["type"], r["type"]), _n(r["n"], 0), _p(r["pct"], 2),
                  (f"یک در {_n(r['every'], 0)}" if r.get("every") else "—"),
+                 (_p(r["target"], 1) if r.get("target") else "۵٪ (قرارداد)"),
                  Cell("برای اطلاع", "muted") if r.get("info_only") else _rating(r["rating"])]
                 for r in ins["rows"]]
-        ctx.table(doc, ["کلاس کنترلی", "تعداد", "نرخ درج", "تناوب", "رتبه"], rows,
+        ctx.table(doc, ["کلاس کنترلی", "تعداد", "نرخ درج", "تناوب", "هدف", "رتبه"], rows,
                   f"نرخ درج نمونه‌های کنترلی از {_n(ins['n_total'], 0)} نمونه")
-        ctx.figure(doc, "insertion", "نرخ درج هر کلاس کنترلی در برابر قرارداد پنج درصد")
+        ctx.figure(doc, "insertion", "نرخ درج هر کلاس کنترلی در برابر هدف آن کلاس")
     if R.get("batches"):
         ctx.figure(doc, "batches", "پذیرش بچ‌ها: وضعیت شاهدها و شاهدهای خالی در هر بچ")
     for f in [f for f in ctx.d.project_findings() if f.stage == "PROGRAMME"]:
@@ -333,7 +350,7 @@ def _el_accuracy(ctx, doc, el):
     for lab, r in recs:
         if r.get("status") == "NOT_CERTIFIED":
             rows.append([_ltr(lab), _n(r["n"], 0), "—", _n(r.get("obs_mean")), "—", "—",
-                         "—", Cell(T.NOT_CERTIFIED, "muted")])
+                         "—", "—", Cell(T.NOT_CERTIFIED, "muted")])
             continue
         if r.get("status") == "MONITORING":
             rating = Cell(T.MONITORING_ONLY.format(k=T.lim(ctx.RB["crm_min_kdl"], "")), "muted")
@@ -344,10 +361,15 @@ def _el_accuracy(ctx, doc, el):
             rating = _rating(r["rating"])
         rows.append([_ltr(lab), _n(r["n"], 0), _n(r.get("cert")), _n(r.get("obs_mean")),
                      _p(r.get("bias"), 2), _p(r.get("fail_pct"), 1),
-                     _p(r.get("rsd_pct"), 2), rating])
+                     _p(r.get("rsd_pct"), 2),
+                     (_n(r["rsd_ratio"], 2) if r.get("rsd_ratio") is not None else "—"),
+                     rating])
     ctx.table(doc, ["نمونه استاندارد", "تعداد", "مقدار گواهی", "میانگین", "بایاس",
-                    "بیرون از حد عمل", "انحراف معیار نسبی", "رتبه"], rows,
+                    "بیرون از حد عمل", "انحراف معیار نسبی", "نسبت به گواهی", "رتبه"], rows,
               f"نتایج نمونه‌های استاندارد برای {_el(el)}")
+    if ctx.RB["rsd_by_ratio"]:
+        doc.add(Para(T.RSD_RATIO_NOTE.format(
+            k=T.lim(ctx.RB["rsd_ratio"], ""))))
     used = [c for c in certificate_rows(ctx.project) if c["column"] == el]
     if used:
         ctx.table(doc, ["نمونه استاندارد", "ردیف گواهی", "عنصر در گواهی", "روش", "مقدار",
@@ -376,7 +398,28 @@ def _el_accuracy(ctx, doc, el):
         if worst:
             ctx.figure(doc, f"crm/{worst['crm']}/{el}/batch",
                        f"بایاس شاهد {worst['crm']} در هر بچ")
-    ctx.figure(doc, f"coverage/{el}", f"پوشش دامنهٔ عیار {T.el_fa(el)} با شاهدها")
+    cov = R.get("coverage", {}).get(el)
+    if cov and cov.get("certs"):
+        def _yes(flag):
+            return Cell("ندارد", "fail") if flag else Cell("دارد", "ok")
+        rows = [["صدک ۱۰ تا ۹۰", f"{_n(cov['pcts'].get(10.0))} تا {_n(cov['p90'])}",
+                 _yes(cov["none_above_p90"] or cov["none_below_p10"])],
+                ["صدک ۲۵ تا ۹۰ (دامنهٔ اقتصادی)", f"{_n(cov['p25'])} تا {_n(cov['p90'])}",
+                 _yes(cov["gap_p25_p90"])]]
+        if cov.get("cutoff"):
+            rows.append([f"عیار حد ±{T.lim(cov['band_pct'])}", _n(cov["cutoff"]),
+                         _yes(cov["no_cutoff_crm"])])
+        else:
+            rows.append(["عیار حد", "تعریف نشده", Cell("ارزیابی نشد", "muted")])
+        if cov.get("upper") is not None:
+            rows.append(["زیر حد بالای روش", _n(cov["upper"]),
+                         Cell(f"{_n(len(cov['above_upper']), 0)} بالاتر از حد", "fail")
+                         if cov["above_upper"] else Cell("همه زیر حد", "ok")])
+        ctx.table(doc, ["بازه", f"عیار ({_ltr(cov.get('unit') or '—')})",
+                        "نمونه استاندارد در بازه"], rows,
+                  f"پوشش عیاری نمونه‌های استاندارد {_el(el)}")
+    ctx.figure(doc, f"coverage/{el}",
+               f"پوشش دامنهٔ عیار {T.el_fa(el)} با نمونه‌های استاندارد")
 
 
 def _el_contamination(ctx, doc, el):

@@ -122,3 +122,35 @@ def test_preset_and_element_criteria_scope(app):
     assert criteria_for(app.C, app.RB, "Cu_pct")["pdup_hard90"]["cuts"][2] == 6
     assert criteria_for(app.C, app.RB, "Au_ppm")["pdup_hard90"]["cuts"][2] == 15
     app.RB.el.reset()
+
+
+def test_project_mode_from_the_interface(tmp_path):
+    """R20: several batch files imported at once, combined + per-batch reports."""
+    import csv
+    from geoqaqc.ui.app import App
+    src = os.path.join(DATA, "demo_assay.csv")
+    with open(src, encoding="utf-8-sig") as fh:
+        rows = list(csv.reader(fh))
+    head, body = rows[0], rows[1:]
+    half = len(body) // 2
+    paths = []
+    for name, part in (("A", body[:half]), ("B", body[half:])):
+        p = tmp_path / f"{name}.csv"
+        with open(p, "w", newline="", encoding="utf-8") as fh:
+            w = csv.writer(fh)
+            w.writerow(head)
+            w.writerows(part)
+        paths.append(str(p))
+    a = App()
+    a.withdraw()
+    try:
+        a.load_files(paths[0], os.path.join(DATA, "demo_crm_certificates.csv"))
+        a.import_batches(paths)
+        assert len(a.project.assay.rows) == len(body)
+        out = tmp_path / "out"
+        out.mkdir()
+        files = a.generate_project_reports(str(out), "proj", pdf=False, wait=True)
+        assert files and any(f.endswith("proj.html") for f in files)
+        assert os.path.isdir(out / "batches")
+    finally:
+        a.destroy()

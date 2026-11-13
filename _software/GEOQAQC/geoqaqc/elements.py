@@ -91,6 +91,7 @@ DEFAULT_PROFILE = {
     "blank_warn": None, "blank_warn_unit": "x DL",   # R12: x QC DL or absolute
     "blank_fail": None, "blank_fail_unit": "x DL",
     "high_grade": None, "high_grade_unit": "",       # R13: carry-over predecessor
+    "cutoff": None, "cutoff_unit": "",               # R18: cut-off grade for coverage
     "cv_avg_limit": {},                       # CV_avg limit per class (spec 4.4)
     "umpire_limit": {},                       # mean difference, RMA slope (4.5)
 }
@@ -161,6 +162,10 @@ class ElementBook:
 
     def high_grade(self, column, unit):
         return self._abs(column, unit, "high_grade", None)
+
+    def cutoff(self, column, unit):
+        """Cut-off grade in the column's unit, or None (R18)."""
+        return self._abs(column, unit, "cutoff", None)
 
     def upper(self, column, unit):
         p = self.profile(column)

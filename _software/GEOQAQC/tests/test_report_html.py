@@ -143,3 +143,29 @@ def test_report_states_pairs_left_out_below_ten_dl(tmp_path):
     write_html(_run(p, R), str(path))
     h = path.read_text(encoding="utf-8")
     assert "کمتر از ۱۰ برابر حد تشخیص" in h and "۴ جفت" in h
+
+
+def test_no_report_section_fails(demo_html):
+    """A section that raises is isolated with a red callout; none may in the demo."""
+    assert texts_fa.SECTION_ERROR not in demo_html
+
+
+def test_no_section_fails_on_batch16_fixture(tmp_path):
+    import batch16 as B
+    from conftest import make_project as mk
+    p, _ = mk(B.rows(), B.CERTS, B.ELS)
+    rb = RuleBook()
+    rb.el.set_method("Au_ppb", "FA")
+    rb.el.set_method("Cu_PPm", "TOTAL")
+    rb.el.set("Cu_PPm", "upper", 1.0)
+    rb.el.set("Cu_PPm", "upper_unit", "%")
+    F = FormulaBook(DEFAULT_FORMULAS)
+    C = {k: dict(v) for k, v in DEFAULT_CRITERIA.items()}
+    S = dict(DEFAULT_SETTINGS)
+    R = run_analysis(p, F, C, S, rb, log=lambda m: None)
+    d = diagnose(p, R, C, S, rb)
+    errs = []
+    doc = build_report(p, R, d, META, F, C, S, rb, log=errs.append)
+    h = write_html(doc, str(tmp_path / "b16.html"))
+    assert not [e for e in errs if "failed" in e], errs[:1]
+    assert "بالاتر از حد بالای روش" in open(h, encoding="utf-8").read()
