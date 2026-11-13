@@ -43,6 +43,8 @@ TINT = {"ok": ("E5F4E5", "0B8A0B"), "warn": ("FFF3D1", "8A5E00"),
 SOLID = {"ok": "0B8A0B", "warn": "B07A00", "material": "B5532C", "critical": "B42424",
          "muted": "6B7280"}
 _VERDICT_TONE = {"SUITABLE": "ok", "RESTRICTED": "warn", "REMEDIATE": "critical"}
+_DECISION_SOLID = {"ACCEPTED": "ok", "CONDITIONAL": "warn", "REJECTED": "critical",
+                   "NOT_ASSESSABLE": "muted"}
 _SEV_TONE = {"CRITICAL": "critical", "MATERIAL": "material", "MINOR": "warn"}
 CONTENT_W = 178.0                       # mm between the side margins
 
@@ -359,35 +361,36 @@ class _DW:
             self.cell_text(cell, k, size=8.5, color=MUTED)
             self.para(cell, v, size=11.5, bold=True, after=2)
         self.para(self.d, "", after=8)
-        order = ["REMEDIATE", "RESTRICTED", "SUITABLE"]
-        worst = min((c_ for _, _, c_ in b.verdicts), key=order.index, default="SUITABLE")
-        n_worst = sum(1 for _, _, c_ in b.verdicts if c_ == worst)
-        status = (T.VERDICT_FA[worst] if worst == "SUITABLE"
-                  else f"{T.VERDICT_FA[worst]} برای {fa_num(n_worst, 0)} عنصر")
-        avg = T.RATING_FA.get(b.rating, b.rating) + (
-            f" ({fa_num(b.score, 0)} از ۱۰۰)" if b.score is not None else "")
+        order = ["REJECTED", "CONDITIONAL", "NOT_ASSESSABLE", "ACCEPTED"]
+        worst = min((c_ for _, _, c_ in b.decisions), key=order.index, default="ACCEPTED")
+        n_worst = sum(1 for _, _, c_ in b.decisions if c_ == worst)
+        status = (T.BATCH_DECISION_FA[worst] if worst == "ACCEPTED"
+                  else f"{T.BATCH_DECISION_FA[worst]} برای {fa_num(n_worst, 0)} عنصر")
         st = self.table(1, 1 + len(b.stats), [70] + [(CONTENT_W - 70) / max(1, len(b.stats))]
                         * len(b.stats))
         badge = st.cell(0, 0)
-        _shade(badge, SOLID[_VERDICT_TONE[worst]])
-        self.cell_text(badge, "وضعیت کلی", size=8.5, color="FFFFFF")
+        _shade(badge, SOLID[_DECISION_SOLID[worst]])
+        self.cell_text(badge, T.DECISION_TITLE, size=8.5, color="FFFFFF")
         self.para(badge, status, size=14, bold=True, color="FFFFFF", after=2)
-        self.para(badge, f"میانگین وزنی رتبه‌ها: {avg}", size=8.5, color="FFFFFF", after=2)
         for j, (k, v) in enumerate(b.stats, start=1):
             cell = st.cell(0, j)
             self.cell_text(cell, v, bold=True, size=16, color=NAVY, align="center")
             self.para(cell, k, size=8.5, color=MUTED, align="center", after=2)
         _borders(st, "FFFFFF", inside_h=False)
-        self.para(self.d, "حکم کفایت داده به تفکیک عنصر", style="Heading 3", before=14)
-        chips = self.table(1, len(b.verdicts) or 1,
-                           [CONTENT_W / max(1, len(b.verdicts))] * max(1, len(b.verdicts)))
-        for j, (el, name, code) in enumerate(b.verdicts):
-            cell = chips.cell(0, j)
-            bg, fg = TINT[_VERDICT_TONE[code]]
-            _shade(cell, bg)
-            self.cell_text(cell, f"{name}: {T.VERDICT_FA[code]}", bold=True, size=9.5,
-                           color=fg, align="center")
-        _borders(chips, "FFFFFF", inside_h=False, size=12)
+        for title, items, fa, tone in (
+                (T.DECISION_TITLE + " به تفکیک عنصر", b.decisions, T.BATCH_DECISION_FA,
+                 lambda c: _DECISION_SOLID[c]),
+                (T.ADEQUACY_TITLE, b.verdicts, T.VERDICT_FA, lambda c: _VERDICT_TONE[c])):
+            self.para(self.d, title, style="Heading 3", before=14)
+            chips = self.table(1, len(items) or 1,
+                               [CONTENT_W / max(1, len(items))] * max(1, len(items)))
+            for j, (el, name, code) in enumerate(items):
+                cell = chips.cell(0, j)
+                bg, fg = TINT[tone(code)]
+                _shade(cell, bg)
+                self.cell_text(cell, f"{name}: {fa[code]}", bold=True, size=9.5,
+                               color=fg, align="center")
+            _borders(chips, "FFFFFF", inside_h=False, size=12)
         self.para(self.d, "", after=60)
         self.para(self.d, f"{m.author}" + (f" — {m.author_title}" if m.author else "")
                   + f"      تهیه‌شده با نرم‌افزار {APP_NAME} {APP_VER}", size=8.5,
@@ -526,7 +529,8 @@ class _DW:
         tone = _SEV_TONE[f.severity]
         p = self.para(head, "", after=1)
         self.runs(p, T.SEVERITY_FA[f.severity], bold=True, size=9, color=TINT[tone][1])
-        self.runs(p, f"   ·   {T.STAGE_FA[f.stage]}   ·   مسئول: "
+        self.runs(p, f"   ·   {T.STAGE_FA[f.stage]}   ·   منشأ ریشه‌ای: "
+                     f"{T.ROOT_FA.get(getattr(f, 'root', ''), '')}   ·   مسئول: "
                      f"{T.OWNER_FA.get(f.owner, f.owner)}   ·   "
                      f"{T.TIMING_FA.get(f.timing, f.timing)}", size=9, color=INK2)
         p = body.paragraphs[0]

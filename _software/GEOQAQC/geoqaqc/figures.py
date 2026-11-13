@@ -739,9 +739,10 @@ def fig_error_budget(budget, elements):
     f = Figure("Error budget by stage of the sample chain",
                "Share of the total relative variance carried by each stage", "",
                "% of total variance")
-    els = [el for el in elements if budget.get(el) and budget[el]["pct"]]
+    els = [el for el in elements if budget.get(el) and budget[el].get("estimable")]
     if not els:
-        f.note("needs at least two duplicate classes with enough pairs")
+        f.note("not estimable: needs two duplicate classes with enough pairs and "
+               "a positive variance difference")
         return f
     order = ["sampling", "sampling+preparation", "preparation",
              "preparation+analytical", "analytical"]
@@ -869,7 +870,8 @@ def figure_catalog(project, R, diagnosis, S, C, RB=None):
         put(f"{base}/cusum", fig_crm_cusum, rec, S, RB)
         put(f"{base}/batch", fig_crm_batch, rec, S, C)
     for el, dr in R.get("drift", {}).items():
-        put(f"drift/{el}", fig_crm_drift, dr, el, S, C)
+        if not dr.get("insufficient"):
+            put(f"drift/{el}", fig_crm_drift, dr, el, S, C)
     for el, acc in R.get("accuracy", {}).items():
         if acc["n_crm"] >= 2:
             put(f"accuracy/{el}", fig_accuracy_curve, acc, el)

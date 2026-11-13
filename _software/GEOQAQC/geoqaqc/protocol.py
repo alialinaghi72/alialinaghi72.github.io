@@ -588,6 +588,29 @@ _r("mispair_frac", "CLEANING", "C16 share of elements that must disagree",
    "threshold.", 0.34, 1.0)
 
 # ---- CRM diagnosis ----
+_r("drift_min_crm", "CRM", "Drift test: minimum results per CRM", "int", 10,
+   "Below this the trend of a single CRM is not tested: 'insufficient data for "
+   "a trend test'. A trend is never rated critical.", 3, 100)
+_r("drift_min_pooled", "CRM", "Drift test: minimum results, all CRMs pooled", "int",
+   15, "Below this the laboratory drift (all CRMs of an element together) is not "
+   "tested.", 3, 200)
+_r("shift_p", "CRM", "Step shift: significance level", "float", 0.01,
+   "Two-segment mean shift in the z-scores of one CRM: the best split is tested "
+   "with a t-test at this level, and must explain the series better than a "
+   "straight trend.", 0.0001, 0.1)
+_r("shift_min_sd", "CRM", "Step shift: minimum size (SD)", "float", 2.0,
+   "A shift smaller than this many certified SD is not reported.", 0.5, 10.0)
+_r("crm_min_kdl", "CRM", "CRM evaluated from (x QC DL)", "float", 10.0,
+   "A CRM whose certified value is below this multiple of the QC reference DL "
+   "(or of the laboratory DL when no QC DL is set) is monitoring only: plotted, "
+   "not rated, no findings and no batch rejection.", 0.0, 100.0)
+_r("bias_min_n", "CRM", "Cumulative bias: minimum results to rate", "int", 10,
+   "Below this the cumulative bias of a CRM is reported as 'insufficient results "
+   "for a cumulative rating', with no severity.", 2, 100)
+_r("bias_cond", "CRM", "Cumulative bias: conditional above (%)", "float", 5.0,
+   "Absolute cumulative bias of a CRM above this is an Important finding.", 0.5, 50.0)
+_r("bias_fail", "CRM", "Cumulative bias: unacceptable above (%)", "float", 10.0,
+   "Absolute cumulative bias of a CRM above this is a Critical finding.", 1.0, 100.0)
 _r("drift_p", "CRM", "Drift: significance level", "float", 0.05,
    "p-value of the regression of bias on sequence below which a trend is "
    "considered real.", 0.001, 0.2)
@@ -656,6 +679,10 @@ _r("crm_rate_uncertified", "CRM", "Rate the repeatability of uncertified CRMs",
    "that element (R2); switch on only to reproduce 1.1.")
 _r("split_p", "DUPLICATE", "Splitting bias: significance level", "float", 0.05,
    "p-value of the paired t-test on ln(original/duplicate).", 0.001, 0.2)
+_r("budget_min_pairs", "DUPLICATE", "Error budget: minimum pairs per class", "int",
+   30, "A duplicate class with fewer pairs does not enter the error budget. A "
+   "negative variance difference is reported as 'not estimable', never as 0 %.",
+   5, 500)
 _r("budget_dominant", "DUPLICATE", "Error budget: dominant stage share (%)",
    "float", 50.0, "A stage carrying more than this share of the total "
    "variance is named as the main source of error.", 30.0, 90.0)

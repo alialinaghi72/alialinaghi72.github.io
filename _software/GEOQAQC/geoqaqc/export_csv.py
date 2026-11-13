@@ -308,20 +308,29 @@ def _export_v2(project, R, F, C, S, RB, diagnosis, out):
                 if k not in keys:
                     keys.append(k)
         out("error_budget", eb, keys)
-    bs, ra = [], []
+    bs, ra, rl = [], [], []
     for el, b in R.get("batches", {}).items():
         for r in b["rows"]:
             bs.append({"Element": el, "Batch": r["batch"], "Samples": r["n"],
                        "CRM": r["crm_status"], "Blank": r["blank_status"],
                        "Status": r["status"], "Reasons": " | ".join(r["reasons"])})
         for r in b["reassay"]:
-            ra.append({"Element": el, "CRM": r["crm"], "Failed CRM sample": r["failed_sample"],
+            ra.append({"Element": el, "Control": r.get("control", "CRM"), "CRM": r["crm"],
+                       "Failed control sample": r["failed_sample"],
                        "Rule": r["rule"], "Batch": r["batch"], "From sample": r["from_sample"],
-                       "To sample": r["to_sample"], "Samples to re-assay": r["n_samples"]})
+                       "To sample": r["to_sample"], "Samples": r["n_samples"],
+                       "Bracketed by": f"{r.get('bracket_from', '')} -> {r.get('bracket_to', '')}",
+                       "Remedy": r.get("remedy", "")})
+            for sid in r.get("samples", []):
+                rl.append({"Element": el, "Sample": sid, "Batch": r["batch"],
+                           "Remedy": r.get("remedy", ""), "Failed control": r["failed_sample"],
+                           "Rule": r["rule"]})
     out("batch_status", bs, ["Element", "Batch", "Samples", "CRM", "Blank", "Status",
                              "Reasons"])
-    out("reassay_ranges", ra, ["Element", "CRM", "Failed CRM sample", "Rule", "Batch",
-                               "From sample", "To sample", "Samples to re-assay"])
+    out("reassay_ranges", ra, ["Element", "Control", "CRM", "Failed control sample", "Rule",
+                               "Batch", "From sample", "To sample", "Samples", "Bracketed by",
+                               "Remedy"])
+    out("reassay_list", rl, ["Element", "Sample", "Batch", "Remedy", "Failed control", "Rule"])
     ac = []
     for el, a in R.get("accuracy", {}).items():
         for p in a["points"]:
@@ -334,9 +343,11 @@ def _export_v2(project, R, F, C, S, RB, diagnosis, out):
     out("accuracy_curve", ac, ["Element", "CRM", "Certified", "Mean measured", "n",
                                "Bias %", "Slope", "Intercept", "Proportional bias %",
                                "p (slope = 1)"])
-    dr = [{"Element": el, "n": d["n"], "CRMs": d["n_crm"], "Slope % per result": _r(d["slope"], 5),
-           "Change over series %": _r(d["total"], 3), "p": _r(d["p"], 5),
-           "Significant": _flag(d["sig"])} for el, d in R.get("drift", {}).items()]
+    dr = [{"Element": el, "n": d["n"], "CRMs": d.get("n_crm"),
+           "Slope % per result": _r(d.get("slope"), 5),
+           "Change over series %": _r(d.get("total"), 3), "p": _r(d.get("p"), 5),
+           "Significant": "insufficient data" if d.get("insufficient") else _flag(d["sig"])}
+          for el, d in R.get("drift", {}).items()]
     out("crm_drift", dr, ["Element", "n", "CRMs", "Slope % per result",
                           "Change over series %", "p", "Significant"])
 

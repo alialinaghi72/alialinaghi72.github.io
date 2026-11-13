@@ -41,7 +41,7 @@ TITLE_EN = {
     "CRM_BIAS": "CRM bias", "CRM_SYSTEMATIC": "Systematic laboratory bias",
     "CRM_DRIFT": "Laboratory drift", "CRM_FAIL": "CRM failures",
     "CRM_CLUSTER": "CRM failures clustered in batches",
-    "CRM_RSD": "Poor repeatability on CRM", "CRM_NOCERT": "CRM without certificate",
+    "CRM_RSD": "Poor repeatability on CRM", "CRM_SHIFT": "Step shift of a CRM", "CRM_NOCERT": "CRM without certificate",
     "CRM_COVERAGE": "CRMs do not cover the grade range",
     "BLK_FAIL": "Blank failures", "BLK_CARRY": "Carry-over contamination",
     "BLK_MATERIAL": "Blank material not barren",
@@ -146,6 +146,47 @@ class Diagnosis:
         minor = [f.title_fa for f in own if f.severity == "MINOR"][:3]
         return "SUITABLE", T.verdict_text("SUITABLE", el, minor)
 
+    def decision(self, el):
+        """Batch decision of an element from the spec rules (C), independent of
+        the findings' stages: ('ACCEPTED' | 'CONDITIONAL' | 'REJECTED' |
+        'NOT_ASSESSABLE', [reasons], [re-assay ranges])."""
+        R = getattr(self, "R", None) or {}
+        b = R.get("batches", {}).get(el) or {}
+        fail_rules = set(self.RB["batch_fail_rules"])
+        warn_rules = set(self.RB["batch_warn_rules"])
+        pts = b.get("crm_points", [])
+        ranges = b.get("reassay", [])
+        reasons = []
+        crm_fail = [x for x in pts if x[3] & fail_rules]
+        blank_fail = [r for r in ranges if r["control"] != "CRM"]
+        if crm_fail:
+            labs = sorted({x[2] for x in crm_fail})
+            reasons.append("CRM failure (" + ", ".join(
+                f"{lab} {'/'.join(sorted(set().union(*[x[3] & fail_rules for x in crm_fail if x[2] == lab])))}"
+                for lab in labs) + ")")
+        if blank_fail or any(r.get("blank_status") == "FAIL" for r in b.get("rows", [])):
+            reasons.append("blank failure")
+        if reasons:
+            return "REJECTED", reasons, ranges
+        if not pts:
+            return "NOT_ASSESSABLE", ["no result of a CRM certified for this element"], []
+        cond = []
+        if [x for x in pts if x[3] & warn_rules]:
+            cond.append("CRM result between the warning and action limits")
+        for f in self.by_element(el):
+            if f.code in ("CRM_BIAS", "CRM_SYSTEMATIC") and f.severity == "MATERIAL":
+                cond.append("cumulative CRM bias between the conditional and unacceptable "
+                            "limits")
+            elif f.code == "OVER_LIMIT":
+                cond.append("over-limit results waiting for ore-grade re-assay")
+            elif f.code == "CRM_SHIFT":
+                cond.append("step shift of a CRM")
+        if [a for a in (getattr(self, "L", None) or []) if a.element == el]:
+            cond.append("spreadsheet errors in the results")
+        if cond:
+            return "CONDITIONAL", sorted(set(cond)), []
+        return "ACCEPTED", [], []
+
     def matrix(self):
         """{element: {stage: worst severity or None}}. Project-wide findings
         (programme design, data management) apply to every element."""
@@ -171,6 +212,9 @@ class Diagnosis:
 def diagnose(project, results, C, S, RB):
     R = results
     d = Diagnosis(project.elements, RB)
+    d.R, d.S = R, S
+    d.L = [a for a in (project.clean_log.actions if project.clean_log else [])
+           if a.rule == "C19"]
     sev = lambda rating: severity_from_rating(rating, RB)     # noqa: E731
     for el in project.elements:
         _crm(d, el, R, C, S, RB, sev)
@@ -185,7 +229,7 @@ def diagnose(project, results, C, S, RB):
 # ---- accuracy ----------------------------------------------------------------
 def _crm(d, el, R, C, S, RB, sev):
     recs = [r for (lab, e), r in sorted(R.get("crm", {}).items())
-            if e == el and r.get("cert") is not None]
+            if e == el and r.get("cert") is not None and r.get("status") != "MONITORING"]
     rated = [r for r in recs if r["ratings"].get("crm_bias")]
     nocert = sorted({r["crm"] for (lab, e), r in R.get("crm", {}).items()
                      if e == el and r.get("cert") is None})
@@ -201,11 +245,19 @@ def _crm(d, el, R, C, S, RB, sev):
         return
     figs = [f"crm/{r['crm']}/{el}" for r in recs]
 
+    # cumulative bias (spec 4.2): rated only from bias_min_n results; above
+    # bias_fail Critical, above bias_cond Important. Fewer results: no finding
+    rated = [r for r in recs if r["bias"] is not None and r["n"] >= RB["bias_min_n"]]
+
+    def bias_sev(b):
+        a_ = abs(b)
+        return ("CRITICAL" if a_ > RB["bias_fail"] else
+                "MATERIAL" if a_ > RB["bias_cond"] else None)
+
     # systematic bias: several CRMs, same sign, each beyond sys_bias
     systematic = False
     for sign in (1, -1):
-        grp = [r for r in rated if r["bias"] is not None
-               and r["bias"] * sign >= RB["sys_bias"]]
+        grp = [r for r in rated if r["bias"] * sign >= RB["sys_bias"]]
         if len(grp) >= RB["sys_min_crm"] and len(grp) * 2 > len(rated):
             systematic = True
             mb = mean([r["bias"] for r in grp])
@@ -216,9 +268,8 @@ def _crm(d, el, R, C, S, RB, sev):
                 const_pct = abs(acc["const_bias"] or 0.0) / mc * 100.0
                 if abs(acc["prop_bias_pct"]) >= const_pct:
                     kind = "proportional"
-            s = _worst(sev(rate(abs(mb), C["crm_bias"])),
-                       *[sev(r["ratings"].get("crm_bias")) for r in grp]) or "MINOR"
-            d.add("CRM_SYSTEMATIC", el, "ACCURACY", s,
+            s_ = _worst(bias_sev(mb), *[bias_sev(r["bias"]) for r in grp]) or "MINOR"
+            d.add("CRM_SYSTEMATIC", el, "ACCURACY", s_,
                   T.f_CRM_SYSTEMATIC(el, len(grp), len(rated),
                                      [r["crm"] for r in grp], mb, kind,
                                      acc.get("b") or 1.0, acc.get("a") or 0.0,
@@ -226,37 +277,52 @@ def _crm(d, el, R, C, S, RB, sev):
                                      1.0 / (1.0 + mb / 100.0)),
                   "LAB", "IMMEDIATE", figs + [f"accuracy/{el}"])
     if not systematic:
-        bad = [r for r in rated if sev(r["ratings"].get("crm_bias"))]
+        bad = [r for r in rated if bias_sev(r["bias"])]
         if bad:
             w = max(bad, key=lambda r: abs(r["bias"]))
-            d.add("CRM_BIAS", el, "ACCURACY",
-                  _worst(*[sev(r["ratings"]["crm_bias"]) for r in bad]),
+            d.add("CRM_BIAS", el, "ACCURACY", _worst(*[bias_sev(r["bias"]) for r in bad]),
                   T.f_CRM_BIAS(el, w["crm"], w["bias"], w["n"],
                                [r["crm"] for r in bad], len(rated)),
                   "LAB", "IMMEDIATE", figs)
 
+    # a trend is investigated, never a reason for automatic rejection (spec
+    # 4.2); it is tested only from drift_min_pooled results (R6)
     dr = R.get("drift", {}).get(el)
-    if dr and dr["sig"]:
+    if dr and dr.get("sig") and not dr.get("insufficient"):
         d.add("CRM_DRIFT", el, "ACCURACY",
-              sev(rate(abs(dr["total"]), C["crm_bias"])) or "MINOR",
+              "MATERIAL" if abs(dr["total"]) >= RB["bias_cond"] else "MINOR",
               T.f_CRM_DRIFT(el, dr["total"], dr["n"], dr["p"], dr["n_crm"]),
               "LAB", "IMMEDIATE", [f"drift/{el}"])
 
-    # failures beyond the action limit
-    zrecs = [r for r in recs if r.get("fail_pct") is not None
-             and r["n"] >= S["min_crm"]]
-    n = sum(r["n"] for r in zrecs)
-    fails = [p for r in zrecs for p in r["failures"]]
-    if n:
-        fp = 100.0 * len(fails) / n
-        s_fail = sev(rate(fp, C["crm_fail"]))
-        ra = R.get("batches", {}).get(el, {}).get("reassay", [])
-        if s_fail:
-            d.add("CRM_FAIL", el, "ACCURACY", s_fail,
-                  T.f_CRM_FAIL(el, len(fails), n, fp, S["k_fail"], len(ra),
-                               sum(x["n_samples"] for x in ra)),
-                  "LAB", "IMMEDIATE", [f"batches/{el}"])
-            _cluster(d, el, fails, R, RB, s_fail)
+    # step shifts of one CRM (R6)
+    for r in recs:
+        sh = r.get("shift")
+        if sh:
+            d.add("CRM_SHIFT", el, "ACCURACY", "MATERIAL",
+                  T.f_CRM_SHIFT(el, r["crm"], sh["after"], sh["n"], sh["bias_before"],
+                                sh["bias_after"], crm_pattern(r, S)),
+                  "LAB", "IMMEDIATE", [f"crm/{r['crm']}/{el}"], subject=r["crm"])
+
+    # failures by the spec rules (1-3s, 2-2s on one CRM or two CRMs of a batch):
+    # Critical, with the re-assay ranges (B)
+    b_ = R.get("batches", {}).get(el, {})
+    fail_rules = set(RB["batch_fail_rules"])
+    failed = [x for x in b_.get("crm_points", []) if x[3] & fail_rules]
+    if failed:
+        ra = [x for x in b_.get("reassay", []) if x["control"] == "CRM"]
+        per = []
+        for lab in sorted({x[2] for x in failed}):
+            rec = next((r for r in recs if r["crm"] == lab), None)
+            rules = sorted(set().union(*[x[3] & fail_rules for x in failed if x[2] == lab]))
+            per.append((lab, rules, crm_pattern(rec, S) if rec else ""))
+        n_all = len(b_.get("crm_points", []))
+        d.add("CRM_FAIL", el, "ACCURACY", "CRITICAL",
+              T.f_CRM_FAIL(el, len(failed), n_all, 100.0 * len(failed) / max(1, n_all),
+                           S["k_fail"], len(ra), sum(x["n_samples"] for x in ra),
+                           per=per, ranges=ra),
+              "LAB", "IMMEDIATE", [f"batches/{el}"] + [f"crm/{lab}/{el}" for lab, _, _ in per])
+        fails = [{"batch": x[4]} for x in failed]
+        _cluster(d, el, fails, R, RB, "MATERIAL")
 
     # repeatability against the certificate
     rsd = [r for r in recs if r.get("rsd_ratio") is not None
@@ -277,6 +343,31 @@ def _crm(d, el, R, C, S, RB, sev):
               T.f_CRM_COVERAGE(el, cov["pcts"][q[-1]], max(cv), cov["pcts"][q[0]],
                                min(cv), cov["none_above_p90"], cov["none_below_p10"]),
               "GEOLOGY", "ONGOING", [f"coverage/{el}"])
+
+
+def crm_pattern(rec, S):
+    """Plain description of the first run of results beyond the warning limit
+    and what followed (R6): '3 consecutive results between -2 and -3 SD, then
+    a return to the certified value'."""
+    if not rec:
+        return ""
+    zs = [p["z"] for p in rec["points"]]
+    kw, kf = S["k_warn"], S["k_fail"]
+    i = 0
+    while i < len(zs):
+        z = zs[i]
+        if z is not None and abs(z) > kw:
+            side = 1 if z > 0 else -1
+            j = i
+            while j + 1 < len(zs) and zs[j + 1] is not None and zs[j + 1] * side > kw:
+                j += 1
+            run = zs[i:j + 1]
+            back = (j + 1 < len(zs) and all(x is not None and abs(x) <= kw
+                                             for x in zs[j + 1:]))
+            return T.pattern_text(j - i + 1, side, max(abs(x) for x in run) > kf, kw, kf,
+                                  i + 1, back)
+        i += 1
+    return ""
 
 
 def _cluster(d, el, fails, R, RB, s_fail):
@@ -308,25 +399,26 @@ def _blanks(d, el, R, C, S, RB, sev):
         rec = blank.get((bt, el))
         if not rec:
             continue
-        s = sev(rec["rating"])
-        if not s:
+        if not rec["n_fail"]:
             sevs[bt] = None
             continue
+        # a blank above its limit fails the batch (spec): Critical, with the
+        # re-assay or re-preparation range (B)
+        s = "MATERIAL"                          # the cause findings below
         figs = [f"blank/{bt}/{el}"]
+        ra = [x for x in R.get("batches", {}).get(el, {}).get("reassay", [])
+              if x["control"] == bt]
         few = rec["n"] < RB["blank_min_n"]
+        d.add("BLK_FAIL", el, "CONTAMINATION", "CRITICAL",
+              T.f_BLK_FAIL(el, bt, rec["n_fail"], rec["n"], rec["fail_pct"],
+                           rec["limit"], S["k_dl"], rec["max_ratio"],
+                           min_n=RB["blank_min_n"] if few else None, ranges=ra),
+              "LAB", "IMMEDIATE", figs, subject=bt)
         if few:
-            # too few blanks for a stable rate: a warning, and no cause analysis
-            d.add("BLK_FAIL", el, "CONTAMINATION", "MINOR",
-                  T.f_BLK_FAIL(el, bt, rec["n_fail"], rec["n"], rec["fail_pct"],
-                               rec["limit"], S["k_dl"], rec["max_ratio"],
-                               min_n=RB["blank_min_n"]),
-                  "LAB", "IMMEDIATE", figs, subject=bt)
+            # too few blanks to tell the cause: no cause analysis
+            sevs[bt] = None
             continue
         sevs[bt] = s
-        d.add("BLK_FAIL", el, "CONTAMINATION", s,
-              T.f_BLK_FAIL(el, bt, rec["n_fail"], rec["n"], rec["fail_pct"],
-                           rec["limit"], S["k_dl"], rec["max_ratio"]),
-              "LAB", "IMMEDIATE", figs, subject=bt)
         cut = rec.get("high_grade_cut")
         failed = [p for p in rec["points"] if p["fail"]]
         after = [p for p in failed if cut is not None and p["prev_value"] is not None

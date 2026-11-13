@@ -47,9 +47,8 @@ class ReportMeta:
 @dataclass
 class Cover:
     meta: ReportMeta
-    rating: str
-    score: object
-    verdicts: list          # [(element, persian name, verdict code)]
+    decisions: list         # [(element, persian name, batch decision code)]
+    verdicts: list          # [(element, persian name, adequacy verdict code)]
     stats: list             # [(label, value)]
 
 

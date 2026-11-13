@@ -77,6 +77,17 @@ def pct(v, d=1):
     return fa_num(v, d, suffix="٪") if v is not None else "—"
 
 
+def as_entered(v):
+    """Decimals a limit was entered with: 7.5 -> 1, 10 -> 0 (R9)."""
+    t = f"{float(v):g}"
+    return len(t.split(".")[1]) if "." in t and "e" not in t else 0
+
+
+def lim(v, suffix="٪"):
+    """A limit printed exactly as entered: 7.5 stays 7.5, never 8."""
+    return fa_num(v, as_entered(v), suffix=suffix) if v is not None else "—"
+
+
 def num(v, d=None):
     return fa_num(v, d)
 
@@ -182,19 +193,63 @@ def f_CRM_DRIFT(el="Cu_pct", total=-5.0, n=60, p=0.01, n_crm=3):
     return title, evidence, cause, actions
 
 
+REMEDY_FA = {"re-assay from the pulp": "آنالیز مجدد از پالپ",
+             "re-prepare from the coarse reject": "آماده‌سازی مجدد از باقی‌ماندهٔ خردایش"}
+
+
+def ranges_text(ranges):
+    """'از S21 تا S40 (۱۹ نمونه، آنالیز مجدد از پالپ)' for each range."""
+    out = []
+    for r in ranges or []:
+        out.append(f"از {r['from_sample']} تا {r['to_sample']} ({num(r['n_samples'], 0)} نمونه، "
+                   f"{REMEDY_FA.get(r.get('remedy'), r.get('remedy', ''))})"
+                   + (f" در بچ {r['batch']}" if r.get("batch") and r["batch"] != "(not recorded)"
+                      else ""))
+    return "؛ ".join(out)
+
+
+def pattern_text(m=3, side=-1, beyond_fail=False, kw=2.0, kf=3.0, start=1, back=True):
+    sg = "−" if side < 0 else "+"
+    band = (f"فراتر از {sg}{num(kf, 0)} انحراف معیار" if beyond_fail
+            else f"بین {sg}{num(kw, 0)} و {sg}{num(kf, 0)} انحراف معیار")
+    lead = (f"{num(m, 0)} نتیجهٔ پیاپی" if m > 1 else "یک نتیجه")
+    return (f"{lead} از نتیجهٔ {num(start, 0)} به بعد {band}"
+            + ("، سپس بازگشت به مقدار گواهی" if back else ""))
+
+
 def f_CRM_FAIL(el="Cu_pct", n_fail=3, n=60, fail_pct=5.0, k_fail=3.0, n_ranges=2,
-               n_samples=80):
-    title = f"ردشدگی شاهدها در {el_fa(el)}"
-    evidence = (f"{num(n_fail, 0)} نتیجه از {num(n, 0)} ({pct(fail_pct, 1)}) بیرون از "
-                f"حد {num(k_fail, 0)} انحراف معیار است؛ {num(n_ranges, 0)} بازهٔ "
-                f"آنالیز مجدد شامل {num(n_samples, 0)} نمونهٔ عادی تعیین شد.")
-    cause = ("نتیجه‌ای بیرون از حد عمل یعنی بچ در لحظهٔ آنالیز آن شاهد از کنترل خارج "
-             "بوده و نمونه‌های اطراف آن قابل اتکا نیستند.")
+               n_samples=80, per=(("GBM922-12", ["2-2s"], ""),), ranges=()):
+    title = f"ردشدگی نمونه‌های استاندارد در {el_fa(el)} (قواعد پذیرش بچ)"
+    parts = []
+    for lab, rules, patt in per:
+        parts.append(f"{lab}: قاعدهٔ {'، '.join(rules)}" + (f" — {patt}" if patt else ""))
+    evidence = (f"{num(n_fail, 0)} نتیجه از {num(n, 0)} نتیجهٔ نمونهٔ استاندارد یکی از "
+                f"قواعد رد بچ را نقض کرده است ({'؛ '.join(parts)}).")
+    if ranges:
+        evidence += f" بازه‌های آنالیز مجدد: {ranges_text(ranges)}."
+    cause = ("نقض قاعدهٔ 1-3s یا 2-2s یعنی بچ در لحظهٔ آنالیز آن نمونهٔ استاندارد از کنترل "
+             "خارج بوده و نمونه‌های بین آخرین و نخستین نمونهٔ استاندارد قبول قابل اتکا نیستند.")
     actions = [
-        "نمونه‌های هر بازه (از نخستین نمونه پس از آخرین شاهد قبول تا آخرین نمونه پیش "
-        "از نخستین شاهد قبول بعدی) آنالیز مجدد شوند؛ فهرست بازه‌ها در جدول بچ‌ها آمده است.",
+        "نمونه‌های هر بازه، طبق فهرست شمارهٔ نمونه‌ها، از پالپ آنالیز مجدد شوند.",
+        "پیش از آن، احتمال جابه‌جایی نمونهٔ استاندارد (با نمونهٔ استاندارد دیگر یا شاهد) "
+        "بررسی شود.",
         "نتایج آنالیز مجدد پیش از جایگزینی در پایگاه داده با همین نرم‌افزار کنترل شوند.",
     ]
+    return title, evidence, cause, actions
+
+
+def f_CRM_SHIFT(el="Cu_pct", crm="GBM922-12", after=3, n=5, before=-10.5, later=0.3,
+                pattern=""):
+    title = f"جابه‌جایی پله‌ای نتایج نمونهٔ استاندارد {crm} در {el_fa(el)}"
+    evidence = (f"نتایج {crm} پس از نتیجهٔ {num(after, 0)} از {num(n, 0)} به‌صورت پله‌ای "
+                f"جابه‌جا شده‌اند: بایاس پیش از آن {pct(before, 1)} و پس از آن {pct(later, 1)}"
+                + (f" ({pattern})" if pattern else "") + ". این الگو جابه‌جایی پله‌ای است، "
+                "نه رانش تدریجی.")
+    cause = ("تغییر ناگهانی در شرایط آنالیز (کالیبراسیون جدید، تعویض محلول یا دستگاه، "
+             "یا تغییر اپراتور) در همان نقطه از توالی.")
+    actions = ["سوابق کالیبراسیون و تغییرات آزمایشگاه در همان نقطه از توالی آنالیز "
+               "درخواست شود.",
+               "نمونه‌های بخش جابه‌جاشده طبق بازهٔ آنالیز مجدد کنترل شوند."]
     return title, evidence, cause, actions
 
 
@@ -271,15 +326,17 @@ def f_CRM_COVERAGE(el="Cu_pct", p90=1.0, maxc=0.5, p10=0.01, minc=0.2,
 #  Contamination -- blanks
 # ===========================================================================
 def f_BLK_FAIL(el="Cu_pct", btype="COARSE BLANK", n_fail=3, n=30, fail_pct=10.0,
-               limit=0.005, k_dl=5.0, worst=20.0, min_n=None):
+               limit=0.005, k_dl=5.0, worst=20.0, min_n=None, ranges=()):
     title = f"ردشدگی {TYPE_FA.get(btype, 'شاهد خالی')} در {el_fa(el)}"
     evidence = (f"{num(n_fail, 0)} نمونه از {num(n, 0)} ({pct(fail_pct, 1)}) بالاتر از "
-                f"حد آلودگی {num(limit)} ({num(k_dl, 0)} برابر حد تشخیص) است؛ بدترین "
+                f"حد آلودگی {num(limit)} ({lim(k_dl, '')} برابر حد تشخیص) است؛ بدترین "
                 f"نتیجه {num(worst, 1)} برابر حد تشخیص.")
+    if ranges:
+        evidence += f" بازه‌ها: {ranges_text(ranges)}."
     if min_n:
         evidence += (f" تعداد این شاهدها ({num(n, 0)}) کمتر از حداقل لازم "
-                     f"({num(min_n, 0)}) است؛ این نرخ ناپایدار است و فقط هشدار تلقی "
-                     "می‌شود.")
+                     f"({num(min_n, 0)}) است؛ نرخ ردشدگی ناپایدار است و علت آن تحلیل "
+                     "نشد، ولی هر ردشدگی طبق قاعدهٔ پذیرش بچ معتبر است.")
     cause = ("نتیجهٔ بالای شاهد خالی یعنی مقداری از عنصر که در نمونه نبوده، در "
              "آماده‌سازی یا آنالیز به آن افزوده شده است؛ همان مقدار به نمونه‌های "
              "اطراف هم افزوده شده است.")
@@ -349,7 +406,7 @@ def f_DUP_PRECISION(el="Cu_pct", dtype="FIELD DUP", p90=30.0, good=20.0, n=40,
     title = (f"دقت ضعیف {TYPE_FA.get(dtype, 'تکراری')} در {el_fa(el)} "
              f"({_DUP_STAGE.get(dtype, '')})")
     evidence = (f"صدک نودم نصف اختلاف نسبی مطلق (HARD) برابر {pct(p90, 1)} است، در "
-                f"برابر مرز پذیرش {pct(good, 0)}؛ {pct(within, 0)} جفت‌ها درون این مرز "
+                f"برابر مرز پذیرش {lim(good)}؛ {pct(within, 0)} جفت‌ها درون این مرز "
                 f"و {pct(maxmin_fail, 0)} بیرون از خط پذیرش نمودار بیشینه-کمینه‌اند "
                 f"({num(n, 0)} جفت).")
     if p90_all is not None and abs(p90_all - p90) > 0.05:
@@ -645,14 +702,14 @@ def near_dl_note(kdl, dl, parts, method_kept=False, unknown=False):
         return ""
     if unknown:
         return (f"حد تشخیص این عنصر در داده‌ها معلوم نیست (نه در نگاشت ستون‌ها وارد شده و نه "
-                f"نتیجهٔ «کمتر از» دارد)؛ بنابراین قاعدهٔ حذف جفت‌های کمتر از {num(kdl, 0)} برابر "
+                f"نتیجهٔ «کمتر از» دارد)؛ بنابراین قاعدهٔ حذف جفت‌های کمتر از {lim(kdl, '')} برابر "
                 "حد تشخیص اجرا نشد.")
     gone = [(lab, n) for lab, n in parts if n]
     if not gone:
         return ""
     lst = "، ".join(f"{num(n, 0)} جفت {lab}" for lab, n in gone) if len(parts) > 1 else \
         f"{num(gone[0][1], 0)} جفت"
-    txt = (f"طبق روال استاندارد، جفت‌هایی که میانگین آن‌ها کمتر از {num(kdl, 0)} برابر حد تشخیص "
+    txt = (f"طبق روال استاندارد، جفت‌هایی که میانگین آن‌ها کمتر از {lim(kdl, '')} برابر حد تشخیص "
            f"({num(kdl * dl)}) است از این آمار کنار گذاشته شدند ({lst})؛ نزدیک حد تشخیص، "
            "اختلاف نسبی دو نتیجه بیشتر نوفهٔ دستگاه است تا خطای نمونه.")
     if method_kept:
@@ -732,6 +789,8 @@ MISSING = {
 }
 
 NOT_CERTIFIED = "برای این عنصر گواهی ندارد؛ ارزیابی نشد"
+MONITORING_ONLY = "مقدار گواهی کمتر از {k} برابر حد تشخیص؛ فقط پایش"
+INSUFFICIENT_BIAS = "نتایج ناکافی برای رتبهٔ تجمعی (کمتر از {n})"
 
 EXCLUSION_INTRO = [
     ("دو گروه جفت تکراری از محاسبات دقت کنار گذاشته شده‌اند. نخست، جفت‌هایی که میانگین "
@@ -753,6 +812,44 @@ EXCLUSION_NONE = "هیچ جفت تکراری به‌عنوان جفت پرت ی�
 DECISION_FA = {"exclude": "کنار گذاشته شد", "keep": "نگه داشته شد"}
 TRIGGER_FA = {"low-grade": "کم‌عیار", "outlier": "پرت (HARD)",
               "mispair": "نامزد جابه‌جایی (C16)"}
+
+DRIFT_INSUFFICIENT = ("آزمون روند (رانش) برای این عنصر انجام نشد: تنها {n} نتیجهٔ نمونهٔ "
+                      "استاندارد موجود است و حداقل لازم {m} نتیجه است (دادهٔ ناکافی برای "
+                      "آزمون روند).")
+
+BUDGET_NOT_ESTIMABLE = ("بودجهٔ خطا برای این عنصر قابل برآورد نیست: برای تفکیک خطا بین "
+                        "مراحل، دست‌کم دو کلاس تکراری با حداقل {n} جفت لازم است، و تفاضل "
+                        "واریانس‌ها باید مثبت باشد. سهم هیچ مرحله‌ای صفر گزارش نشده است.")
+
+DECISION_TITLE = "تصمیم پذیرش بچ"
+BATCH_DECISION_FA = {"ACCEPTED": "پذیرفته", "CONDITIONAL": "پذیرفته با شرط",
+               "REJECTED": "رد — آنالیز مجدد", "NOT_ASSESSABLE": "قابل ارزیابی نیست"}
+BATCH_DECISION_TONE = {"ACCEPTED": "ok", "CONDITIONAL": "warn", "REJECTED": "critical",
+                 "NOT_ASSESSABLE": "muted"}
+DECISION_REASON_FA = {
+    "blank failure": "ردشدگی شاهد",
+    "no result of a CRM certified for this element": "هیچ نتیجه‌ای از نمونهٔ استاندارد "
+                                                     "گواهی‌شده برای این عنصر نیست",
+    "CRM result between the warning and action limits": "نتیجهٔ نمونهٔ استاندارد بین حد "
+                                                        "هشدار و حد عمل",
+    "cumulative CRM bias between the conditional and unacceptable limits":
+        "بایاس تجمعی نمونهٔ استاندارد بین حد مشروط و حد غیرقابل قبول",
+    "over-limit results waiting for ore-grade re-assay": "نتایج بالاتر از حد بالای روش در "
+                                                         "انتظار آنالیز عیار بالا",
+    "step shift of a CRM": "جابه‌جایی پله‌ای نمونهٔ استاندارد",
+    "spreadsheet errors in the results": "خطای صفحه‌گسترده در نتایج",
+}
+ADEQUACY_TITLE = "کفایت تجمعی داده برای تخمین منابع"
+NO_BATCH_COLUMN = ("ستون بچ (شمارهٔ کار آزمایشگاه) نگاشت نشده است؛ کل فایل یک بچ فرض شد و "
+                   "بازه‌های آنالیز مجدد به جای مرز بچ، به کل فایل محدودند.")
+
+DIAGNOSTIC_GRID = ("جدول زیر رتبهٔ هر روش کنترلی را برای هر عنصر نشان می‌دهد و فقط جنبهٔ "
+                   "تشخیصی دارد؛ هیچ عدد ترکیبی یا امتیاز کلی از آن ساخته نمی‌شود، چون "
+                   "میانگین پنهان می‌کند کدام کنترل رد شده است. تصمیم بچ و کفایت داده از "
+                   "قواعد مشخصهٔ فنی و یافته‌ها گرفته می‌شود.")
+
+ROOT_FA = {"DATA": "مدیریت داده", "LAB": "آزمایشگاه", "SAMPLING": "نمونه‌برداری",
+           "PROGRAMME": "طراحی برنامهٔ کنترل کیفیت"}
 
 INTRO = [
     ("هدف این گزارش، ارزیابی مستقل کیفیت نتایج تجزیهٔ شیمیایی نمونه‌های اکتشافی و تعیین "

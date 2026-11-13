@@ -252,36 +252,38 @@ def _logo(path):
 def _cover(w, b):
     m = b.meta
     d = m.the_date()
-    # the cover leads with the WORST verdict: a weighted average of ratings can
-    # read "very good" while one element is unusable, which would mislead
-    order = ["REMEDIATE", "RESTRICTED", "SUITABLE"]
-    worst = min((c for _, _, c in b.verdicts), key=order.index, default="SUITABLE")
-    tone = _VERDICT_TONE[worst]
-    n_worst = sum(1 for _, _, c in b.verdicts if c == worst)
-    status = (T.VERDICT_FA[worst] if worst == "SUITABLE"
-              else f"{T.VERDICT_FA[worst]} برای {fa_num(n_worst, 0)} عنصر")
+    # the cover leads with the batch decision (spec rules), the worst first;
+    # no composite score: an average hides which control failed
+    order = ["REJECTED", "CONDITIONAL", "NOT_ASSESSABLE", "ACCEPTED"]
+    worst = min((c for _, _, c in b.decisions), key=order.index, default="ACCEPTED")
+    tone = T.BATCH_DECISION_TONE[worst]
+    n_worst = sum(1 for _, _, c in b.decisions if c == worst)
+    status = (T.BATCH_DECISION_FA[worst] if worst == "ACCEPTED"
+              else f"{T.BATCH_DECISION_FA[worst]} برای {fa_num(n_worst, 0)} عنصر")
     rows = [("کارفرما", m.client), ("مشاور", m.consultant), ("شمارهٔ گزارش", m.report_no),
             ("ویرایش", fa_digits(m.revision)), ("تاریخ", f"{jalali_str(d)} — {d.isoformat()}"),
             ("محل", m.location)]
     grid = "".join(f"<div><b>{t(k)}</b><span class=\"v\">{t(v)}</span></div>"
                    for k, v in rows if v)
+    dchips = "".join(
+        f'<span class="vchip tone-{T.BATCH_DECISION_TONE[c]}">{t(name)}: '
+        f'{t(T.BATCH_DECISION_FA[c])}</span>' for el, name, c in b.decisions)
     chips = "".join(
         f'<span class="vchip tone-{_VERDICT_TONE[c]}">{t(name)}: {t(T.VERDICT_FA[c])}</span>'
         for el, name, c in b.verdicts)
     stats = "".join(f'<div class="stat"><span>{t(v)}</span><b>{t(k)}</b></div>'
                     for k, v in b.stats)
-    avg = T.RATING_FA.get(b.rating, b.rating) + (
-        f" ({fa_num(b.score, 0)} از ۱۰۰)" if b.score is not None else "")
     w.w(f"""<section class="page cover"><div class="band">{_logo(m.logo_path)}
 <div class="brand"><span class="lat" dir="ltr">{APP_NAME} {APP_VER}</span></div>
 <div class="kicker">{t(m.project or "")}</div>
 <div class="title">{t(T.REPORT_TITLE)}</div>
 <p class="subtitle">{t(T.REPORT_SUBTITLE)}</p></div>
 <div class="body"><div class="metagrid">{grid}</div>
-<div class="scoreline"><div class="badge bg-{tone}"><b>وضعیت کلی</b>
-<span class="st">{t(status)}</span><b>میانگین وزنی رتبه‌ها: {t(avg)}</b></div>
+<div class="scoreline"><div class="badge bg-{tone}"><b>{t(T.DECISION_TITLE)}</b>
+<span class="st">{t(status)}</span></div>
 <div class="stats">{stats}</div></div>
-<h3>حکم کفایت داده به تفکیک عنصر</h3><div class="chips">{chips}</div></div>
+<h3>{t(T.DECISION_TITLE)} به تفکیک عنصر</h3><div class="chips">{dchips}</div>
+<h3>{t(T.ADEQUACY_TITLE)}</h3><div class="chips">{chips}</div></div>
 <div class="foot"><span>{t(m.author)}{(' — ' + t(m.author_title)) if m.author else ''}</span>
 <span>تهیه‌شده با نرم‌افزار <span class="lat" dir="ltr">{APP_NAME} {APP_VER}</span></span></div>
 </section><section class="page">""")
@@ -317,6 +319,7 @@ def _card(f):
     return (f'<div class="card"><div class="hd"><span class="ttl">{t(f.title_fa)}</span>'
             f'<span class="pill bg-{sev_bg}">{t(T.SEVERITY_FA[f.severity])}</span>'
             f'<span class="tag">{t(T.STAGE_FA[f.stage])}</span>'
+            f'<span class="tag">منشأ ریشه‌ای: {t(T.ROOT_FA.get(getattr(f, "root", ""), ""))}</span>'
             f'<span class="tag">مسئول: {t(T.OWNER_FA.get(f.owner, f.owner))}</span>'
             f'<span class="tag">{t(T.TIMING_FA.get(f.timing, f.timing))}</span></div>'
             f'<div class="bd"><p><span class="lbl">شواهد: </span>{t(f.evidence_fa)}</p>'

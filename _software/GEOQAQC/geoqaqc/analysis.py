@@ -80,7 +80,11 @@ def analyse_crm(project, F, C, S, RB, log=print):
                         [rec["ratings"]["crm_rsd"]])
                 out[key] = rec
                 continue
-            rec["status"] = "EVALUATED"
+            qdl = RB.el.qc_dl(el, element_unit(el)) or \
+                detection_limit(project, el, S, known_only=True)
+            monitor = bool(qdl and RB["crm_min_kdl"]
+                           and cert["cert"] < RB["crm_min_kdl"] * qdl)
+            rec["status"] = "MONITORING" if monitor else "EVALUATED"
             rec["cert_row"] = cert.get("cert_row")
             rec["method"] = cert.get("method", "")
             rec["cert_element"] = cert.get("cert_element", "")
@@ -163,6 +167,13 @@ def analyse_crm(project, F, C, S, RB, log=print):
             rec["rules"] = rules
             rec["failures"] = [p for p, z in zip(rec["points"], zs)
                                if z is not None and abs(z) > S["k_fail"]]
+            if monitor:
+                # below 10 x QC DL: plotted for monitoring, never judged
+                rec["rules"], rec["failures"] = [], []
+                rec["note"] = (f"Certified value below {RB['crm_min_kdl']:g} x QC DL: "
+                               f"monitoring only, not rated.")
+                out[key] = rec
+                continue
             _crm_extras(rec, S, RB)
 
             if len(series) >= S["min_crm"]:
@@ -903,7 +914,7 @@ def run_analysis(project, F, C, S, RB, log=print):
     accuracy = analyse_accuracy_curve(crm)
     drift = analyse_drift(crm, RB)
     coverage = analyse_coverage(project, RB)
-    budget = analyse_error_budget(dup, S)
+    budget = analyse_error_budget(dup, S, RB)
     batches = analyse_batches(project, crm, blank, S, RB)
 
     ratings, weights = [], []
@@ -947,16 +958,61 @@ def run_analysis(project, F, C, S, RB, log=print):
 # ===========================================================================
 #  2.0 -- CRM: drift, CUSUM, batch bias, repeatability against certificate
 # ===========================================================================
+def step_shift(zs, RB):
+    """Two-segment mean shift of a z-score series (R6): the split k that best
+    separates the series into two flat segments (at least two results each).
+    Returned only when the shift is significant (t-test at shift_p), at least
+    shift_min_sd in size and a better description than a straight trend."""
+    z = [x for x in zs if x is not None]
+    n = len(z)
+    if n < 4:
+        return None
+    best = None
+    for k in range(2, n - 1):
+        a, b = z[:k], z[k:]
+        ma, mb = sum(a) / len(a), sum(b) / len(b)
+        sse = sum((x - ma) ** 2 for x in a) + sum((x - mb) ** 2 for x in b)
+        if best is None or sse < best[0]:
+            best = (sse, k, ma, mb)
+    sse, k, ma, mb = best
+    df = n - 2
+    sp = math.sqrt(sse / df) if sse > 0 else 0.0
+    d = mb - ma
+    if abs(d) < RB["shift_min_sd"]:
+        return None
+    if sp == 0:
+        p = 0.0
+    else:
+        t = d / (sp * math.sqrt(1.0 / k + 1.0 / (n - k)))
+        p = t_two_tail_p(t, df)
+    lin = linreg_stats(list(range(n)), z)
+    sse_lin = None
+    if lin is not None:
+        sse_lin = sum((z[i] - (lin["a"] + lin["b"] * i)) ** 2 for i in range(n))
+    if p >= RB["shift_p"] or (sse_lin is not None and sse >= sse_lin):
+        return None
+    return {"after": k, "z_before": ma, "z_after": mb, "p": p, "n": n}
+
+
 def _crm_extras(rec, S, RB):
     pts = rec["points"]
     idx = [i for i, p in enumerate(pts) if p["bias"] is not None]
     st = linreg_stats(idx, [pts[i]["bias"] for i in idx])
-    if st is not None:
+    if len(idx) < RB["drift_min_crm"]:
+        rec["drift"] = {"insufficient": True, "n": len(idx), "sig": False}
+    elif st is not None:
         total = st["b"] * (len(pts) - 1)
         rec["drift"] = {"slope": st["b"], "total": total, "p": st["p"],
                         "a": st["a"],
                         "sig": bool(st["p"] < RB["drift_p"]
                                     and abs(total) >= RB["drift_total"])}
+    sh = step_shift([p["z"] for p in pts], RB)
+    if sh:
+        k = sh["after"]
+        sh["bias_before"] = mean([p["bias"] for p in pts[:k] if p["bias"] is not None])
+        sh["bias_after"] = mean([p["bias"] for p in pts[k:] if p["bias"] is not None])
+        sh["sample"] = pts[k - 1]["sample"]
+    rec["shift"] = sh
     zs = [p["z"] for p in pts]
     if any(z is not None for z in zs):
         rec["cusum"] = cusum(zs, RB["cusum_k"], RB["cusum_h"])
@@ -989,12 +1045,18 @@ def analyse_drift(crm, RB):
     out = {}
     by_el = {}
     for (label, el), rec in crm.items():
+        if rec.get("status") == "MONITORING":
+            continue
         for p in rec["points"]:
             if p["bias"] is not None:
                 by_el.setdefault(el, []).append(
                     (p["order"] if p["order"] is not None else 0, p["bias"], label))
     for el, pts in by_el.items():
         pts.sort(key=lambda x: x[0])
+        if len(pts) < RB["drift_min_pooled"]:
+            out[el] = {"insufficient": True, "n": len(pts), "sig": False,
+                       "n_crm": len({x[2] for x in pts})}
+            continue
         groups, level = {}, {}
         for k, (_, b, lab) in enumerate(pts):
             groups.setdefault(lab, ([], []))
@@ -1145,38 +1207,43 @@ def _dup_extras(rec, F, C, S, RB, crit_key):
 _STAGE_OF = {T_FDUP: "field", T_CDUP: "coarse", T_PDUP: "pulp"}
 
 
-def analyse_error_budget(dup, S):
+def analyse_error_budget(dup, S, RB=None):
     """Relative variance of each stage from the mean pair CV^2 of each class:
     pulp duplicates carry the analytical variance, coarse duplicates add the
     preparation (sub-sampling) variance, field duplicates add the sampling
-    variance. Stage variance = difference of consecutive classes; a negative
-    difference is sampling noise and is set to zero with a note. A missing
-    class merges the two stages it would have separated."""
+    variance. Stage variance = difference of consecutive classes. A class
+    with fewer than budget_min_pairs pairs stays out (R7); a negative
+    difference is 'not estimable' (None), never 0 %. A missing class merges
+    the two stages it would have separated."""
     out = {}
+    need = RB["budget_min_pairs"] if RB is not None else S["min_pairs"]
     els = sorted({el for (_, el) in dup})
     for el in els:
-        cv2 = {}
+        cv2, small = {}, []
         for dtype, name in _STAGE_OF.items():
             rec = dup.get((dtype, el))
-            if rec and rec["n"] >= S["min_pairs"] and rec.get("cv2_mean") is not None:
+            if rec and rec["n"] >= need and rec.get("cv2_mean") is not None:
                 cv2[name] = rec["cv2_mean"]
+            elif rec:
+                small.append(f"{name} {rec['n']}")
         if len(cv2) < 2:
-            if cv2:
-                out[el] = {"cv2": cv2, "stages": {}, "pct": {}, "merged": None,
-                           "dominant": None, "total_cv_pct": None,
-                           "notes": ["only one duplicate class has enough pairs; "
-                                     "the error cannot be split by stage"]}
+            out[el] = {"cv2": cv2, "stages": {}, "pct": {}, "merged": None,
+                       "dominant": None, "total_cv_pct": None, "estimable": False,
+                       "notes": [f"not estimable: fewer than {need} pairs in "
+                                 + (", ".join(small) or "the classes")
+                                 + (" -- " if small else "")
+                                 + "the error cannot be split by stage"]}
             continue
-        notes = []
+        notes = [f"left out (fewer than {need} pairs): " + ", ".join(small)] if small else []
         f, c, p = cv2.get("field"), cv2.get("coarse"), cv2.get("pulp")
         stages, merged = {}, None
 
         def diff(hi, lo, name):
             d = hi - lo
             if d < 0:
-                notes.append(f"{name}: the finer class is noisier than the coarser "
-                             f"one; variance set to zero")
-                d = 0.0
+                notes.append(f"{name}: not estimable -- the finer class is noisier "
+                             f"than the coarser one")
+                return None
             return d
 
         if f is not None and c is not None and p is not None:
@@ -1194,15 +1261,17 @@ def analyse_error_budget(dup, S):
             stages = {"preparation": diff(c, p, "preparation"), "analytical": p}
             notes.append("no field duplicates: the sampling variance is not "
                          "measured")
-        total = sum(stages.values())
-        pct = {k: (100.0 * v / total if total > 0 else None) for k, v in stages.items()}
-        dom = max(pct, key=lambda k: pct[k] or 0) if total > 0 else None
+        known = {k: v for k, v in stages.items() if v is not None}
+        total = sum(known.values()) if len(known) == len(stages) else None
+        pct = {k: (100.0 * v / total if total and v is not None else None)
+               for k, v in stages.items()}
+        dom = max(known, key=lambda k: pct[k] or 0) if total else None
         top = f if f is not None else (c if c is not None else p)
         out[el] = {"cv2": cv2, "stages": stages, "pct": pct,
                    "merged": None if merged == "sampling" else merged,
                    "unmeasured": "sampling" if merged == "sampling" else None,
                    "dominant": dom, "total_cv_pct": math.sqrt(top) * 100.0,
-                   "notes": notes}
+                   "estimable": total is not None, "notes": notes}
     return out
 
 
@@ -1229,7 +1298,58 @@ def _crm_point_rules(rec, S):
     return out
 
 
+def _span(live, lo, hi, batch):
+    """Routine and duplicate samples strictly between orders lo and hi, inside
+    one batch (None: open end)."""
+    return [s for s in live if (s.stype == T_NORMAL or s.stype in DUP_TYPES)
+            and (s.batch or "(not recorded)") == batch
+            and (lo is None or (s.order or 0) > lo)
+            and (hi is None or (s.order or 0) < hi)]
+
+
+def _ranges(points, live, control, remedy):
+    """Re-assay ranges around failed control points, bracketed by the last
+    passing and the next passing control of the same kind in the same batch.
+    points: [(order, sample, label, failed, batch, rules)]."""
+    out = []
+    by_batch = {}
+    for x in points:
+        by_batch.setdefault(x[4], []).append(x)
+    for b, pts in by_batch.items():
+        pts.sort(key=lambda x: x[0])
+        i = 0
+        while i < len(pts):
+            if not pts[i][3]:
+                i += 1
+                continue
+            j = i
+            while j + 1 < len(pts) and pts[j + 1][3]:
+                j += 1
+            lo = pts[i - 1][0] if i > 0 else None
+            hi = pts[j + 1][0] if j + 1 < len(pts) else None
+            span = _span(live, lo, hi, b)
+            failed = pts[i:j + 1]
+            if span:
+                out.append({
+                    "control": control, "crm": "/".join(sorted({x[2] for x in failed})),
+                    "failed_sample": ", ".join(x[1] for x in failed),
+                    "rule": "/".join(sorted(set().union(*[x[5] for x in failed]))) or "fail",
+                    "batch": b, "from_sample": span[0].sid, "to_sample": span[-1].sid,
+                    "n_samples": len(span), "samples": [s.sid for s in span],
+                    "bracket_from": pts[i - 1][1] if i > 0 else "(start of batch)",
+                    "bracket_to": pts[j + 1][1] if j + 1 < len(pts) else "(end of batch)",
+                    "remedy": remedy})
+            i = j + 1
+    return out
+
+
 def analyse_batches(project, crm, blank, S, RB):
+    """Batch acceptance by the spec rules (R8). A CRM fails a batch on 1-3s or
+    on 2-2s -- two consecutive results beyond 2 SD on the same side, of the
+    same CRM or of two CRMs in one batch; a blank fails above its limit.
+    Re-assay ranges list the samples between the last and the next passing
+    control: CRM and pulp-blank failures are re-assayed from the pulp, a
+    coarse-blank failure is re-prepared from the coarse reject."""
     fail_rules = set(RB["batch_fail_rules"])
     warn_rules = set(RB["batch_warn_rules"])
     live = sorted([s for s in project.samples if not s.dropped],
@@ -1241,23 +1361,40 @@ def analyse_batches(project, crm, blank, S, RB):
             batch_order.append(b)
             n_by_batch[b] = 0
         n_by_batch[b] += 1
+    t = project.assay
+    mapped = bool(t is not None and t.mapping.get("batch"))
     out = {}
     for el in project.elements:
-        crm_pts = []                      # (order, sample, label, rules, batch)
+        crm_pts = []                      # [order, sample, label, rules, batch, z]
         for (label, e), rec in crm.items():
-            if e != el or rec.get("cert") is None:
+            if e != el or rec.get("cert") is None or rec.get("status") == "MONITORING":
                 continue
             pr = _crm_point_rules(rec, S)
-            for p in rec["points"]:
-                crm_pts.append((p["order"] if p["order"] is not None else 0,
-                                p["sample"], label, pr.get(p["sample"], set()),
-                                p["batch"] or "(not recorded)"))
+            zs = [p["z"] for p in rec["points"]]
+            for i, p in enumerate(rec["points"]):
+                rules = set(pr.get(p["sample"], set()))
+                # the first result of a same-CRM 2-2s pair fails with the second
+                if i + 1 < len(zs) and "2-2s" in pr.get(rec["points"][i + 1]["sample"], set()) \
+                        and p["z"] is not None and abs(p["z"]) > S["k_warn"]:
+                    rules.add("2-2s")
+                crm_pts.append([p["order"] if p["order"] is not None else 0, p["sample"],
+                                label, rules, p["batch"] or "(not recorded)", p["z"]])
         crm_pts.sort(key=lambda x: x[0])
+        # 2-2s across two CRMs of one batch: consecutive results of different
+        # CRMs beyond 2 SD on the same side
+        for k in range(1, len(crm_pts)):
+            x, y = crm_pts[k - 1], crm_pts[k]
+            if x[4] != y[4] or x[2] == y[2] or x[5] is None or y[5] is None:
+                continue
+            if (x[5] > S["k_warn"] and y[5] > S["k_warn"]) or \
+                    (x[5] < -S["k_warn"] and y[5] < -S["k_warn"]):
+                x[3].add("2-2s")
+                y[3].add("2-2s")
         blank_pts = []
         for (bt, e), rec in blank.items():
             if e == el:
                 blank_pts += [(p["batch"] or "(not recorded)", p["sample"], p["fail"],
-                               bt) for p in rec["points"]]
+                               bt, p["order"]) for p in rec["points"]]
         rows = []
         for b in batch_order:
             cp = [x for x in crm_pts if x[4] == b]
@@ -1267,7 +1404,7 @@ def analyse_batches(project, crm, blank, S, RB):
                 crm_status = "NONE"
             else:
                 crm_status = "PASS"
-                for _, sid, label, rules, _ in cp:
+                for _, sid, label, rules, _, _ in cp:
                     hit_f = rules & fail_rules
                     hit_w = rules & warn_rules
                     if hit_f:
@@ -1289,35 +1426,18 @@ def analyse_batches(project, crm, blank, S, RB):
             rows.append({"batch": b, "n": n_by_batch[b], "crm_status": crm_status,
                          "blank_status": blank_status, "status": worst,
                          "reasons": reasons})
-        # re-assay ranges: samples between the passing CRMs bracketing a failure
-        reassay, seen = [], set()
-        passing = [x for x in crm_pts if not (x[3] & fail_rules)]
-        for x in crm_pts:
-            hit = x[3] & fail_rules
-            if not hit:
-                continue
-            before = [y for y in passing if y[0] < x[0]]
-            after = [y for y in passing if y[0] > x[0]]
-            lo = before[-1][0] if before else None
-            hi = after[0][0] if after else None
-            span = [s for s in live if s.stype == T_NORMAL
-                    and (lo is None or (s.order or 0) > lo)
-                    and (hi is None or (s.order or 0) < hi)]
-            if not span:
-                continue
-            key = (span[0].sid, span[-1].sid)
-            if key in seen:
-                for r in reassay:
-                    if (r["from_sample"], r["to_sample"]) == key:
-                        r["failed_sample"] += f", {x[1]}"
-                        r["rule"] = "/".join(sorted(set(r["rule"].split("/")) | hit))
-                continue
-            seen.add(key)
-            reassay.append({"crm": x[2], "failed_sample": x[1],
-                            "from_sample": span[0].sid, "to_sample": span[-1].sid,
-                            "n_samples": len(span), "batch": x[4],
-                            "rule": "/".join(sorted(hit))})
-        out[el] = {"rows": rows, "reassay": reassay,
+        reassay = _ranges([(x[0], x[1], x[2], bool(x[3] & fail_rules), x[4], x[3] & fail_rules)
+                           for x in crm_pts], live, "CRM", "re-assay from the pulp")
+        for bt in BLANK_TYPES:
+            pts = [(x[4] if x[4] is not None else 0, x[1], bt, bool(x[2]), x[0],
+                    {"blank above limit"} if x[2] else set())
+                   for x in blank_pts if x[3] == bt]
+            if pts:
+                reassay += _ranges(pts, live, bt,
+                                   "re-prepare from the coarse reject" if bt == T_CBLANK
+                                   else "re-assay from the pulp")
+        out[el] = {"rows": rows, "reassay": reassay, "batch_mapped": mapped,
                    "n_fail": sum(1 for r in rows if r["status"] == "FAIL"),
-                   "n_warn": sum(1 for r in rows if r["status"] == "WARN")}
+                   "n_warn": sum(1 for r in rows if r["status"] == "WARN"),
+                   "crm_points": crm_pts}
     return out

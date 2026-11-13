@@ -144,15 +144,16 @@ def _live(project):
 
 
 def _cover(ctx, doc):
-    p, R, d = ctx.project, ctx.R, ctx.d
+    p, d = ctx.project, ctx.d
     live = _live(p)
     n_ctrl = sum(1 for s in live if s.stype != T_NORMAL)
     batches = {s.batch for s in live if s.batch}
     verdicts = [(el, T.el_fa(el), d.verdict(el)[0]) for el in p.elements]
+    decisions = [(el, T.el_fa(el), d.decision(el)[0]) for el in p.elements]
     stats = [("نمونه", _n(len(live), 0)), ("عنصر", _n(len(p.elements), 0)),
              ("بچ", _n(len(batches), 0) if batches else "—"),
              ("نمونهٔ کنترلی", _n(n_ctrl, 0))]
-    doc.add(Cover(ctx.meta, R.get("overall", R_NA), R.get("score"), verdicts, stats))
+    doc.add(Cover(ctx.meta, decisions, verdicts, stats))
 
 
 def _summary(ctx, doc):
@@ -166,11 +167,24 @@ def _summary(ctx, doc):
             + (f" در {_n(len(batches), 0)} بچ آزمایشگاهی" if batches else "")
             + f" را برای {_n(len(p.elements), 0)} عنصر ({'، '.join(T.el_fa(e) for e in p.elements)}) "
             f"ارزیابی کرده است؛ {_n(n_ctrl, 0)} نمونه ({_p(100.0 * n_ctrl / max(1, len(live)))}) "
-            f"نمونهٔ کنترلی بوده‌اند. رتبهٔ کلی کنترل کیفیت **{T.RATING_FA.get(R.get('overall'), '—')}** "
-            f"است. داده‌های {_n(codes.count('SUITABLE'), 0)} عنصر قابل استفاده، "
+            f"نمونهٔ کنترلی بوده‌اند. از نظر کفایت تجمعی، داده‌های "
+            f"{_n(codes.count('SUITABLE'), 0)} عنصر قابل استفاده، "
             f"{_n(codes.count('RESTRICTED'), 0)} عنصر قابل استفاده با محدودیت و "
             f"{_n(codes.count('REMEDIATE'), 0)} عنصر نیازمند اصلاح پیش از استفاده‌اند.")
     doc.add(Para(lead, "lead"))
+    # (1) batch decision from the spec rules, apart from (2) cumulative adequacy
+    ctx.sub(doc, T.DECISION_TITLE)
+    if not (p.assay and p.assay.mapping.get("batch")):
+        doc.add(Callout("warn", "ستون بچ", T.NO_BATCH_COLUMN))
+    rows = []
+    for el in p.elements:
+        code, reasons, ranges = d.decision(el)
+        why = "؛ ".join(T.DECISION_REASON_FA.get(r, r) for r in reasons) or "—"
+        rows.append([_el(el), Cell(T.BATCH_DECISION_FA[code], T.BATCH_DECISION_TONE[code]),
+                     why, T.ranges_text(ranges) or "—"])
+    ctx.table(doc, ["عنصر", "تصمیم", "دلیل", "بازهٔ آنالیز مجدد"], rows,
+              "تصمیم پذیرش بچ به تفکیک عنصر (قواعد مشخصهٔ فنی)", widths=[12, 16, 34, 38])
+    ctx.sub(doc, T.ADEQUACY_TITLE)
     doc.add(VerdictGrid([(T.el_fa(el), el, d.verdict(el)[0], d.counts(el))
                          for el in p.elements]))
     ctx.figure(doc, "source_matrix", "منشأ خطا: شدیدترین یافته در هر مرحلهٔ زنجیرهٔ نمونه، "
@@ -263,7 +277,6 @@ def _programme(ctx, doc):
         ctx.table(doc, ["کلاس کنترلی", "تعداد", "نرخ درج", "تناوب", "رتبه"], rows,
                   f"نرخ درج نمونه‌های کنترلی از {_n(ins['n_total'], 0)} نمونه")
         ctx.figure(doc, "insertion", "نرخ درج هر کلاس کنترلی در برابر قرارداد پنج درصد")
-    ctx.figure(doc, "scores", "کارنامهٔ کنترل کیفیت: رتبهٔ هر روش برای هر عنصر")
     if R.get("batches"):
         ctx.figure(doc, "batches", "پذیرش بچ‌ها: وضعیت شاهدها و شاهدهای خالی در هر بچ")
     for f in [f for f in ctx.d.project_findings() if f.stage == "PROGRAMME"]:
@@ -319,9 +332,16 @@ def _el_accuracy(ctx, doc, el):
             rows.append([_ltr(lab), _n(r["n"], 0), "—", _n(r.get("obs_mean")), "—", "—",
                          "—", Cell(T.NOT_CERTIFIED, "muted")])
             continue
+        if r.get("status") == "MONITORING":
+            rating = Cell(T.MONITORING_ONLY.format(k=T.lim(ctx.RB["crm_min_kdl"], "")), "muted")
+        elif r["n"] < ctx.RB["bias_min_n"]:
+            rating = Cell(T.INSUFFICIENT_BIAS.format(n=fa_digits(str(ctx.RB["bias_min_n"]))),
+                          "muted")
+        else:
+            rating = _rating(r["rating"])
         rows.append([_ltr(lab), _n(r["n"], 0), _n(r.get("cert")), _n(r.get("obs_mean")),
                      _p(r.get("bias"), 2), _p(r.get("fail_pct"), 1),
-                     _p(r.get("rsd_pct"), 2), _rating(r["rating"])])
+                     _p(r.get("rsd_pct"), 2), rating])
     ctx.table(doc, ["نمونه استاندارد", "تعداد", "مقدار گواهی", "میانگین", "بایاس",
                     "بیرون از حد عمل", "انحراف معیار نسبی", "رتبه"], rows,
               f"نتایج نمونه‌های استاندارد برای {_el(el)}")
@@ -334,7 +354,10 @@ def _el_accuracy(ctx, doc, el):
                     _n(c["sd"]), _ltr(c["unit"])] for c in used],
                   f"ردیف‌های گواهی به‌کاررفته برای {_el(el)}")
     dr = R.get("drift", {}).get(el)
-    if dr:
+    if dr and dr.get("insufficient"):
+        doc.add(Para(T.DRIFT_INSUFFICIENT.format(n=fa_digits(str(dr["n"])),
+                                                 m=fa_digits(str(ctx.RB["drift_min_pooled"])))))
+    elif dr:
         ctx.figure(doc, f"drift/{el}", f"بایاس همهٔ شاهدهای {T.el_fa(el)} به ترتیب آنالیز و "
                                        f"روند برازش‌شده")
     ctx.figure(doc, f"accuracy/{el}", f"منحنی صحت {T.el_fa(el)}: میانگین اندازه‌گیری‌شده در "
@@ -397,7 +420,7 @@ def _el_precision(ctx, doc, el):
     for dt, r in recs:
         crit = ctx.C[_DUP_CRIT[dt]]
         rows.append([T.TYPE_FA[dt], _n(r["n"], 0), _p(r["hard_p90"], 1),
-                     _p(crit["cuts"][2], 0), _p(100.0 - r["maxmin"]["fail_pct"], 0),
+                     T.lim(crit["cuts"][2]), _p(100.0 - r["maxmin"]["fail_pct"], 0),
                      _p(r["rd_mean"], 2), _rating(r["ratings"].get(_DUP_CRIT[dt], R_NA))])
     ctx.table(doc, ["کلاس", "جفت", "صدک نودم HARD", "مرز پذیرش", "جفت‌های درون مرز",
                     "میانگین اختلاف نسبی", "رتبه"], rows, f"دقت نمونه‌های تکراری {_el(el)}")
@@ -430,12 +453,16 @@ def _el_th(ctx, doc, el):
 def _el_budget(ctx, doc, el):
     b = ctx.R.get("budget", {}).get(el)
     ctx.sub(doc, T.H["budget"])
-    if not b or not b.get("pct"):
+    if not b:
         doc.add(Para(T.MISSING["budget"]))
         return
+    if not b.get("estimable"):
+        doc.add(Para(T.BUDGET_NOT_ESTIMABLE.format(
+            n=fa_digits(str(ctx.RB["budget_min_pairs"])))))
+        return
     doc.add(Para(T.SECTION_INTRO["budget"]))
-    rows = [[T.BUDGET_STAGE_FA.get(k, k), _p(v, 1)] for k, v in b["pct"].items()
-            if v is not None]
+    rows = [[T.BUDGET_STAGE_FA.get(k, k), _p(v, 1) if v is not None else "قابل برآورد نیست"]
+            for k, v in b["pct"].items()]
     ctx.table(doc, ["مرحله", "سهم از واریانس کل"], rows,
               f"بودجهٔ خطای {_el(el)} (ضریب تغییرات کل {_p(b['total_cv_pct'], 1)})")
     if b.get("unmeasured"):
@@ -578,11 +605,13 @@ def _actions(ctx, doc):
     rows = []
     for i, f in enumerate(ctx.d.actions(), start=1):
         rows.append([_n(i, 0), T.el_fa(f.element) if f.element else "کل پروژه", f.title_fa,
-                     T.STAGE_FA[f.stage], Cell(T.SEVERITY_FA[f.severity], _SEV_TONE[f.severity]),
+                     T.ROOT_FA.get(f.root, ""),
+                     Cell(T.SEVERITY_FA[f.severity], _SEV_TONE[f.severity]),
                      f.actions_fa[0], T.OWNER_FA.get(f.owner, f.owner),
                      T.TIMING_FA.get(f.timing, f.timing)])
     if rows:
-        ctx.table(doc, ["ردیف", "عنصر", "مسئله", "مرحله", "شدت", "اقدام", "مسئول", "زمان"],
+        ctx.table(doc, ["ردیف", "عنصر", "مسئله", "منشأ ریشه‌ای", "شدت", "اقدام", "مسئول",
+                        "زمان"],
                   rows, "برنامهٔ اقدام یکپارچه", widths=[4, 8, 22, 10, 7, 33, 9, 7],
                   compact=True)
     else:
@@ -619,11 +648,14 @@ def _app_criteria(ctx, doc):
         changed = k in DEFAULT_CRITERIA and [float(x) for x in d["cuts"]] != [
             float(x) for x in DEFAULT_CRITERIA[k]["cuts"]]
         rows.append([_ltr(d["label"]), _ltr(d["unit"] or "-")]
-                    + [_n(c) for c in d["cuts"]]
+                    + [T.lim(c, "") for c in d["cuts"]]
                     + [Cell("تغییریافته", "warn") if changed else ""])
     ctx.table(doc, ["معیار", "واحد"] + [T.RATING_FA[r] for r in RATING_ORDER[:5]]
               + ["وضعیت"], rows,
               "مرزهای رتبه‌بندی؛ مقدار بدتر از آخرین مرز «خیلی بد» است", compact=True)
+    # the per-method ratings, for diagnosis only: no composite number (R22)
+    doc.add(Para(T.DIAGNOSTIC_GRID))
+    ctx.figure(doc, "scores", "رتبهٔ هر روش برای هر عنصر (تشخیصی؛ بدون عدد ترکیبی)")
 
 
 def _app_cleaning(ctx, doc):

@@ -997,13 +997,12 @@ class App(tk.Tk):
             card.set(el, d.verdict(el)[0], d.counts(el), worst)
             self.kpi_cards.append(card)
         live = [s for s in self.project.samples if not s.dropped]
+        dec = "   ".join(f"{el}: {d.decision(el)[0].replace('_', ' ').lower()}"
+                         for el in self.project.elements)
         self.dash_hdr.configure(
             text=f"{len(live)} samples   {len(self.project.elements)} element(s)   "
-                 f"weighted QA/QC rating {R['overall']}"
-                 + (f" ({R['score']:.0f}/100)" if R.get("score") is not None else "")
-                 + f"   analysed {self.project.analysed_at:%Y-%m-%d %H:%M}\n"
-                   "The weighted rating is an average; read the element verdicts and the "
-                   "diagnosis before drawing a conclusion.", fg=FG)
+                 f"analysed {self.project.analysed_at:%Y-%m-%d %H:%M}\n"
+                 f"Batch decision -- {dec}", fg=FG)
         self.dash_view.show(fig_source_matrix(d))
         rows, tags = [], []
 
@@ -1115,7 +1114,8 @@ class App(tk.Tk):
             fig = fig_crm_cusum(rec, S, self.RB)
         elif mode.startswith("Bias by"):
             fig = fig_crm_batch(rec, S, C)
-        elif mode.startswith("Laboratory") and el in R.get("drift", {}):
+        elif mode.startswith("Laboratory") and el in R.get("drift", {}) \
+                and not R["drift"][el].get("insufficient"):
             fig = fig_crm_drift(R["drift"][el], el, S, C)
         elif mode.startswith("Accuracy") and el in R.get("accuracy", {}):
             fig = fig_accuracy_curve(R["accuracy"][el], el)
@@ -1132,8 +1132,10 @@ class App(tk.Tk):
             bits.append(f"mean bias {rec['bias']:+.2f} %")
         if rec.get("fail_pct") is not None:
             bits.append(f"beyond {S['k_fail']:g} SD {rec['fail_pct']:.1f} %")
-        if rec.get("drift"):
+        if rec.get("drift") and not rec["drift"].get("insufficient"):
             bits.append(f"drift {rec['drift']['total']:+.2f} % (p {rec['drift']['p']:.3f})")
+        elif rec.get("drift"):
+            bits.append("trend: insufficient data")
         if rec.get("excluded"):
             bits.append(f"{len(rec['excluded'])} excluded by cleaning")
         txt = "     ".join(bits) + (("\n" + rec["note"]) if rec.get("note") else "")

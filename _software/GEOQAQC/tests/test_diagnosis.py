@@ -23,7 +23,9 @@ def codes(d, el):
 
 def test_demo_verdicts(dx):
     _, _, d = dx
-    assert d.verdict("Cu_pct")[0] == "RESTRICTED"
+    # a blank above its limit fails the batch (spec): Cu's coarse-blank failures
+    # are Critical contamination, so Cu needs remediation
+    assert d.verdict("Cu_pct")[0] == "REMEDIATE"
     assert d.verdict("Au_ppm")[0] == "RESTRICTED"
     assert d.verdict("Ag_ppm")[0] == "REMEDIATE"
     assert d.verdict("Mo_ppm")[0] == "SUITABLE"
@@ -144,16 +146,20 @@ def _blank_project(rows):
     return R, diagnose(p, R, C, S, rb)
 
 
-def test_few_blanks_do_not_drive_the_verdict():
+def test_few_blanks_fail_but_get_no_cause_analysis():
     # three blanks, one at 6 x DL: 33 % failures, but on three results
     rows = [{"SAMPLE_ID": f"S{i}", "Cu_pct": f"{0.01 + 0.002 * i:.4f}"} for i in range(30)]
     rows += [{"SAMPLE_ID": f"B{i}", "SAMPLE_TYPE": "BLANK",
               "Cu_pct": "0.006" if i == 0 else "<0.001"} for i in range(3)]
     R, d = _blank_project(rows)
     assert R["blank"][("BLANK", "Cu_pct")]["n"] == 3
+    # a blank failure is a batch-rule violation (Critical) however few blanks
+    # there are; with too few, its cause is not analysed
     f = [x for x in d.by_element("Cu_pct") if x.code == "BLK_FAIL"]
-    assert f and f[0].severity == "MINOR"
+    assert f and f[0].severity == "CRITICAL"
     assert "ناپایدار" in f[0].evidence_fa
+    assert not [x for x in d.by_element("Cu_pct")
+                if x.code in ("BLK_CARRY", "BLK_MATERIAL", "BLK_PREP")]
 
 
 def test_blank_linked_to_preceding_sample_is_not_blamed_on_material():

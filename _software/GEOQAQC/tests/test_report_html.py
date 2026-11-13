@@ -89,10 +89,12 @@ def test_split_runs_keeps_parentheses_outside_latin():
     assert ("Cu_pct", True, False) in runs
 
 
-def test_cover_shows_worst_verdict(demo_html):
+def test_cover_shows_batch_decision_and_no_composite_score(demo_html):
     cover = demo_html.split('class="page cover"', 1)[1].split("</section>", 1)[0]
-    assert "وضعیت کلی" in cover
-    assert texts_fa.VERDICT_FA["REMEDIATE"] in cover.split("حکم کفایت")[0]
+    assert texts_fa.DECISION_TITLE in cover
+    assert texts_fa.BATCH_DECISION_FA["REJECTED"] in cover        # Cu and Ag fail
+    assert texts_fa.ADEQUACY_TITLE in cover
+    assert "میانگین وزنی" not in demo_html and "از ۱۰۰" not in cover
 
 
 def test_split_runs():

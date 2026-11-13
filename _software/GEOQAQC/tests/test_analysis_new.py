@@ -102,10 +102,33 @@ def _dl():
     return [{"SAMPLE_ID": f"L{i}", "Cu_pct": "<0.001"} for i in range(3)]
 
 
-def test_error_budget():
+def _budget_rb():
+    rb = RuleBook()
+    rb.set("budget_min_pairs", 8)            # the computation, on 10 pairs per class
+    return rb
+
+
+def test_error_budget_needs_enough_pairs_and_never_clips_to_zero():
+    # R7: 10 pairs per class is below the default minimum of 30
     rows = (_dup_rows(0.30, "FIELD DUP", "F") + _dup_rows(0.15, "COARSE DUP", "C")
             + _dup_rows(0.05, "PULP DUP", "P") + _dl())
     _, R = analyse(rows, None, ("Cu_pct",))
+    b = R["budget"]["Cu_pct"]
+    assert b["estimable"] is False and b["dominant"] is None
+    assert "not estimable" in b["notes"][0]
+    # a coarse class noisier than the field class: the sampling share is not
+    # estimable, never 0 %
+    rows = (_dup_rows(0.10, "FIELD DUP", "F") + _dup_rows(0.20, "COARSE DUP", "C")
+            + _dup_rows(0.05, "PULP DUP", "P") + _dl())
+    _, R = analyse(rows, None, ("Cu_pct",), rb=_budget_rb())
+    b = R["budget"]["Cu_pct"]
+    assert b["pct"]["sampling"] is None and b["estimable"] is False
+
+
+def test_error_budget():
+    rows = (_dup_rows(0.30, "FIELD DUP", "F") + _dup_rows(0.15, "COARSE DUP", "C")
+            + _dup_rows(0.05, "PULP DUP", "P") + _dl())
+    _, R = analyse(rows, None, ("Cu_pct",), rb=_budget_rb())
     b = R["budget"]["Cu_pct"]
     assert b["cv2"]["field"] == pytest.approx(0.09, rel=0.01)
     assert b["pct"]["sampling"] == pytest.approx(75.0, abs=3)
@@ -117,7 +140,7 @@ def test_error_budget():
 
 def test_error_budget_missing_coarse():
     rows = _dup_rows(0.30, "FIELD DUP", "F") + _dup_rows(0.05, "PULP DUP", "P") + _dl()
-    _, R = analyse(rows, None, ("Cu_pct",))
+    _, R = analyse(rows, None, ("Cu_pct",), rb=_budget_rb())
     b = R["budget"]["Cu_pct"]
     assert b["merged"] == "sampling+preparation"
     assert set(b["pct"]) == {"sampling+preparation", "analytical"}
@@ -165,10 +188,14 @@ def test_reassay_range():
     ra = R["batches"]["Cu_pct"]["reassay"]
     assert len(ra) == 1
     r = ra[0]
+    # R8: the range stays inside the failed batch; no passing CRM before or
+    # after STD30 in batch B2, so it runs from the start to the end of B2
     assert (r["failed_sample"], r["from_sample"], r["to_sample"]) == (
-        "STD30", "S11", "S49")
-    assert r["n_samples"] == 38
+        "STD30", "S21", "S40")
+    assert r["n_samples"] == 19 and r["samples"][0] == "S21"
+    assert r["bracket_from"] == "(start of batch)" and r["bracket_to"] == "(end of batch)"
     assert r["batch"] == "B2" and "1-3s" in r["rule"]
+    assert r["remedy"] == "re-assay from the pulp"
 
 
 def test_batch_status():
