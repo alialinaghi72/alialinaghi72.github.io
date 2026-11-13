@@ -18,8 +18,10 @@ COLS = ("Element", "Class", "Original", "Duplicate", "Original value", "Duplicat
 WIDTHS = (80, 100, 120, 120, 95, 95, 90, 70, 60, 80, 110, 80, 260)
 
 
-def _f(v, d=4):
-    return "" if v is None else f"{v:.{d}g}"
+def _f(v, d=6):
+    if v is None:
+        return ""
+    return f"{v:,.0f}" if abs(v) >= 1000 else f"{v:.{d}g}"
 
 
 class ReviewDialog(tk.Toplevel):
@@ -33,7 +35,7 @@ class ReviewDialog(tk.Toplevel):
         self.title(f"{APP_NAME} -- review of excluded duplicate pairs")
         self.configure(bg=BG1)
         self.transient(master)
-        self.geometry("1320x820")
+        self.geometry("1360x860")
         self.project, self.dup_all = project, dup_all
         self.rows = [dict(r) for r in rows]
         self.applied = False
@@ -62,15 +64,22 @@ class ReviewDialog(tk.Toplevel):
         ttk.Label(bar2, text="Reason", style="Sec.TLabel").pack(side="left")
         self.reason = tk.StringVar(value=REASONS[1])
         ttk.Combobox(bar2, textvariable=self.reason, values=REASONS, state="readonly",
-                     width=46).pack(side="left", padx=6)
+                     width=38).pack(side="left", padx=6)
         ttk.Label(bar2, text="Note (for 'other')", style="Sec.TLabel").pack(side="left")
         self.note = tk.StringVar()
-        ttk.Entry(bar2, textvariable=self.note, width=28).pack(side="left", padx=6)
+        ttk.Entry(bar2, textvariable=self.note, width=18).pack(side="left", padx=6)
         for text, cmd in (("Exclude selected", lambda: self._set("exclude", True)),
                           ("Keep selected", lambda: self._set("keep", True)),
                           ("Exclude all shown", lambda: self._set("exclude", False)),
                           ("Keep all shown", lambda: self._set("keep", False))):
             ttk.Button(bar2, text=text, command=cmd).pack(side="left", padx=3)
+        bot = ttk.Frame(self, padding=(12, 6))
+        bot.pack(side="bottom", fill="x")
+        self.count = ttk.Label(bot, text="", style="Dim.TLabel")
+        self.count.pack(side="left")
+        ttk.Button(bot, text="Apply and run the analysis", style="Accent.TButton",
+                   command=self._apply).pack(side="right")
+        ttk.Button(bot, text="Cancel", command=self.destroy).pack(side="right", padx=8)
         mid = ttk.Panedwindow(self, orient="vertical")
         mid.pack(fill="both", expand=True, padx=12, pady=6)
         holder = ttk.Frame(mid)
@@ -80,13 +89,6 @@ class ReviewDialog(tk.Toplevel):
         mid.add(holder, weight=3)
         self.view = FigureView(mid)
         mid.add(self.view, weight=2)
-        bot = ttk.Frame(self, padding=(12, 6))
-        bot.pack(fill="x")
-        self.count = ttk.Label(bot, text="", style="Dim.TLabel")
-        self.count.pack(side="left")
-        ttk.Button(bot, text="Apply and run the analysis", style="Accent.TButton",
-                   command=self._apply).pack(side="right")
-        ttk.Button(bot, text="Cancel", command=self.destroy).pack(side="right", padx=8)
 
     def _filter(self, bar, label):
         ttk.Label(bar, text=label, style="Sec.TLabel").pack(side="left", padx=(0, 4))

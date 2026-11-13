@@ -1,5 +1,76 @@
 # Changelog
 
+## 2.1 (P0) — 2026-11-13
+
+Correctness fixes from the review of NLR Batch 16 (NLR-QAQC-SPC-001 Rev. 0).
+No statistical formula was changed. Behaviour changes:
+
+### Certificates and values
+- **R1** A certificate row matches a column by element **and analytical
+  method**. An element without suffix is its primary method (Au fire assay;
+  Cu, Mo total / four-acid); `_AR` is aqua regia; `Sol` / `CuSol` is acid-
+  soluble Cu and never matches a total-Cu column; an optional `METHOD` column
+  wins. If two rows still match one CRM x column the run stops with a message
+  naming them (before, the last row silently won). Each column's method is
+  set on the new **Elements** page. The report lists the certificate row used
+  per CRM x element, and each control chart shows it in its footer.
+- **R2** A CRM without a certified value for an element is shown as "not
+  certified for this element -- not evaluated": no rating, no finding (1.1
+  rated its repeatability; rule `crm_rate_uncertified` restores that).
+- **R3** Values written with a unit (`>5%`, `> 5 %`, `>10000 ppm`) are parsed,
+  converted to the column unit and flagged over-limit (before: missing, C04).
+  New finding "Over-limit results requiring ore-grade re-assay" (Important)
+  lists the samples.
+- **R4** New rule **C19**: spreadsheet error strings (`#N/A`, `#VALUE!`,
+  `#REF!`, `#DIV/0!`, `#NAME?`, `#NUM!`, `#NULL!`) are a data-management
+  finding (Important), no longer laboratory codes.
+- A CRM certified below 10 x QC DL is monitoring only (rule `crm_min_kdl`).
+
+### Duplicates: exclusion review (R5, R14, R24)
+- C16 no longer excludes pairs; it marks **mispair candidates**: the multi-
+  element vote, plus a single-element vote for pulp and coarse pairs of
+  low-nugget elements (Cu, Mo, Pb, Zn, Fe, S; never Au, never field pairs).
+- Two triggers per element and class -- **low-grade** (pair mean below k x
+  QC DL, default 10) and **outlier** (HARD at or above 50 % for Cu/Mo pulp and
+  coarse, 67 % for field and for Au, or a C16 candidate) -- each with an
+  action: exclude, keep or ask. Defaults: low-grade exclude; Cu/Mo outliers
+  ask (pre-set exclude); Au outliers ask (pre-set keep).
+- A **review window** opens before the results whenever a pair awaits a
+  decision. Every excluded outlier needs a reason; decisions are saved in the
+  session by pair ID and re-applied on every run.
+- Every duplicate statistic and Thompson-Howarth is computed twice: all
+  pairs, and after the review. The verdict, the error-source diagnosis and
+  the error budget use the reviewed set. An exclusion marked "suspected, not
+  verified" makes the precision verdict provisional.
+- New report section "Data excluded from the precision statistics".
+
+### Severity, decisions and ranges
+- **B** Spec rule violations set the severity directly: CRM failure (1-3s;
+  2-2s on one CRM or on two CRMs of one batch) and any blank failure are
+  Critical with their re-assay range; cumulative CRM bias above 10 % is
+  Critical, 5-10 % Important, and is rated only from 10 results.
+- **R6** Drift needs 10 results per CRM or 15 pooled and is never Critical; a
+  two-segment step-shift test reports "step shift after result k" with the
+  bias before and after; finding texts name the Westgard pattern.
+- **R7** The error budget needs 30 pairs per class; a negative variance
+  difference is "not estimable", never 0 %.
+- **R8** Re-assay ranges stay inside the failed batch, list the sample IDs,
+  are bracketed by the last and next passing control, and name the remedy
+  (pulp re-assay; coarse-blank failure: re-preparation from the coarse
+  reject). A missing batch column is reported.
+- **C** The report leads with a **batch decision** per element (accepted /
+  accepted with conditions / rejected + re-assay range / not assessable) from
+  the spec rules, kept apart from the cumulative data-adequacy statement.
+- The weighted overall score is removed from the cover, the dashboard and the
+  text; the per-method ratings are in an appendix, labelled diagnostic.
+- **R9** Limits print as entered (7.5, not 8).
+- **D** Every finding carries a root cause (data management, laboratory,
+  sampling, programme design). New CSV exports: exclusion review, mispair
+  candidates, orphan duplicates with suggested parents (edit distance <= 2,
+  suggestions only), over-limit samples, spreadsheet errors, certificates
+  used, re-assay list by sample.
+- Demo: Ag CRMs raised above 10 x DL.
+
 ## 2.0 — 2026-10-30
 
 ### Added

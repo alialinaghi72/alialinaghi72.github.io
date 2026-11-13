@@ -179,7 +179,8 @@ def _summary(ctx, doc):
     rows = []
     for el in p.elements:
         code, reasons, ranges = d.decision(el)
-        why = "؛ ".join(T.DECISION_REASON_FA.get(r, r) for r in reasons) or "—"
+        why = "؛ ".join(T.DECISION_REASON_FA.get(r, r.replace(
+            "CRM failure", "ردشدگی نمونهٔ استاندارد")) for r in reasons) or "—"
         rows.append([_el(el), Cell(T.BATCH_DECISION_FA[code], T.BATCH_DECISION_TONE[code]),
                      why, T.ranges_text(ranges) or "—"])
     ctx.table(doc, ["عنصر", "تصمیم", "دلیل", "بازهٔ آنالیز مجدد"], rows,

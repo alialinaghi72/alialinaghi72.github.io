@@ -508,12 +508,12 @@ class App(tk.Tk):
             ttk.Label(box, text="Import the assay table to list its element columns.",
                       style="Dim.TLabel").grid(row=0, column=0, sticky="w")
             return
-        head = ["Column", "Method", "QC DL", "unit", "Upper limit", "unit",
-                "Low x DL F", "C", "P", "Low action", "Outlier HARD % F", "C", "P",
-                "Outlier action", "Pre-set", "Votes alone"]
+        head = ["Column", "Method", "QC DL", "unit", "Upper", "unit",
+                "Low xDL F", "C", "P", "Low", "HARD% F", "C", "P",
+                "Outlier", "Pre-set", "Alone"]
         for j, h in enumerate(head):
             ttk.Label(box, text=h, style="Sec.TLabel").grid(row=0, column=j, sticky="w",
-                                                            padx=3, pady=4)
+                                                            padx=2, pady=4)
         EB = self.RB.el
         for i, col in enumerate(cols, start=1):
             pr = EB.profile(col)
@@ -533,27 +533,28 @@ class App(tk.Tk):
                 v[("out", dt)] = tk.StringVar(value="" if h is None else f"{h:g}")
             self.el_cfg_vars[col] = v
             ttk.Label(box, text=col).grid(row=i, column=0, sticky="w", padx=3)
-            ttk.Combobox(box, textvariable=v["method"], values=METHOD_CHOICES, width=9,
+            ttk.Combobox(box, textvariable=v["method"], values=METHOD_CHOICES, width=7,
                          state="readonly").grid(row=i, column=1, padx=3)
-            ttk.Entry(box, textvariable=v["qc_dl"], width=8).grid(row=i, column=2, padx=3)
-            ttk.Combobox(box, textvariable=v["qc_dl_unit"], values=self._EL_UNITS, width=5,
+            ttk.Entry(box, textvariable=v["qc_dl"], width=6).grid(row=i, column=2, padx=3)
+            ttk.Combobox(box, textvariable=v["qc_dl_unit"], values=self._EL_UNITS, width=4,
                          state="readonly").grid(row=i, column=3, padx=3)
-            ttk.Entry(box, textvariable=v["upper"], width=8).grid(row=i, column=4, padx=3)
-            ttk.Combobox(box, textvariable=v["upper_unit"], values=self._EL_UNITS, width=5,
+            ttk.Entry(box, textvariable=v["upper"], width=6).grid(row=i, column=4, padx=3)
+            ttk.Combobox(box, textvariable=v["upper_unit"], values=self._EL_UNITS, width=4,
                          state="readonly").grid(row=i, column=5, padx=3)
             for j, dt in enumerate((T_FDUP, T_CDUP, T_PDUP)):
-                ttk.Entry(box, textvariable=v[("low", dt)], width=5).grid(row=i, column=6 + j,
+                ttk.Entry(box, textvariable=v[("low", dt)], width=4).grid(row=i, column=6 + j,
                                                                          padx=2)
-                ttk.Entry(box, textvariable=v[("out", dt)], width=5).grid(row=i, column=10 + j,
+                ttk.Entry(box, textvariable=v[("out", dt)], width=4).grid(row=i, column=10 + j,
                                                                          padx=2)
-            ttk.Combobox(box, textvariable=v["low_action"], values=ACTIONS, width=8,
+            ttk.Combobox(box, textvariable=v["low_action"], values=ACTIONS, width=7,
                          state="readonly").grid(row=i, column=9, padx=3)
-            ttk.Combobox(box, textvariable=v["outlier_action"], values=ACTIONS, width=8,
+            ttk.Combobox(box, textvariable=v["outlier_action"], values=ACTIONS, width=7,
                          state="readonly").grid(row=i, column=13, padx=3)
             ttk.Combobox(box, textvariable=v["outlier_preselect"], values=("exclude", "keep"),
-                         width=8, state="readonly").grid(row=i, column=14, padx=3)
+                         width=7, state="readonly").grid(row=i, column=14, padx=3)
             ttk.Checkbutton(box, variable=v["single_vote"]).grid(row=i, column=15, padx=3)
-        ttk.Label(box, text="Empty 'Low x DL' = the rule default (10). 'Votes alone': a large "
+        ttk.Label(box, text="Low: action for low-grade pairs; Outlier: action for outlier pairs. "
+                            "Empty 'Low xDL' = the rule default (10). 'Alone': a large "
                             "difference in this element alone makes a pulp or coarse pair a "
                             "mispair candidate (never for gold). 'ask' opens the review window "
                             "before the results; 'Pre-set' is the decision proposed there.",
@@ -791,16 +792,20 @@ class App(tk.Tk):
             self.refresh_elements()
 
     def set_badge(self):
+        """The header shows the batch decision (spec rules), worst first."""
         if not self.diag:
             self.badge.configure(text="  NOT ANALYSED  ", bg=BG2, fg=FG_DIM)
             return
-        order = ["REMEDIATE", "RESTRICTED", "SUITABLE"]
-        codes = [self.diag.verdict(el)[0] for el in self.project.elements]
-        worst = min(codes, key=order.index) if codes else "SUITABLE"
+        order = ["REJECTED", "CONDITIONAL", "NOT_ASSESSABLE", "ACCEPTED"]
+        codes = [self.diag.decision(el)[0] for el in self.project.elements]
+        worst = min(codes, key=order.index) if codes else "ACCEPTED"
         n = codes.count(worst)
-        text = VERDICT_EN[worst] + ("" if worst == "SUITABLE" else f" ({n} element"
-                                                                    f"{'s' if n > 1 else ''})")
-        self.badge.configure(text=f"  {text.upper()}  ", bg=VERDICT_COLOR[worst], fg="#10151c")
+        label = {"REJECTED": "batch rejected", "CONDITIONAL": "accepted with conditions",
+                 "NOT_ASSESSABLE": "not assessable", "ACCEPTED": "batch accepted"}[worst]
+        color = {"REJECTED": VERDICT_COLOR["REMEDIATE"], "CONDITIONAL": VERDICT_COLOR["RESTRICTED"],
+                 "NOT_ASSESSABLE": FG_DIM, "ACCEPTED": VERDICT_COLOR["SUITABLE"]}[worst]
+        text = label + ("" if worst == "ACCEPTED" else f" ({n} element{'s' if n > 1 else ''})")
+        self.badge.configure(text=f"  {text.upper()}  ", bg=color, fg="#10151c")
 
     # =====================================================================
     #  import, analyse
