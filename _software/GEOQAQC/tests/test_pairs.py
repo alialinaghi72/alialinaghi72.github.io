@@ -33,25 +33,31 @@ def _run(rows, elements):
 
 
 def test_C16_mispair_multi():
+    # C16 marks the candidate; the exclusion review decides. Cu is pre-set to
+    # exclude a candidate, so it is out of the statistics until decided
     p, R = _run(_rows(ELS4), ELS4)
-    assert ("P12", "P12-FD") in p.excluded_pairs
-    acts = [a for a in p.clean_log.actions if a.rule == "C16"]
-    assert [(a.sample, a.action) for a in acts] == [("P12-FD", "excluded")]
-    assert R["dup"][("FIELD DUP", "Cu_pct")]["n"] == 12
-
-
-def test_C16_single_element_flag_only():
-    p, R = _run(_rows(("Cu_pct",)), ("Cu_pct",))
-    assert p.excluded_pairs == set()
+    assert ("P12", "P12-FD") in p.mispair_candidates
     acts = [a for a in p.clean_log.actions if a.rule == "C16"]
     assert [(a.sample, a.action) for a in acts] == [("P12-FD", "flagged")]
+    assert R["dup"][("FIELD DUP", "Cu_pct")]["n"] == 12
+    assert R["dup_all"][("FIELD DUP", "Cu_pct")]["n"] == 13
+    rows = [r for r in R["exclusions"] if r["element"] == "Cu_pct"]
+    assert rows[0]["trigger"] == "mispair" and rows[0]["pending"]
+
+
+def test_C16_single_element_field_pair_is_never_a_candidate():
+    # field duplicates never use the single-element vote, and 4x is below the
+    # Cu field outlier threshold (HARD 60 % < 67 %)
+    p, R = _run(_rows(("Cu_pct",)), ("Cu_pct",))
+    assert p.mispair_candidates == {}
+    assert not [a for a in p.clean_log.actions if a.rule == "C16"]
     assert R["dup"][("FIELD DUP", "Cu_pct")]["n"] == 13
 
 
 def test_C16_scattered_pair_is_not_a_mispair():
     # a pair 1.5x apart (HARD 20 %) is poor precision, never a data error
     p, R = _run(_rows(ELS4, bad_factor=1.5), ELS4)
-    assert p.excluded_pairs == set()
+    assert p.mispair_candidates == {}
     assert not [a for a in p.clean_log.actions if a.rule == "C16"]
 
 

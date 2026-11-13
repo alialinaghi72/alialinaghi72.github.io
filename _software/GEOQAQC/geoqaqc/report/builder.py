@@ -9,6 +9,7 @@ goes to the log, and the rest of the report is still produced."""
 
 from __future__ import annotations
 
+import math
 import os
 import traceback
 
@@ -17,6 +18,7 @@ from ..core import (BLANK_TYPES, DUP_TYPES, R_NA, RATING_ORDER, T_NORMAL, T_PDUP
 from ..diagnosis import SEVERITIES, STAGES
 from ..figures import figure_catalog
 from ..elements import METHOD_LABEL
+from ..exclusions import REASONS_FA, provisional
 from ..model import usable
 from ..protocol import DEFAULT_CRITERIA, DEFAULT_SETTINGS, RULES
 from . import texts_fa as T
@@ -121,6 +123,7 @@ def build_report(project, R, diagnosis, meta, F, C, S, RB, log=print):
         _guard(ctx, doc, _el(el), lambda c, d_, el=el: _element(c, d_, el))
     if len(detail) < len(project.elements):
         _guard(ctx, doc, T.H["others"], lambda c, d_: _others(c, d_, detail))
+    _guard(ctx, doc, T.H["exclusions"], _exclusions)
     _guard(ctx, doc, T.H["actions"], _actions)
     _guard(ctx, doc, T.H["conclusion"], _conclusion)
     doc.add(PageBreak())
@@ -501,6 +504,74 @@ def _others(ctx, doc, detail):
 
 
 # ---- actions and conclusion -------------------------------------------------------
+def _cv_avg(rec):
+    """CV_avg: root mean square of the pair CVs (Stanley & Lawie 2007), %."""
+    v = rec.get("cv2_mean") if rec else None
+    return math.sqrt(v) * 100.0 if v is not None and v >= 0 else None
+
+
+def _within(rec, C, dt):
+    if not rec:
+        return None
+    good = C[_DUP_CRIT[dt]]["cuts"][2]
+    hh = [r["hard"] for r in rec["rows"] if r["hard"] is not None]
+    return 100.0 * sum(1 for h in hh if h <= good) / len(hh) if hh else None
+
+
+def _exclusions(ctx, doc):
+    """R24: what was left out of the precision statistics, and why."""
+    R = ctx.R
+    ctx.section(doc, T.H["exclusions"], "exclusions")
+    for t in T.EXCLUSION_INTRO:
+        doc.add(Para(t))
+    rev = R.get("exclusions") or []
+    summ = R.get("exclusion_summary") or {}
+    prov = provisional(rev)
+    if prov:
+        doc.add(Callout("warn", "حکم موقت",
+                        T.EXCLUSION_PROVISIONAL.format(n=fa_digits(str(len(prov))))))
+    if not summ:
+        doc.add(Para(T.EXCLUSION_NONE))
+        return
+    rows = []
+    for (dt, el), v in sorted(summ.items(), key=lambda x: (x[0][1], DUP_TYPES.index(x[0][0]))):
+        rows.append([_el(el), T.TYPE_FA[dt], _n(v["total"], 0), _n(v["low"], 0),
+                     _n(v["out_excl"], 0), _n(v["out_kept"], 0)])
+    ctx.table(doc, ["عنصر", "کلاس", "کل جفت‌ها", "کنارگذاشته (کم‌عیار)",
+                    "کنارگذاشته (پرت)", "پرتِ نگه‌داشته"], rows,
+              "خلاصهٔ جفت‌های کنارگذاشته به تفکیک عنصر و کلاس")
+    outl = [r for r in rev if r["trigger"] != "low-grade"]
+    if outl:
+        ctx.table(doc, ["عنصر", "کلاس", "نمونهٔ اصلی", "تکراری", "مقدار اصلی", "مقدار تکراری",
+                        "HARD", "علت", "تصمیم", "دلیل"],
+                  [[_el(r["element"]), T.TYPE_FA[r["dtype"]], _ltr(r["orig"]), _ltr(r["dup"]),
+                    _n(r["a"]), _n(r["b"]), _p(r["hard"], 0), T.TRIGGER_FA[r["trigger"]],
+                    Cell(T.DECISION_FA[r["decision"]] + (" (پیش‌فرض)" if r.get("pending") else ""),
+                         "warn" if r.get("pending") else ""),
+                    REASONS_FA.get(r.get("reason"), r.get("reason") or "—")]
+                   for r in outl],
+                  "همهٔ جفت‌های پرت، کنارگذاشته یا نگه‌داشته", compact=True)
+    side = []
+    for (dt, el), b in sorted(R.get("dup", {}).items(), key=lambda x: (x[0][1], x[0][0])):
+        a = R.get("dup_all", {}).get((dt, el))
+        tha = R.get("th_all", {}).get((dt, el))
+        thb = R.get("th", {}).get((dt, el))
+        side.append([_el(el), T.TYPE_FA[dt],
+                     f"{_n(a['n'], 0) if a else '—'} / {_n(b['n'], 0)}",
+                     f"{_p(a['hard_p90'], 1) if a else '—'} / {_p(b['hard_p90'], 1)}",
+                     f"{_p(_within(a, ctx.C, dt), 0)} / {_p(_within(b, ctx.C, dt), 0)}",
+                     f"{_p(_cv_avg(a), 1)} / {_p(_cv_avg(b), 1)}",
+                     f"{_p(a['rd_mean'], 2) if a else '—'} / {_p(b['rd_mean'], 2)}",
+                     f"{_n(a['rma_b']) if a else '—'} / {_n(b['rma_b'])}",
+                     f"{_p(tha['precision_at_ref'], 0) if tha else '—'} / "
+                     f"{_p(thb['precision_at_ref'], 0) if thb else '—'}"])
+    if side:
+        doc.add(Para(T.EXCLUSION_VARIANT))
+        ctx.table(doc, ["عنصر", "کلاس", "تعداد", "صدک نودم HARD", "درون مرز",
+                        "CV_avg", "میانگین اختلاف نسبی", "شیب RMA", "دقت تامپسون-هوارث"],
+                  side, "آمار دقت: همهٔ جفت‌ها / پس از بازبینی", compact=True)
+
+
 def _actions(ctx, doc):
     ctx.section(doc, T.H["actions"], "actions")
     doc.add(Para(T.ACTIONS_INTRO))

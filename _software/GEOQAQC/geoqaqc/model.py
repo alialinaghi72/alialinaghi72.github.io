@@ -360,6 +360,8 @@ class Project:
         self.dropped_rows = []      # [(file row, reason)] rows that made no sample
         self.crm_labels = {}        # normalised CRM code -> display label
         self.excluded_pairs = set() # {(original id, duplicate id)} left out
+        self.mispair_candidates = {}  # {(original id, duplicate id): detail} (C16)
+        self.pair_decisions = {}    # exclusion review: key -> {decision, reason}
         self.report_meta = None     # report.document.ReportMeta
 
     def tables(self):

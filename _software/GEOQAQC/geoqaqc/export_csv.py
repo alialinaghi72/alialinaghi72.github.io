@@ -33,11 +33,8 @@ def export_results(project, F, C, S, RB, diagnosis, folder, base, log=print):
         write_csv(p, rows, fields)
         written.append(p)
 
-    # ---- scorecard ----
-    score = [{"Section": "OVERALL", "Subject": "all methods", "Element": "",
-              "n": len(project.samples), "Statistic": "weighted score",
-              "Value": f"{R['score']:.1f}" if R["score"] is not None else "",
-              "Criterion": "", "Rating": R["overall"]}]
+    # ---- scorecard (diagnostic ratings per method; no composite score) ----
+    score = []
     for (code, el), rec in sorted(R["crm"].items()):
         score.append({"Section": "CRM", "Subject": code, "Element": el,
                       "n": rec["n"], "Statistic": "mean bias %",
@@ -227,6 +224,7 @@ def export_results(project, F, C, S, RB, diagnosis, folder, base, log=print):
         out("umpire_summary", us, list(us[0].keys()))
 
     _export_v2(project, R, F, C, S, RB, diagnosis, out)
+    _export_p0(project, R, RB, out)
 
     # ---- protocol: every formula, criterion, setting and rule actually used ----
     proto = []
@@ -280,12 +278,14 @@ def _export_v2(project, R, F, C, S, RB, diagnosis, out):
             ["Rule", "Sample", "Element", "Original", "Action", "Reason", "Severity"])
     if diagnosis is not None:
         rows = [{"Element": f.element or "(project)", "Stage": f.stage,
+                 "Root cause": f.root,
                  "Severity": f.severity, "Code": f.code, "Subject": f.subject,
                  "Finding": f.title_fa, "Finding (EN)": f.title_en,
                  "Evidence": f.evidence_fa, "Cause": f.cause_fa,
                  "Actions": " | ".join(f.actions_fa), "Owner": f.owner,
                  "Timing": f.timing} for f in diagnosis.actions()]
-        out("findings", rows, ["Element", "Stage", "Severity", "Code", "Subject",
+        out("findings", rows, ["Element", "Stage", "Root cause", "Severity", "Code",
+                               "Subject",
                                "Finding", "Finding (EN)", "Evidence", "Cause",
                                "Actions", "Owner", "Timing"])
         vr = [{"Element": el, "Verdict": diagnosis.verdict(el)[0],
@@ -339,3 +339,53 @@ def _export_v2(project, R, F, C, S, RB, diagnosis, out):
            "Significant": _flag(d["sig"])} for el, d in R.get("drift", {}).items()]
     out("crm_drift", dr, ["Element", "n", "CRMs", "Slope % per result",
                           "Change over series %", "p", "Significant"])
+
+
+
+def _export_p0(project, R, RB, out):
+    """Lists for checking against dispatch sheets and laboratory files (R22)."""
+    from .cleaning import suggest_parents
+    rev = R.get("exclusions") or []
+    fields = ["Element", "Class", "Original", "Duplicate", "Original value",
+              "Duplicate value", "Pair mean", "HARD %", "Ratio", "Trigger", "Limit",
+              "Decision", "Reason", "Decided by", "Pending", "Sequence", "Batch",
+              "C16 detail"]
+
+    def row(r):
+        return {"Element": r["element"], "Class": r["dtype"], "Original": r["orig"],
+                "Duplicate": r["dup"], "Original value": _r(r["a"], 6),
+                "Duplicate value": _r(r["b"], 6), "Pair mean": _r(r["mean"], 6),
+                "HARD %": _r(r["hard"], 2), "Ratio": _r(r["ratio"], 3),
+                "Trigger": r["trigger"], "Limit": _r(r.get("limit"), 4),
+                "Decision": r["decision"], "Reason": r.get("reason", ""),
+                "Decided by": r.get("source", ""), "Pending": _flag(r.get("pending")),
+                "Sequence": r.get("order") if r.get("order") is not None else "",
+                "Batch": r.get("batch", ""), "C16 detail": r.get("detail", "")}
+    out("exclusion_review", [row(r) for r in rev], fields)
+    out("mispair_candidates", [row(r) for r in rev if r["trigger"] != "low-grade"], fields)
+    sug = suggest_parents(project)
+    orph = [{"Duplicate": sid, "Class": t, "Problem": why,
+             "Suggested parents": " | ".join(f"{c} (distance {d})" for c, d in sug.get(sid, []))}
+            for sid, t, why in project.orphan_dups]
+    out("orphan_duplicates", orph, ["Duplicate", "Class", "Problem", "Suggested parents"])
+    ol = []
+    for el in project.elements:
+        for s in project.samples:
+            if not s.dropped and s.flags.get(el) == ">":
+                ol.append({"Element": el, "Sample": s.sid, "Type": s.stype,
+                           "Reported": s.raw.get(el, ""), "Value in column unit": _r(s.vals.get(el), 6),
+                           "Batch": s.batch})
+    out("over_limit_samples", ol, ["Element", "Sample", "Type", "Reported",
+                                   "Value in column unit", "Batch"])
+    L = project.clean_log
+    if L is not None:
+        se = [{"Sample": a.sample, "Element": a.element, "Cell": a.original}
+              for a in L.actions if a.rule == "C19"]
+        out("spreadsheet_errors", se, ["Sample", "Element", "Cell"])
+    cu = [{"CRM": c.get("label") or k, "Column": col, "Certificate element": c.get("cert_element", ""),
+           "Method": c.get("method", ""), "Certified": _r(c["cert"], 6), "SD": _r(c.get("sd"), 6),
+           "Unit": c.get("unit", ""), "Certificate unit": c.get("cert_unit", ""),
+           "Certificate row": c.get("cert_row", "")}
+          for (k, col), c in sorted(project.certs.items())]
+    out("certificates_used", cu, ["CRM", "Column", "Certificate element", "Method", "Certified",
+                                  "SD", "Unit", "Certificate unit", "Certificate row"])

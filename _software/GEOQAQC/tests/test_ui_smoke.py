@@ -71,3 +71,36 @@ def test_analysis_runs_off_the_interface_thread(app):
     assert not app._busy
     assert app.R and app.diag is not None
     assert app.current_page == "Dashboard"
+
+
+def test_elements_page_sets_methods_and_thresholds(app):
+    app.select_page("Elements")
+    app.update()
+    col = app._element_columns()[0]
+    v = app.el_cfg_vars[col]
+    v["method"].set("AR")
+    v[("out", "PULP DUP")].set("40")
+    v["outlier_action"].set("exclude")
+    assert app.apply_elements(quiet=True) == []
+    assert app.RB.el.method(col) == "AR"
+    assert app.RB.el.profile(col)["outlier_hard"]["PULP DUP"] == 40.0
+    app.reset_elements()
+    assert app.RB.el.method(col) != "AR" or col.startswith("Au") is False
+
+
+def test_review_window_records_decisions(app):
+    from geoqaqc.exclusions import REASONS
+    from geoqaqc.ui.review import ReviewDialog
+    rows = [{"key": "COARSE DUP|Cu_pct|S1|C1", "dtype": "COARSE DUP", "element": "Cu_pct",
+             "orig": "S1", "dup": "C1", "a": 0.2, "b": 2.0, "mean": 1.1, "hard": 81.8,
+             "ratio": 10.0, "trigger": "outlier", "action": "ask", "decision": "exclude",
+             "reason": REASONS[1], "source": "default", "pending": True, "order": 3,
+             "batch": "J1", "limit": 50.0, "preselect": "exclude"}]
+    dlg = ReviewDialog(app, app.project, rows, app.R.get("dup_all", {}))
+    app.update()
+    dlg.tree.selection_set("0")
+    dlg.reason.set(REASONS[0])
+    dlg._set("exclude", True)
+    dlg._apply()
+    d = app.project.pair_decisions["COARSE DUP|Cu_pct|S1|C1"]
+    assert d["decision"] == "exclude" and d["reason"] == REASONS[0]

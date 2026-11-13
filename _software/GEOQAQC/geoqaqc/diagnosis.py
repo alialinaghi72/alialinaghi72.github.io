@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 
 from .core import (BLANK_TYPES, DUP_TYPES, R_BAD, R_POOR, R_VBAD,
                    T_CBLANK, T_CDUP, T_CRM, T_FDUP, T_PBLANK, T_PDUP, mean)
+from .exclusions import provisional
 from .protocol import rate
 from .report import texts_fa as T
 
@@ -55,6 +56,7 @@ TITLE_EN = {
     "DATA_CODES": "Text codes and non-numeric values",
     "OVER_LIMIT": "Over-limit results requiring ore-grade re-assay",
     "DATA_SPREADSHEET": "Spreadsheet error strings",
+    "DATA_MISPAIR": "Probable sample mix-ups in duplicate pairs",
 }
 
 # root cause of a finding (R22): who has to act on it
@@ -371,9 +373,13 @@ def _dups(d, el, R, C, S, RB, sev):
             good = C[crit]["cuts"][2]
             hards = [r["hard"] for r in rec["rows"] if r["hard"] is not None]
             within = 100.0 * sum(1 for h in hards if h <= good) / len(hards) if hards else 0
+            alt = R.get("dup_all", {}).get((dt, el))
+            prov = any(r["element"] == el and r["dtype"] == dt
+                       for r in provisional(R.get("exclusions") or []))
             d.add("DUP_PRECISION", el, _DUP_STAGE[dt], s,
                   T.f_DUP_PRECISION(el, dt, rec["hard_p90"], good, rec["n"], within,
-                                    rec["maxmin"]["fail_pct"]),
+                                    rec["maxmin"]["fail_pct"],
+                                    alt["hard_p90"] if alt else None, prov),
                   _DUP_OWNER[dt], "ONGOING", figs, subject=dt)
         sp = rec.get("split") or {}
         if sp.get("sig") and rec["n"] >= S["min_pairs"]:
@@ -486,6 +492,18 @@ def _data(d, project, R, C, S, RB, sev):
     if cnt.get("C17"):
         d.add("DATA_ORPHAN", "", "DATA", "MINOR",
               T.f_DATA_ORPHAN(cnt["C17"], [a.sample for a in L.actions if a.rule == "C17"]),
+              "DATABASE", "BEFORE_ESTIMATE")
+    rev = [r for r in (R.get("exclusions") or []) if r["trigger"] != "low-grade"]
+    pairs_ = {(r["dtype"], r["orig"], r["dup"]) for r in rev
+              if (r["orig"], r["dup"]) in project.mispair_candidates
+              or r["trigger"] == "outlier" and r["decision"] == "exclude"}
+    if pairs_:
+        by = {}
+        for t, _, _ in pairs_:
+            by[t] = by.get(t, 0) + 1
+        n_open = len({(r["dtype"], r["orig"], r["dup"]) for r in provisional(rev)})
+        d.add("DATA_MISPAIR", "", "DATA", "MATERIAL",
+              T.f_DATA_MISPAIR(len(pairs_), sorted(by.items()), n_open),
               "DATABASE", "BEFORE_ESTIMATE")
     c19 = [a for a in L.actions if a.rule == "C19"]
     if c19:

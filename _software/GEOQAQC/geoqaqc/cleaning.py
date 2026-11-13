@@ -18,8 +18,8 @@ import re
 import weakref
 from dataclasses import asdict, dataclass
 
-from .core import (BLANK_TYPES, DUP_TYPES, T_CRM, canonical_unit, dl_flag,
-                   element_symbol, element_unit, fnum, to_latin_digits,
+from .core import (BLANK_TYPES, DUP_TYPES, T_CDUP, T_CRM, T_PDUP, canonical_unit,
+                   dl_flag, element_symbol, element_unit, fnum, to_latin_digits,
                    unit_factor)
 from .elements import METHOD_FAMILIES, METHOD_LABEL, parse_cert_element
 from .model import detection_limit, pairable, usable
@@ -720,12 +720,19 @@ def _hard(a, b):
 
 
 def clean_pairs(project, pairs, S, RB, log=print):
-    """C17: list duplicates that could not be paired. C16: a pair that
-    disagrees grossly in most elements comes from two different samples and
-    is excluded (project.excluded_pairs); with too few voting elements it is
-    only flagged, because one element cannot tell a mispair from a nugget."""
+    """C17: list duplicates that could not be paired. C16: find mispair
+    candidates (project.mispair_candidates); they are decided in the
+    exclusion review, never dropped here.
+      - multi-element vote: a pair that disagrees grossly in most elements
+        comes from two different samples;
+      - single-element vote (R5): for pulp and coarse pairs a low-nugget
+        element (Cu, Mo, Pb, Zn, Fe, S by default) may vote alone when its
+        HARD reaches the element's outlier threshold. Gold never votes alone
+        -- its nugget effect makes genuine large differences -- and field
+        duplicates never use the single-element vote."""
     L = project.clean_log or CleanLog()
     project.clean_log = L
+    project.mispair_candidates = {}
     if _on(RB, "C17"):
         for sid, dtype, why in project.orphan_dups:
             L.add("C17", sid, "", dtype, "flagged",
@@ -736,7 +743,7 @@ def clean_pairs(project, pairs, S, RB, log=print):
     multi = len(project.elements) >= RB["mispair_min_el"]
     for dtype, plist in pairs.items():
         for so, sd_ in plist:
-            voting, bad = [], []
+            voting, bad, single = [], [], []
             for el in project.elements:
                 if not pairable(so, el, RB) or not pairable(sd_, el, RB) or not dls[el]:
                     continue
@@ -747,17 +754,74 @@ def clean_pairs(project, pairs, S, RB, log=print):
                 voting.append(el)
                 if h is not None and h > RB["mispair_hard"]:
                     bad.append((el, h))
-            if not bad:
-                continue
-            detail = ", ".join(f"{el} HARD {h:.0f}%" for el, h in bad)
-            if (multi and len(voting) >= RB["mispair_min_el"]
+                prof = RB.el.profile(el)
+                thr = prof["outlier_hard"].get(dtype)
+                if (dtype in (T_CDUP, T_PDUP) and prof["single_vote"]
+                        and h is not None and thr is not None and h >= thr):
+                    single.append((el, h))
+            detail = ""
+            if (bad and multi and len(voting) >= RB["mispair_min_el"]
                     and _share(len(bad), len(voting), RB["mispair_frac"])):
-                project.excluded_pairs.add((so.sid, sd_.sid))
-                L.add("C16", sd_.sid, "", f"{dtype} of {so.sid}", "excluded",
-                      f"disagrees with its parent in {len(bad)} of "
-                      f"{len(voting)} elements ({detail}): the two results "
-                      f"come from different samples")
-            elif len(voting) < RB["mispair_min_el"]:
+                detail = (f"disagrees with its parent in {len(bad)} of {len(voting)} "
+                          f"elements (" + ", ".join(f"{el} HARD {h:.0f}%" for el, h in bad)
+                          + ")")
+            elif single:
+                detail = ("single-element vote: " +
+                          ", ".join(f"{el} HARD {h:.0f}%" for el, h in single))
+            if detail:
+                project.mispair_candidates[(so.sid, sd_.sid)] = detail
                 L.add("C16", sd_.sid, "", f"{dtype} of {so.sid}", "flagged",
-                      f"{detail}; too few elements to tell a mispair from a "
-                      f"nugget effect, so the pair is kept")
+                      f"mispair candidate: {detail}; decided in the exclusion review")
+
+
+# ===========================================================================
+#  Orphan duplicates: probable parents (suggestions only, never applied)
+# ===========================================================================
+def norm_id(s):
+    """Sample ID for comparison: upper case, no spaces, one kind of separator."""
+    s = re.sub(r"\s+", "", str(s or "").upper())
+    return re.sub(r"[_./\\]+", "-", s)
+
+
+def _lev(a, b, cap):
+    if abs(len(a) - len(b)) > cap:
+        return cap + 1
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        lo = i
+        for j, cb in enumerate(b, 1):
+            v = min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb))
+            cur.append(v)
+            lo = min(lo, v)
+        if lo > cap:
+            return cap + 1
+        prev = cur
+    return prev[-1]
+
+
+def suggest_parents(project, max_dist=2, k=3):
+    """{duplicate id: [(candidate id, distance)]} for duplicates whose parent is
+    missing: the same ID after normalising case, spaces and separators
+    (distance 0), or within max_dist edits. Suggestions are listed for the
+    user; they are never applied."""
+    ids = [s.sid for s in project.samples if not s.dropped and s.stype not in DUP_TYPES]
+    norm = {}
+    for sid in ids:
+        norm.setdefault(norm_id(sid), sid)
+    out = {}
+    by_sid = {s.sid: s for s in project.samples}
+    for sid, dtype, why in project.orphan_dups:
+        smp = by_sid.get(sid)
+        target = norm_id(smp.parent) if smp is not None and smp.parent else ""
+        if not target:
+            continue
+        cands = []
+        for nid, orig in norm.items():
+            d = _lev(target, nid, max_dist)
+            if d <= max_dist:
+                cands.append((orig, d))
+        cands.sort(key=lambda x: (x[1], x[0]))
+        if cands:
+            out[sid] = cands[:k]
+    return out

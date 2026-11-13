@@ -33,7 +33,8 @@ def state(project, F, C, S, RB, meta=None):
     out = {"version": STATE_VERSION, "settings": dict(S),
            "formulas": F.to_state(),
            "criteria": {k: list(v["cuts"]) for k, v in C.items()},
-           "rules": RB.to_state(), "report_meta": _meta_state(meta)}
+           "rules": RB.to_state(), "report_meta": _meta_state(meta),
+           "pair_decisions": dict(getattr(project, "pair_decisions", {}) or {})}
     for kind in _TABLES:
         t = getattr(project, kind)
         out[kind] = t.to_state() if t else None
@@ -90,5 +91,6 @@ def restore(st, log=print):
     p = Project()
     for kind in _TABLES:
         setattr(p, kind, _rebuild(st.get(kind), missing, log))
+    p.pair_decisions = dict(st.get("pair_decisions") or {})
     return {"project": p, "F": F, "C": C, "S": S, "RB": RB,
             "meta": st.get("report_meta") or {}, "missing": missing}

@@ -19,6 +19,7 @@ from ..cleaning import RULE_TITLES
 from ..core import (GROUP_CHOICES, GROUP_KEYS, R_NA, RATING_ORDER, T_CDUP, T_FDUP,
                     T_PDUP, fmt_num, linreg, mean, pctile, rma)
 from ..diagnosis import STAGE_EN, diagnose
+from ..elements import ACTIONS, METHOD_CHOICES
 from ..export_csv import export_results
 from ..figures import (fig_accuracy_curve, fig_batch_matrix, fig_blank,
                        fig_blank_prev, fig_coverage, fig_crm_batch, fig_crm_bias,
@@ -39,6 +40,7 @@ from ..report.document import ReportMeta
 from ..report.html_writer import write_html
 from ..report.pdf import html_to_pdf
 from .dialogs import ExportDialog, MappingDialog, ProgressDialog
+from .review import ReviewDialog
 from .theme import (ACCENT, BG0, BG1, BG2, C_ERR, C_WARN, FG, FG_DIM, MONO, RATING_COLOR,
                     UI, UI_B, UI_SMALL, UI_TITLE, VERDICT_COLOR, VERDICT_EN, apply_theme,
                     draw_logo, extend_theme)
@@ -47,7 +49,7 @@ from .widgets import FigureView, KpiCard, NavRail, ScrollFrame, fill, make_grid
 PAGES = [("OVERVIEW", ["Dashboard", "Diagnosis", "Data Cleaning"]),
          ("METHODS", ["Standards", "Blanks", "Duplicates", "Precision", "Error Budget",
                       "Check / Umpire", "Batches", "Insertion"]),
-         ("PROTOCOL", ["Formulas", "Criteria", "Rules", "Settings"]),
+         ("PROTOCOL", ["Elements", "Formulas", "Criteria", "Rules", "Settings"]),
          ("OUTPUT", ["Report", "Log"])]
 CRIT_BY_DUP = {T_FDUP: "fdup_hard90", T_CDUP: "cdup_hard90", T_PDUP: "pdup_hard90"}
 FA_FONTS = ["B Nazanin", "B Lotus", "B Mitra", "Vazirmatn", "IRANSans", "Tahoma", "Arial"]
@@ -171,7 +173,8 @@ class App(tk.Tk):
                     "Blanks": self._pg_blank, "Duplicates": self._pg_dup,
                     "Precision": self._pg_th, "Error Budget": self._pg_budget,
                     "Check / Umpire": self._pg_umpire, "Batches": self._pg_batches,
-                    "Insertion": self._pg_insertion, "Formulas": self._pg_formulas,
+                    "Insertion": self._pg_insertion, "Elements": self._pg_elements,
+                    "Formulas": self._pg_formulas,
                     "Criteria": self._pg_criteria, "Rules": self._pg_rules,
                     "Settings": self._pg_settings, "Report": self._pg_report,
                     "Log": self._pg_log}
@@ -325,6 +328,8 @@ class App(tk.Tk):
                                                         self.render_dup)
         ttk.Label(bar2, text="Statistics and charts are recomputed for the selected group.",
                   style="Dim.TLabel").pack(side="left")
+        ttk.Button(bar2, text="Review excluded pairs", command=self.review_and_rerun).pack(
+            side="right")
         self.dup_lbl = self._info(f)
         self.dup_view, bot = self._split(f, 400)
         self.dup_bot = bot
@@ -463,6 +468,136 @@ class App(tk.Tk):
                       style="Dim.TLabel").pack(side="left", padx=10)
             ttk.Label(sf.inner, text=f"      {d['note']}", style="Dim.TLabel",
                       wraplength=1000, justify="left").pack(anchor="w", pady=(0, 4))
+
+    # -- per-element configuration (R1, R11, R14, R24) ----------------------------
+    _EL_UNITS = ["", "ppm", "ppb", "%", "g/t"]
+
+    def _pg_elements(self, f):
+        ttk.Label(f, text="One row per assay column: analytical method (decides which "
+                          "certificate row is used), QC reference DL and upper limit, and the "
+                          "exclusion review of duplicate pairs -- the low-grade minimum (x QC "
+                          "DL) and the outlier HARD threshold per class (field / coarse / pulp), "
+                          "each with its action. Saved with the session.",
+                  style="Dim.TLabel", wraplength=1100, justify="left").pack(anchor="w")
+        bb = self._bar(f)
+        ttk.Button(bb, text="Apply", style="Accent.TButton",
+                   command=self.apply_elements).pack(side="left")
+        ttk.Button(bb, text="Restore defaults", command=self.reset_elements).pack(
+            side="left", padx=6)
+        sf = ScrollFrame(f)
+        sf.pack(fill="both", expand=True)
+        self.el_box_cfg = sf.inner
+        self.el_cfg_vars = {}
+        self.refresh_elements()
+
+    def _element_columns(self):
+        if self.project.elements:
+            return list(self.project.elements)
+        t = self.project.assay
+        return [c for c, _ in t.value_cols] if t else []
+
+    def refresh_elements(self):
+        box = getattr(self, "el_box_cfg", None)
+        if box is None:
+            return
+        for w in box.winfo_children():
+            w.destroy()
+        self.el_cfg_vars = {}
+        cols = self._element_columns()
+        if not cols:
+            ttk.Label(box, text="Import the assay table to list its element columns.",
+                      style="Dim.TLabel").grid(row=0, column=0, sticky="w")
+            return
+        head = ["Column", "Method", "QC DL", "unit", "Upper limit", "unit",
+                "Low x DL F", "C", "P", "Low action", "Outlier HARD % F", "C", "P",
+                "Outlier action", "Pre-set", "Votes alone"]
+        for j, h in enumerate(head):
+            ttk.Label(box, text=h, style="Sec.TLabel").grid(row=0, column=j, sticky="w",
+                                                            padx=3, pady=4)
+        EB = self.RB.el
+        for i, col in enumerate(cols, start=1):
+            pr = EB.profile(col)
+            v = {"method": tk.StringVar(value=EB.method(col)),
+                 "qc_dl": tk.StringVar(value="" if pr["qc_dl"] is None else f"{pr['qc_dl']:g}"),
+                 "qc_dl_unit": tk.StringVar(value=pr["qc_dl_unit"]),
+                 "upper": tk.StringVar(value="" if pr["upper"] is None else f"{pr['upper']:g}"),
+                 "upper_unit": tk.StringVar(value=pr["upper_unit"]),
+                 "low_action": tk.StringVar(value=pr["low_action"]),
+                 "outlier_action": tk.StringVar(value=pr["outlier_action"]),
+                 "outlier_preselect": tk.StringVar(value=pr["outlier_preselect"]),
+                 "single_vote": tk.BooleanVar(value=pr["single_vote"])}
+            for dt in (T_FDUP, T_CDUP, T_PDUP):
+                k = pr["low_kdl"].get(dt)
+                v[("low", dt)] = tk.StringVar(value="" if k is None else f"{k:g}")
+                h = pr["outlier_hard"].get(dt)
+                v[("out", dt)] = tk.StringVar(value="" if h is None else f"{h:g}")
+            self.el_cfg_vars[col] = v
+            ttk.Label(box, text=col).grid(row=i, column=0, sticky="w", padx=3)
+            ttk.Combobox(box, textvariable=v["method"], values=METHOD_CHOICES, width=9,
+                         state="readonly").grid(row=i, column=1, padx=3)
+            ttk.Entry(box, textvariable=v["qc_dl"], width=8).grid(row=i, column=2, padx=3)
+            ttk.Combobox(box, textvariable=v["qc_dl_unit"], values=self._EL_UNITS, width=5,
+                         state="readonly").grid(row=i, column=3, padx=3)
+            ttk.Entry(box, textvariable=v["upper"], width=8).grid(row=i, column=4, padx=3)
+            ttk.Combobox(box, textvariable=v["upper_unit"], values=self._EL_UNITS, width=5,
+                         state="readonly").grid(row=i, column=5, padx=3)
+            for j, dt in enumerate((T_FDUP, T_CDUP, T_PDUP)):
+                ttk.Entry(box, textvariable=v[("low", dt)], width=5).grid(row=i, column=6 + j,
+                                                                         padx=2)
+                ttk.Entry(box, textvariable=v[("out", dt)], width=5).grid(row=i, column=10 + j,
+                                                                         padx=2)
+            ttk.Combobox(box, textvariable=v["low_action"], values=ACTIONS, width=8,
+                         state="readonly").grid(row=i, column=9, padx=3)
+            ttk.Combobox(box, textvariable=v["outlier_action"], values=ACTIONS, width=8,
+                         state="readonly").grid(row=i, column=13, padx=3)
+            ttk.Combobox(box, textvariable=v["outlier_preselect"], values=("exclude", "keep"),
+                         width=8, state="readonly").grid(row=i, column=14, padx=3)
+            ttk.Checkbutton(box, variable=v["single_vote"]).grid(row=i, column=15, padx=3)
+        ttk.Label(box, text="Empty 'Low x DL' = the rule default (10). 'Votes alone': a large "
+                            "difference in this element alone makes a pulp or coarse pair a "
+                            "mispair candidate (never for gold). 'ask' opens the review window "
+                            "before the results; 'Pre-set' is the decision proposed there.",
+                  style="Dim.TLabel", wraplength=1100, justify="left").grid(
+            row=len(cols) + 1, column=0, columnspan=16, sticky="w", pady=(10, 0))
+
+    def apply_elements(self, quiet=False):
+        """Validate and store the Elements page. Returns the rejected entries."""
+        bad = []
+        EB = self.RB.el
+
+        def num(txt, label):
+            t = txt.strip()
+            if not t:
+                return None
+            from ..core import fnum
+            x = fnum(t)
+            if x is None or x < 0:
+                bad.append(f"{label}: '{t}' is not a positive number")
+            return x
+        for col, v in self.el_cfg_vars.items():
+            EB.set_method(col, v["method"].get())
+            for key in ("qc_dl", "upper"):
+                x = num(v[key].get(), f"{col} {key}")
+                EB.set(col, key, x)
+                EB.set(col, f"{key}_unit", v[f"{key}_unit"].get())
+            EB.set(col, "low_kdl", {dt: num(v[("low", dt)].get(), f"{col} low {dt}")
+                                    for dt in (T_FDUP, T_CDUP, T_PDUP)})
+            EB.set(col, "outlier_hard", {dt: num(v[("out", dt)].get(), f"{col} HARD {dt}")
+                                         for dt in (T_FDUP, T_CDUP, T_PDUP)})
+            for key in ("low_action", "outlier_action", "outlier_preselect"):
+                EB.set(col, key, v[key].get())
+            EB.set(col, "single_vote", bool(v["single_vote"].get()))
+        if bad and not quiet:
+            messagebox.showerror(APP_NAME, "These entries were rejected:\n\n"
+                                 + "\n".join(bad), parent=self)
+        if not bad:
+            self.log("Element settings applied.")
+        return bad
+
+    def reset_elements(self):
+        self.RB.el.reset()
+        self.refresh_elements()
+        self.log("Element settings restored to defaults.")
 
     def _pg_rules(self, f):
         ttk.Label(f, text="Every cleaning rule, diagnosis threshold, batch rule and severity "
@@ -650,6 +785,10 @@ class App(tk.Tk):
             self.step_btns[key].configure(
                 text=f"  {i}.  {label}" + (f"   [{len(t.rows)}]" if t else ""))
         self.btn_run.configure(state="normal" if p.assay else "disabled")
+        cols = self._element_columns()
+        if cols != getattr(self, "_el_cfg_cols", None):
+            self._el_cfg_cols = cols
+            self.refresh_elements()
 
     def set_badge(self):
         if not self.diag:
@@ -733,6 +872,15 @@ class App(tk.Tk):
                     messagebox.showerror(APP_NAME, "Analysis failed:\n"
                                          + result["error"].split("\n")[0], parent=self)
                 return
+            R, _ = result["value"]
+            pending = [r for r in R.get("exclusions", []) if r.get("pending")]
+            if pending and not quiet and not review_done:
+                # R24: the user decides before results are shown
+                if self.review_exclusions(R, only_pending=True):
+                    review_done.append(True)
+                    self._busy = False
+                    self._run_analysis_job(work, done, wait)
+                    return
             self.R, self.diag = result["value"]
             self.cat = figure_catalog(self.project, self.R, self.diag, self.S, self.C,
                                       self.RB)
@@ -743,11 +891,39 @@ class App(tk.Tk):
             self._sync()
             self.select_page("Dashboard")
 
+        review_done = []
+        self._run_analysis_job(work, done, wait)
+
+    def _run_analysis_job(self, work, done, wait):
         if wait:
             done(_attempt(work, self.log))
             return
         self._start_job("analysis", "Cleaning, analysing and diagnosing the data",
                         work, done, prefix="")
+
+    def review_exclusions(self, R=None, only_pending=False):
+        """Open the exclusion review; True when decisions were applied."""
+        R = R or self.R
+        rows = (R or {}).get("exclusions") or []
+        if not rows:
+            if not only_pending:
+                messagebox.showinfo(APP_NAME, "No duplicate pair meets a trigger.",
+                                    parent=self)
+            return False
+        dlg = ReviewDialog(self, self.project, rows, R.get("dup_all", {}),
+                           only_pending=only_pending)
+        self.wait_window(dlg)
+        if dlg.applied:
+            n = len(self.project.pair_decisions)
+            self.log(f"Exclusion review: {n} decision(s) stored in the session.")
+        return dlg.applied
+
+    def review_and_rerun(self):
+        if not self.R:
+            messagebox.showinfo(APP_NAME, "Run the analysis first.", parent=self)
+            return
+        if self.review_exclusions(only_pending=False):
+            self.do_analyse()
 
     def _start_job(self, title, text, work, done, prefix="  "):
         """Run work(progress) in a thread; done(result) runs on the interface

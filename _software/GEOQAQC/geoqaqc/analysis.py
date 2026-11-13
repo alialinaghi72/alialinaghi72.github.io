@@ -19,6 +19,8 @@ from .core import (BLANK_TYPES, DUP_TYPES, R_NA, R_VBAD, SAMPLE_TYPES,
                    cusum, element_unit, linreg, linreg_stats, mean, paired_t,
                    pctile, rma,
                    spearman, stdev, t_two_tail_p, wilcoxon)
+from .exclusions import excluded_sets, review_rows
+from .exclusions import summary as exclusion_summary
 from .model import build_samples, detection_limit, pairable, usable
 from .protocol import combine_ratings, rate
 
@@ -326,11 +328,14 @@ def build_pairs(project, S, log=print):
     return pairs
 
 
-def analyse_duplicates(project, F, C, S, RB, pairs, log=print, th_input=None):
-    """Precision of each duplicate class. Pairs whose mean is below
-    RB['dup_min_kdl'] x DL are left out of the statistics; th_input, when
-    given, receives every pair ({(type, element): {'rows', 'dl'}}) for the
-    Thompson-Howarth regression, which needs the low grades."""
+def analyse_duplicates(project, F, C, S, RB, pairs, log=print, th_input=None,
+                       low=None, outliers=None):
+    """Precision of each duplicate class. low and outliers are the pairs the
+    exclusion review takes out of the statistics ({(type, element): {(orig,
+    dup)}}, see exclusions.py). th_input, when given, receives the pairs for
+    the Thompson-Howarth regression ({(type, element): {'rows', 'dl'}}): the
+    low-grade ones stay, since the method models precision against grade;
+    excluded outliers go."""
     out = {}
     crit_key = {T_FDUP: "fdup_hard90", T_CDUP: "cdup_hard90", T_PDUP: "pdup_hard90"}
 
@@ -373,15 +378,25 @@ def analyse_duplicates(project, F, C, S, RB, pairs, log=print, th_input=None):
                 continue
             for r in rows:
                 r["prec95"] = F.calc("dup_precision95", cv=r["cv"] or 0.0)
+            lo = (low or {}).get((dtype, el), set())
+            ou = (outliers or {}).get((dtype, el), set())
             if th_input is not None:
-                th_input[(dtype, el)] = {"rows": rows, "dl": dl}
-            kdl = RB["dup_min_kdl"]
-            kdl_dl = detection_limit(project, el, S, known_only=True)
+                th_input[(dtype, el)] = {
+                    "rows": [r for r in rows if (r["orig"], r["dup"]) not in ou],
+                    "dl": dl}
+            prof = RB.el.profile(el)
+            kdl = prof["low_kdl"].get(dtype)
+            kdl = RB["dup_min_kdl"] if kdl is None else kdl
+            kdl_dl = RB.el.qc_dl(el, element_unit(el)) or \
+                detection_limit(project, el, S, known_only=True)
             n_all = len(rows)
-            if kdl and kdl_dl:
-                rows = [r for r in rows if r["mean"] >= kdl * kdl_dl]
+            n_low = sum(1 for r in rows if (r["orig"], r["dup"]) in lo)
+            rows = [r for r in rows if (r["orig"], r["dup"]) not in lo
+                    and (r["orig"], r["dup"]) not in ou]
+            n_out = n_all - n_low - len(rows)
             if not rows:
-                log(f"  {dtype} {el}: all {n_all} pair(s) below {kdl:g} x DL")
+                log(f"  {dtype} {el}: no pair left after the exclusion review "
+                    f"({n_low} low-grade, {n_out} outlier)")
                 continue
 
             hards = sorted(r["hard"] for r in rows if r["hard"] is not None)
@@ -391,8 +406,8 @@ def analyse_duplicates(project, F, C, S, RB, pairs, log=print, th_input=None):
             rma_a, rma_b = rma([r["a"] for r in rows], [r["b"] for r in rows])
 
             rec = {"type": dtype, "element": el, "n": len(rows), "rows": rows,
-                   "dl": dl, "n_below_kdl": n_all - len(rows), "min_kdl": kdl,
-                   "kdl_dl": kdl_dl,
+                   "dl": dl, "n_below_kdl": n_low, "n_outliers_excluded": n_out,
+                   "n_total": n_all, "min_kdl": kdl, "kdl_dl": kdl_dl,
                    "hard_mean": mean(hards),
                    "hard_median": pctile(hards, 50),
                    "hard_p90": pctile(hards, S["hard_pct"]),
@@ -863,10 +878,20 @@ def run_analysis(project, F, C, S, RB, log=print):
     log("Analysing blanks ...")
     blank = analyse_blank(project, F, C, S, RB, log=log)
     log("Analysing duplicates ...")
+    review = review_rows(project, pairs, S, RB)
+    low, outl = excluded_sets(review)
     th_input = {}
-    dup = analyse_duplicates(project, F, C, S, RB, pairs, log=log, th_input=th_input)
+    dup = analyse_duplicates(project, F, C, S, RB, pairs, log=log, th_input=th_input,
+                             low=low, outliers=outl)
     log("Fitting Thompson-Howarth precision ...")
     th = analyse_th(project, F, C, S, dup, log=log, th_input=th_input)
+    # R5: the same statistics with every outlier kept, side by side
+    th_all_in = {}
+    dup_all = analyse_duplicates(project, F, C, S, RB, pairs, log=lambda m: None,
+                                 th_input=th_all_in, low=low, outliers=None)
+    th_all = analyse_th(project, F, C, S, dup_all, log=lambda m: None,
+                        th_input=th_all_in)
+    th_all.pop("_skipped", None)
     th_skipped = th.pop("_skipped", [])
     for dt, el, why in th_skipped:
         log(f"  Thompson-Howarth not fitted for {dt} / {el}: {why}")
@@ -910,6 +935,8 @@ def run_analysis(project, F, C, S, RB, log=print):
                        "accuracy": accuracy, "coverage": coverage,
                        "drift": drift,
                        "budget": budget, "batches": batches,
+                       "exclusions": review, "dup_all": dup_all, "th_all": th_all,
+                       "exclusion_summary": exclusion_summary(review, dup_all),
                        "overall": overall, "score": score}
     project.analysed_at = _dt.datetime.now()
     log(f"Analysis complete. Overall QA/QC rating: {overall}"
