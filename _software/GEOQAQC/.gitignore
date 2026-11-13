@@ -5,3 +5,4 @@ dist/
 release/
 selftest_out/
 exe_selftest/
+dist_out/
