@@ -90,6 +90,7 @@ def test_v11_parity_cleaning_off():
         if k.startswith("clean_"):
             rb.set(k, False)
     rb.set("dup_min_kdl", 0)                  # 1.1 kept every pair above the DL
+    rb.set("crm_rate_uncertified", True)      # 1.1 rated uncertified CRMs
     rb.set("ump_min_kdl", 0)
     _, R = analyse(rb)
     got = _flat(R)

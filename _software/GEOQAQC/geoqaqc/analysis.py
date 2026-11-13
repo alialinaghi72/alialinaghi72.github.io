@@ -16,7 +16,8 @@ from .cleaning import clean_pairs, clean_values, parse_value
 from .core import (BLANK_TYPES, DUP_TYPES, R_NA, R_VBAD, SAMPLE_TYPES,
                    SEV_ERROR, SEV_WARN, T_BLANK, T_CBLANK, T_CDUP, T_CRM, T_FDUP,
                    T_NORMAL, T_PBLANK, T_PDUP, T_UMP, classify_type, common_slope,
-                   cusum, linreg, linreg_stats, mean, paired_t, pctile, rma,
+                   cusum, element_unit, linreg, linreg_stats, mean, paired_t,
+                   pctile, rma,
                    spearman, stdev, t_two_tail_p, wilcoxon)
 from .model import build_samples, detection_limit, pairable, usable
 from .protocol import combine_ratings, rate
@@ -65,16 +66,22 @@ def analyse_crm(project, F, C, S, RB, log=print):
                    "rsd_ratio": None}
 
             if cert is None:
-                rec["note"] = ("No certificate found for this CRM/element pair. "
-                               "Import a certificate table to enable accuracy "
-                               "statistics; only repeatability is reported.")
+                # R2: no certified value for this element -- not evaluated
+                rec["status"] = "NOT_CERTIFIED"
+                rec["note"] = ("Not certified for this element: not evaluated. "
+                               "Results are shown for information only.")
                 rec["rsd_pct"] = F.calc("crm_pooled_sd_pct",
                                         obs_sd=obs_sd or 0.0, obs_mean=obs_mean or 1.0)
-                rec["ratings"]["crm_rsd"] = rate(rec["rsd_pct"], C["crm_rsd"])
-                rec["rating"], rec["score"] = combine_ratings(
-                    [rec["ratings"]["crm_rsd"]])
+                if RB["crm_rate_uncertified"]:          # 1.1 rated repeatability
+                    rec["ratings"]["crm_rsd"] = rate(rec["rsd_pct"], C["crm_rsd"])
+                    rec["rating"], rec["score"] = combine_ratings(
+                        [rec["ratings"]["crm_rsd"]])
                 out[key] = rec
                 continue
+            rec["status"] = "EVALUATED"
+            rec["cert_row"] = cert.get("cert_row")
+            rec["method"] = cert.get("method", "")
+            rec["cert_element"] = cert.get("cert_element", "")
 
             cv, sd = cert["cert"], cert["sd"]
             rec["cert"], rec["sd"], rec["unit"] = cv, sd, cert.get("unit", "")
@@ -678,7 +685,8 @@ def build_umpire(project, S, RB, log=print):
                 if not pairable(prim, e, RB):
                     continue
                 a = prim.vals.get(e)
-                b, flag, _ = parse_value(ut.col(r, c), RB, decimal_comma=udc)
+                b, flag, _ = parse_value(ut.col(r, c), RB, decimal_comma=udc,
+                                         unit=element_unit(e))
                 if b is None or (flag == ">" and RB["clean_C08"]):
                     continue
                 pairs.setdefault(e, []).append(

@@ -16,6 +16,7 @@ from ..core import (BLANK_TYPES, DUP_TYPES, R_NA, RATING_ORDER, T_NORMAL, T_PDUP
                     fa_digits, fa_num)
 from ..diagnosis import SEVERITIES, STAGES
 from ..figures import figure_catalog
+from ..elements import METHOD_LABEL
 from ..model import usable
 from ..protocol import DEFAULT_CRITERIA, DEFAULT_SETTINGS, RULES
 from . import texts_fa as T
@@ -289,6 +290,18 @@ def _element(ctx, doc, el):
         doc.add(FindingCard(f))
 
 
+def certificate_rows(project):
+    """R1: the certificate row used for every CRM x column."""
+    out = []
+    for (key, col), c in sorted(project.certs.items()):
+        out.append({"crm": c.get("label") or project.crm_labels.get(key, key),
+                    "column": col, "element": c.get("cert_element", ""),
+                    "method": c.get("method", ""), "cert": c["cert"], "sd": c.get("sd"),
+                    "unit": c.get("unit", ""), "cert_unit": c.get("cert_unit", ""),
+                    "row": c.get("cert_row")})
+    return out
+
+
 def _el_accuracy(ctx, doc, el):
     R = ctx.R
     ctx.sub(doc, T.H["accuracy"])
@@ -299,11 +312,24 @@ def _el_accuracy(ctx, doc, el):
     doc.add(Para(T.SECTION_INTRO["accuracy"]))
     rows = []
     for lab, r in recs:
+        if r.get("status") == "NOT_CERTIFIED":
+            rows.append([_ltr(lab), _n(r["n"], 0), "—", _n(r.get("obs_mean")), "—", "—",
+                         "—", Cell(T.NOT_CERTIFIED, "muted")])
+            continue
         rows.append([_ltr(lab), _n(r["n"], 0), _n(r.get("cert")), _n(r.get("obs_mean")),
                      _p(r.get("bias"), 2), _p(r.get("fail_pct"), 1),
                      _p(r.get("rsd_pct"), 2), _rating(r["rating"])])
-    ctx.table(doc, ["شاهد", "تعداد", "مقدار گواهی", "میانگین", "بایاس", "بیرون از حد عمل",
-                    "انحراف معیار نسبی", "رتبه"], rows, f"نتایج شاهدها برای {_el(el)}")
+    ctx.table(doc, ["نمونه استاندارد", "تعداد", "مقدار گواهی", "میانگین", "بایاس",
+                    "بیرون از حد عمل", "انحراف معیار نسبی", "رتبه"], rows,
+              f"نتایج نمونه‌های استاندارد برای {_el(el)}")
+    used = [c for c in certificate_rows(ctx.project) if c["column"] == el]
+    if used:
+        ctx.table(doc, ["نمونه استاندارد", "ردیف گواهی", "عنصر در گواهی", "روش", "مقدار",
+                        "انحراف معیار", "واحد"],
+                  [[_ltr(c["crm"]), _n(c["row"], 0) if c["row"] else "—", _ltr(c["element"]),
+                    _ltr(METHOD_LABEL.get(c["method"], c["method"]) or "—"), _n(c["cert"]),
+                    _n(c["sd"]), _ltr(c["unit"])] for c in used],
+                  f"ردیف‌های گواهی به‌کاررفته برای {_el(el)}")
     dr = R.get("drift", {}).get(el)
     if dr:
         ctx.figure(doc, f"drift/{el}", f"بایاس همهٔ شاهدهای {T.el_fa(el)} به ترتیب آنالیز و "

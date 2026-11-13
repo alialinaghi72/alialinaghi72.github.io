@@ -518,6 +518,10 @@ _CLEAN_RULES = [
     ("C18", "Report sequence problems",
      "Missing or repeated sequence numbers change the order of control charts; "
      "they are listed."),
+    ("C19", "Spreadsheet error strings",
+     "#N/A, #VALUE!, #REF!, #DIV/0!, #NAME?, #NUM! and #NULL! are not laboratory "
+     "codes: they show a failed lookup or merge while the data were compiled. "
+     "They become missing values and are reported as a data-management finding."),
 ]
 
 RULES = {}
@@ -646,6 +650,10 @@ _r("ump_min_kdl", "DUPLICATE", "Check laboratory: minimum pair mean (x DL)",
    "float", 10.0, "Check / umpire pairs whose mean is below this multiple of "
    "the detection limit are left out of the inter-laboratory comparison. "
    "0 = keep every pair above the DL, as in 1.1.", 0.0, 100.0)
+_r("crm_rate_uncertified", "CRM", "Rate the repeatability of uncertified CRMs",
+   "bool", False, "Version 1.1 rated a CRM without a certified value on its "
+   "repeatability alone. The project spec says such a CRM is not evaluated for "
+   "that element (R2); switch on only to reproduce 1.1.")
 _r("split_p", "DUPLICATE", "Splitting bias: significance level", "float", 0.05,
    "p-value of the paired t-test on ln(original/duplicate).", 0.001, 0.2)
 _r("budget_dominant", "DUPLICATE", "Error budget: dominant stage share (%)",
@@ -692,7 +700,9 @@ class RuleBook:
     """Current values of RULES, validated on every change."""
 
     def __init__(self, state=None):
+        from .elements import ElementBook
         self.values = {k: self._copy(d["default"]) for k, d in RULES.items()}
+        self.el = ElementBook()          # per-element profiles and column methods
         if state:
             self.from_state(state)
 
@@ -761,11 +771,16 @@ class RuleBook:
 
     def reset(self):
         self.values = {k: self._copy(d["default"]) for k, d in RULES.items()}
+        self.el.reset()
 
     def to_state(self):
-        return {k: self._copy(v) for k, v in self.values.items()}
+        out = {k: self._copy(v) for k, v in self.values.items()}
+        out["_elements"] = self.el.to_state()
+        return out
 
     def from_state(self, state):
+        if (state or {}).get("_elements"):
+            self.el.from_state(state["_elements"])
         for k, v in (state or {}).items():
             if k in RULES:
                 try:

@@ -42,10 +42,15 @@ def make_project(rows, certs=None, elements=("Cu_pct", "Au_ppm"),
     p.assay = t
     if certs:
         ch = ["CRM_ID", "ELEMENT", "CERTIFIED", "SD", "UNIT"]
-        cr = [[str(x) for x in c] for c in certs]
+        with_method = any(len(c) > 5 for c in certs)
+        if with_method:
+            ch.append("METHOD")
+        cr = [[str(x) for x in (list(c) + [""] * (len(ch) - len(c)))] for c in certs]
         ct = DataTable("crm", "C", "certs.csv", ch, cr, ",")
         ct.mapping = {"crmid": "CRM_ID", "element": "ELEMENT",
                       "certified": "CERTIFIED", "sd": "SD", "unit": "UNIT"}
+        if with_method:
+            ct.mapping["method"] = "METHOD"
         p.crm = ct
     S = dict(DEFAULT_SETTINGS)
     S.update(settings or {})

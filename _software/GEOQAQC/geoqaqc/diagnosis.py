@@ -53,7 +53,15 @@ TITLE_EN = {
     "DATA_SWAP": "Mislabelled control samples", "DATA_UNIT": "Unit / decimal errors",
     "DATA_DUPID": "Duplicate sample IDs", "DATA_ORPHAN": "Duplicates without parent",
     "DATA_CODES": "Text codes and non-numeric values",
+    "OVER_LIMIT": "Over-limit results requiring ore-grade re-assay",
+    "DATA_SPREADSHEET": "Spreadsheet error strings",
 }
+
+# root cause of a finding (R22): who has to act on it
+ROOTS = ["DATA", "LAB", "SAMPLING", "PROGRAMME"]
+ROOT_EN = {"DATA": "Data management", "LAB": "Laboratory",
+           "SAMPLING": "Sampling", "PROGRAMME": "Programme design"}
+_STAGE_ROOT = {"DATA": "DATA", "PROGRAMME": "PROGRAMME", "SAMPLING": "SAMPLING"}
 
 
 @dataclass
@@ -71,6 +79,7 @@ class Finding:
     timing: str
     figures: list = field(default_factory=list)
     subject: str = ""       # CRM label, blank or duplicate class, ...
+    root: str = "LAB"       # DATA | LAB | SAMPLING | PROGRAMME
 
 
 def severity_from_rating(rating, RB):
@@ -94,14 +103,15 @@ class Diagnosis:
 
     # -- building ----------------------------------------------------------
     def add(self, code, element, stage, severity, texts, owner, timing,
-            figures=(), subject=""):
+            figures=(), subject="", root=None):
         title, evidence, cause, actions = texts
         if severity == "CRITICAL":
             timing = "IMMEDIATE"
         self.findings.append(Finding(code, element, stage, severity,
                                      TITLE_EN.get(code, code), title, evidence,
                                      cause, list(actions), owner, timing,
-                                     list(figures), subject))
+                                     list(figures), subject,
+                                     root or _STAGE_ROOT.get(stage, "LAB")))
 
     # -- reading -----------------------------------------------------------
     def by_element(self, el):
@@ -177,13 +187,13 @@ def _crm(d, el, R, C, S, RB, sev):
     rated = [r for r in recs if r["ratings"].get("crm_bias")]
     nocert = sorted({r["crm"] for (lab, e), r in R.get("crm", {}).items()
                      if e == el and r.get("cert") is None})
-    if nocert:
+    if nocert and not recs:
         # with no certified CRM at all the accuracy of the element is unknown:
         # a gap of the QC programme that limits the verdict, as a missing CRM
-        # class does; a few uncertified CRMs among certified ones are a data issue
-        d.add("CRM_NOCERT", el, "PROGRAMME" if not recs else "DATA",
-              "MATERIAL" if not recs else "MINOR",
-              T.f_CRM_NOCERT(el, nocert, none_at_all=not recs), "DATABASE",
+        # class does. A CRM not certified for this element beside certified
+        # ones is simply not evaluated for it (R2): no finding.
+        d.add("CRM_NOCERT", el, "PROGRAMME", "MATERIAL",
+              T.f_CRM_NOCERT(el, nocert, none_at_all=True), "DATABASE",
               "BEFORE_ESTIMATE")
     if not recs:
         return
@@ -477,7 +487,29 @@ def _data(d, project, R, C, S, RB, sev):
         d.add("DATA_ORPHAN", "", "DATA", "MINOR",
               T.f_DATA_ORPHAN(cnt["C17"], [a.sample for a in L.actions if a.rule == "C17"]),
               "DATABASE", "BEFORE_ESTIMATE")
+    c19 = [a for a in L.actions if a.rule == "C19"]
+    if c19:
+        d.add("DATA_SPREADSHEET", "", "DATA", "MATERIAL",
+              T.f_DATA_SPREADSHEET(len(c19), sorted({a.element for a in c19}),
+                                   [a.sample for a in c19]),
+              "DATABASE", "IMMEDIATE")
+    _over_limit(d, project, RB)
     codes = [cnt.get(k, 0) for k in ("C04", "C05", "C06", "C07")]
     if any(codes):
         d.add("DATA_CODES", "", "DATA", "MINOR", T.f_DATA_CODES(*codes),
               "DATABASE", "BEFORE_ESTIMATE")
+
+
+def _over_limit(d, project, RB):
+    """R3: results above the method's range -- flagged '>' or at / above the
+    column's upper limit -- are listed for ore-grade re-assay."""
+    from .core import element_unit
+    for el in project.elements:
+        up = RB.el.upper(el, element_unit(el))
+        ids = [s.sid for s in project.samples
+               if not s.dropped and s.vals.get(el) is not None
+               and (s.flags.get(el) == ">" or (up is not None and s.stype not in
+                                                (T_CRM,) and s.vals[el] >= up))]
+        if ids:
+            d.add("OVER_LIMIT", el, "ACCURACY", "MATERIAL",
+                  T.f_OVER_LIMIT(el, ids, up), "LAB", "IMMEDIATE", [], root="LAB")

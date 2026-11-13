@@ -15,6 +15,7 @@ lines (certified value, 1:1) are ink, never a series colour.
 from __future__ import annotations
 
 from .core import RATING_ORDER, R_NA, T_CDUP, T_FDUP, T_PDUP, fmt_num, mean
+from .elements import METHOD_LABEL
 from .protocol import DEFAULT_CRITERIA, rate
 
 SEP = " · "
@@ -189,6 +190,12 @@ def fig_crm_control(rec, S):
     if rec.get("bias") is not None:
         f.note(f"n = {rec['n']}   mean bias {rec['bias']:+.2f} %   observed RSD "
                f"{rec['rsd_pct']:.2f} %   SD source: {rec.get('sd_source', '-')}")
+    if rec.get("cert") is not None:
+        sd = f" ± {rec['sd']:g}" if rec.get("sd") else ""
+        f.note(f"certificate: {rec.get('cert_element') or rec['element']} "
+               f"({METHOD_LABEL.get(rec.get('method'), rec.get('method') or '-')}) "
+               f"{rec['cert']:g}{sd} {rec.get('unit', '')}"
+               + (f", certificate row {rec['cert_row']}" if rec.get("cert_row") else ""))
     del ids
     return f
 

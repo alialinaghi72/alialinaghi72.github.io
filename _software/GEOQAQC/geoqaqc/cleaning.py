@@ -14,12 +14,14 @@ RuleBook entry. With every switch off the values are exactly those of 1.1.
 
 from __future__ import annotations
 
+import re
 import weakref
 from dataclasses import asdict, dataclass
 
 from .core import (BLANK_TYPES, DUP_TYPES, T_CRM, canonical_unit, dl_flag,
                    element_symbol, element_unit, fnum, to_latin_digits,
                    unit_factor)
+from .elements import METHOD_FAMILIES, METHOD_LABEL, parse_cert_element
 from .model import detection_limit, pairable, usable
 
 # ---------------------------------------------------------------------------
@@ -42,13 +44,15 @@ RULE_TITLES = {
     "C16": ("Mispaired duplicate", "جفت تکراری جابه‌جا"),
     "C17": ("Duplicate without parent", "تکراری بی‌والد"),
     "C18": ("Sequence problem", "اشکال ترتیب"),
+    "C19": ("Spreadsheet error string", "خطای صفحه‌گسترده"),
 }
 
 _SEVERITY = {"C01": "warning", "C02": "warning", "C03": "warning",
              "C04": "info", "C05": "info", "C06": "info", "C07": "info",
              "C08": "warning", "C09": "info", "C10": "info", "C11": "error",
              "C12": "error", "C13": "error", "C14": "error", "C15": "error",
-             "C16": "error", "C17": "warning", "C18": "warning"}
+             "C16": "error", "C17": "warning", "C18": "warning",
+             "C19": "error"}
 
 
 @dataclass
@@ -110,18 +114,36 @@ def norm_code(s):
 # ===========================================================================
 #  Value parsing (C04-C07)
 # ===========================================================================
-def parse_value(raw, RB, decimal_comma=False):
+SPREADSHEET_ERRORS = {"#N/A", "#VALUE!", "#REF!", "#DIV/0!", "#NAME?", "#NUM!",
+                      "#NULL!", "#N/A!", "#NA"}
+# a number followed by its unit: '>5%', '> 5 %', '>10000 ppm', '<5 ppb'
+_WITH_UNIT = re.compile(r"^([<>]?\s*[-+]?[0-9][0-9.,]*)\s*(%|pct|ppm|ppb|g/t|gpt)\s*$",
+                        re.IGNORECASE)
+
+
+def parse_value(raw, RB, decimal_comma=False, unit=""):
     """One cell -> (value, flag, rule_code or None). With C04-C07 switched off
-    the result is the 1.1 parse: fnum() and dl_flag()."""
+    the result is the 1.1 parse: fnum() and dl_flag(). A value written with a
+    unit ('>5%') is converted to the column's unit when that is known."""
     if raw is None:
         return None, "", None
     s = to_latin_digits(raw).strip()
     if not s:
         return None, "", None
+    if _on(RB, "C19") and s.upper().replace(" ", "") in SPREADSHEET_ERRORS:
+        return None, "", "C19"
     codes = {str(c).strip().upper() for c in RB["lab_codes"]}
     if _on(RB, "C04") and s.upper() in codes:
         return None, "", "C04"
+    factor = 1.0
+    m = _WITH_UNIT.match(s) if _on(RB, "C08") else None
+    if m:
+        s = m.group(1).replace(" ", "")
+        f = unit_factor(m.group(2), unit) if unit else None
+        factor = float(f) if f else 1.0
     v = fnum(s, decimal_comma=decimal_comma)
+    if v is not None:
+        v *= factor
     flag = dl_flag(s)
     if v is None:
         # text that is neither a number nor a known code is still "no result",
@@ -142,6 +164,8 @@ _PARSE_REASON = {
     "C05": "sentinel number, not a concentration -> missing",
     "C06": "negative value -> below detection limit",
     "C07": "zero -> below detection limit",
+    "C19": "spreadsheet error string: a failed lookup or merge while the data were "
+           "compiled -> missing",
 }
 
 
@@ -211,7 +235,8 @@ def clean_values(project, S, RB, log=print):
             continue
         for el in elements:
             raw = s.raw.get(el)
-            v, flag, rule = parse_value(raw, RB, decimal_comma=dc)
+            v, flag, rule = parse_value(raw, RB, decimal_comma=dc,
+                                        unit=element_unit(el))
             s.vals[el], s.flags[el] = v, flag
             if rule:
                 L.add(rule, s.sid, el, raw, "converted" if v is not None
@@ -285,63 +310,99 @@ def _crm_rules(project, S, RB, L):
 # ===========================================================================
 #  Certificates (C09, C10)
 # ===========================================================================
-def _match_cert_element(cert_el, elements, fuzzy):
-    """Assay column for a certificate element name, or None."""
-    ce = str(cert_el).strip()
-    for e in elements:
-        if e.strip().upper() == ce.upper():
-            return e
+class CertificateConflict(ValueError):
+    """Two certificate rows still match one CRM x column after the method rule."""
+
+
+def _cert_columns(el, method, elements, fuzzy, RB):
+    """Assay columns a certificate row may serve: [(column, exact_method)].
+    Without C10 only a column of exactly the same name. With C10 every column
+    of the same element whose analytical method agrees; a row whose method is
+    not a known family (say 'ICP') is a weaker candidate for any column."""
+    exact = [e for e in elements if e.strip().upper() == el.strip().upper()]
     if not fuzzy:
-        return None
-    sym = element_symbol(ce)
-    cands = [e for e in elements if element_symbol(e) == sym]
-    if not cands:
-        return None
-    cu = element_unit(ce)
-    same = [e for e in cands if cu and element_unit(e) == cu]
-    return (same or cands)[0]
+        return [(e, True) for e in exact]
+    sym, _ = parse_cert_element(el)
+    out = []
+    for col in elements:
+        if element_symbol(col) != sym:
+            continue
+        cm = RB.el.method(col)
+        if method == cm:
+            out.append((col, True))
+        elif method not in METHOD_FAMILIES:
+            out.append((col, False))
+    return out
 
 
 def _build_certs(project, RB, L):
+    """Certificate rows -> project.certs[(CRM key, column)]. With C10 the
+    analytical method decides (R1): 'Au' is the element's primary method (fire
+    assay), 'Au_AR' aqua regia, 'CuSol' acid-soluble copper, which never serves
+    a total-copper column; an explicit METHOD column wins. One CRM x column
+    must resolve to exactly one row, or CertificateConflict stops the run."""
     ct = project.crm
     fuzzy_code, fuzzy_el = _on(RB, "C09"), _on(RB, "C10")
     for s in project.samples:
         s.crm_key = norm_code(s.crmid) if fuzzy_code else s.crmid.strip().upper()
-    certs, labels = {}, {}
+    certs, labels, cands = {}, {}, {}
     if ct is not None:
         cdc = getattr(ct, "decimal_comma", False)
-        for r in ct.rows:
+        for i, r in enumerate(ct.rows):
             label = str(ct.get(r, "crmid") or "").strip()
             el = str(ct.get(r, "element") or "").strip()
             cv = fnum(ct.get(r, "certified"), decimal_comma=cdc)
             sd = fnum(ct.get(r, "sd"), decimal_comma=cdc)
             unit = str(ct.get(r, "unit") or "").strip()
+            mraw = str(ct.get(r, "method") or "").strip()
             if not label or not el or cv is None:
                 continue
             key = norm_code(label) if fuzzy_code else label.upper()
             labels.setdefault(key, label)
-            col = _match_cert_element(el, project.elements, fuzzy_el)
-            if col is None:
-                continue
-            factor = 1.0
-            out_unit = unit
-            if fuzzy_el:
-                cu = canonical_unit(unit) or element_unit(el)
-                au = element_unit(col)
-                f = unit_factor(cu, au) if cu and au else None
-                if f is not None and f != 1:
-                    factor = float(f)
-                    out_unit = au
-                    L.add("C10", label, col, f"{cv:g} {cu}", "converted",
-                          f"certificate in {cu}, assay column in {au}: "
-                          f"x {factor:g}")
-                elif col.strip().upper() != el.upper():
-                    L.add("C10", label, col, el, "corrected",
-                          f"certificate element '{el}' matched to column '{col}'")
-            certs[(key, col)] = {
-                "cert": cv * factor, "sd": sd * factor if sd is not None else None,
-                "unit": out_unit, "cert_unit": unit, "method": str(ct.get(r, "method") or "").strip(),
-                "label": label, "factor": factor}
+            _, method = parse_cert_element(el, mraw)
+            for col, exact in _cert_columns(el, method, project.elements, fuzzy_el, RB):
+                cands.setdefault((key, col), []).append({
+                    "row": i + 2, "label": label, "element": el, "method": method,
+                    "method_raw": mraw, "cert": cv, "sd": sd, "unit": unit,
+                    "exact": exact})
+    for (key, col), lst in cands.items():
+        if not fuzzy_el:
+            pick = lst[-1]                      # 1.1: the last row of that name
+        else:
+            best = [c for c in lst if c["exact"]] or lst
+            if len(best) > 1:
+                rows = "; ".join(f"row {c['row']}: {c['element']} {c['method'] or '?'} "
+                                 f"{c['cert']:g} {c['unit']}" for c in best)
+                raise CertificateConflict(
+                    f"CRM {best[0]['label']}, column {col}: {len(best)} certificate "
+                    f"rows match after the method rule ({rows}). Give each row a "
+                    f"METHOD, or set the column's method in the column mapping.")
+            pick = best[0]
+        factor, out_unit = 1.0, pick["unit"]
+        if fuzzy_el:
+            cu = canonical_unit(pick["unit"]) or element_unit(pick["element"])
+            au = element_unit(col)
+            f = unit_factor(cu, au) if cu and au else None
+            if f is not None and f != 1:
+                factor, out_unit = float(f), au
+                L.add("C10", pick["label"], col, f"{pick['cert']:g} {cu}", "converted",
+                      f"certificate in {cu}, assay column in {au}: x {factor:g}")
+            renamed = col.strip().upper() != pick["element"].upper() and factor == 1
+            if renamed or len(lst) > 1:
+                others = [c for c in lst if c is not pick]
+                L.add("C10", pick["label"], col, pick["element"], "corrected",
+                      f"certificate row {pick['row']} ({pick['element']}, "
+                      f"{METHOD_LABEL.get(pick['method'], pick['method'])}) used for "
+                      f"column '{col}'" + (
+                          "; not used: " + ", ".join(
+                              f"row {c['row']} ({c['element']})" for c in others)
+                          if others else ""))
+        certs[(key, col)] = {
+            "cert": pick["cert"] * factor,
+            "sd": pick["sd"] * factor if pick["sd"] is not None else None,
+            "unit": out_unit, "cert_unit": pick["unit"], "method": pick["method"],
+            "method_raw": pick["method_raw"], "cert_element": pick["element"],
+            "cert_row": pick["row"], "label": pick["label"], "factor": factor}
     # labels for codes that only occur in the assay table
     for s in project.samples:
         if s.stype == T_CRM and s.crm_key:
