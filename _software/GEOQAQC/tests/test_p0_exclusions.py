@@ -149,7 +149,8 @@ def test_exports_decisions_csv(tmp_path):
                            {k: dict(v) for k, v in DEFAULT_CRITERIA.items()},
                            dict(DEFAULT_SETTINGS), RuleBook(), d, str(tmp_path), "b",
                            log=lambda m: None)
-    names = {f.split("/")[-1] for f in files}
+    import os
+    names = {os.path.basename(f) for f in files}
     assert "b_exclusion_review.csv" in names and "b_mispair_candidates.csv" in names
 
 
