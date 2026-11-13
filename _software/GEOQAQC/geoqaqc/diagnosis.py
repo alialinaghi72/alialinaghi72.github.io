@@ -85,6 +85,7 @@ class Finding:
     figures: list = field(default_factory=list)
     subject: str = ""       # CRM label, blank or duplicate class, ...
     root: str = "LAB"       # DATA | LAB | SAMPLING | PROGRAMME
+    impact_fa: str = ""     # R21: impact on resource classification
 
 
 def severity_from_rating(rating, RB):
@@ -253,7 +254,26 @@ def diagnose(project, results, C, S, RB):
         _umpire(d, el, R, Ce, S, RB, sev)
     _programme(d, project, R, C, S, RB, sev)
     _data(d, project, R, C, S, RB, sev)
+    _assessment_mode(d, RB)
     return d
+
+
+# codes whose actions look ahead to batches not yet assayed
+_FORWARD = {"INS_RATE", "INS_MISSING", "CRM_GAP", "CRM_CUTOFF", "CRM_COVERAGE",
+            "CRM_ABOVE_UPPER", "CRM_NOCERT"}
+
+
+def _assessment_mode(d, RB):
+    """R21: in retrospective mode (historical data) a recommendation for the
+    programme ahead cannot help the finished batches; it becomes a remedial
+    action. Every finding states its impact on resource classification."""
+    retro = RB["assessment_mode"] == "retrospective"
+    d.mode = "retrospective" if retro else "concurrent"
+    for f in d.findings:
+        if retro and f.code in _FORWARD:
+            f.actions_fa = T.retro_actions(f.code, f.element, f.subject)
+            f.timing = "BEFORE_ESTIMATE"
+        f.impact_fa = T.classification_impact(f.code, f.stage, f.severity, retro)
 
 
 # ---- accuracy ----------------------------------------------------------------

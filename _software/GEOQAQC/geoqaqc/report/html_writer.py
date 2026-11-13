@@ -292,9 +292,7 @@ def _cover(w, b):
 def _doccontrol(w, b):
     m = b.meta
     d = m.the_date()
-    rows = [("عنوان", T.REPORT_TITLE), ("پروژه", m.project), ("شمارهٔ گزارش", m.report_no),
-            ("استاندارد کنترل کیفیت", m.standard),
-            ("ویرایش", fa_digits(m.revision)), ("تاریخ", jalali_str(d))]
+    rows = m.control_rows(T.REPORT_TITLE, T.ASSESSMENT_MODE_FA) + [("تاریخ", jalali_str(d))]
     body = "".join(f"<tr><th>{t(k)}</th><td>{t(v or '—')}</td></tr>" for k, v in rows)
     people = [("تهیه‌کننده", m.author, m.author_title), ("بازبین", m.reviewer, ""),
               ("تأییدکننده", m.approver, "")]
@@ -325,7 +323,9 @@ def _card(f):
             f'<span class="tag">{t(T.TIMING_FA.get(f.timing, f.timing))}</span></div>'
             f'<div class="bd"><p><span class="lbl">شواهد: </span>{t(f.evidence_fa)}</p>'
             f'<p><span class="lbl">علت محتمل: </span>{t(f.cause_fa)}</p>'
-            f'<p class="lbl" style="margin:0">راهکار:</p><ol>{acts}</ol></div></div>')
+            f'<p class="lbl" style="margin:0">راهکار:</p><ol>{acts}</ol>'
+            + (f'<p><span class="lbl">اثر بر طبقه‌بندی منابع: </span>{t(f.impact_fa)}</p>'
+               if getattr(f, "impact_fa", "") else "") + '</div></div>')
 
 
 def _vgrid(items):

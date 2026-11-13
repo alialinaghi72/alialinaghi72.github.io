@@ -225,6 +225,14 @@ def export_results(project, F, C, S, RB, diagnosis, folder, base, log=print):
 
     _export_v2(project, R, F, C, S, RB, diagnosis, out)
     _export_p0(project, R, RB, out)
+    from .compliance import compliance
+    cp = [{"Element": r["element"] or "all", "Control": r["control"],
+           "Criterion": r["criterion"], "Spec limit": r["limit"],
+           "Observed": _r(r["observed"], 4) if isinstance(r["observed"], float) else r["observed"],
+           "n": r["n"], "Result": r["result"]}
+          for r in compliance(project, R, C, S, RB)]
+    out("compliance", cp, ["Element", "Control", "Criterion", "Spec limit", "Observed", "n",
+                           "Result"])
     if diagnosis is not None and hasattr(diagnosis, "batch_matrix"):
         border, bm = diagnosis.batch_matrix()
         els = list(project.elements)

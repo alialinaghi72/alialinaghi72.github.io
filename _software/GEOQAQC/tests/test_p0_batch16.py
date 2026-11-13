@@ -120,7 +120,8 @@ def test_9_limits_print_as_entered(tmp_path, b16):
     doc = build_report(p, R, d, ReportMeta(project="B16"), FormulaBook(DEFAULT_FORMULAS),
                        C, dict(DEFAULT_SETTINGS), rb, log=lambda m: None)
     h = open(write_html(doc, str(tmp_path / "r.html")), encoding="utf-8").read()
-    assert "۷٫۵٪" in h
+    assert "7.5%" in h                    # R23: Latin digits in tables
+    assert "8%" not in h.split("7.5%")[0][-6:]
 
 
 def test_r24_review_window_content(b16):

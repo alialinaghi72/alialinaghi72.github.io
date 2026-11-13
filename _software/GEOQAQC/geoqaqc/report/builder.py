@@ -11,10 +11,12 @@ from __future__ import annotations
 
 import math
 import os
+import re
 import traceback
 
 from ..core import (BLANK_TYPES, DUP_TYPES, R_NA, RATING_ORDER, T_NORMAL, T_PDUP,
-                    fa_digits, fa_num)
+                    fa_digits, fa_num, fnum, latin_digits)
+from ..compliance import compliance
 from ..diagnosis import SEVERITIES, STAGES
 from ..figures import figure_catalog
 from ..elements import METHOD_LABEL, criteria_for
@@ -35,6 +37,13 @@ _RATING_TONE = {"EXCELLENT": "ok", "VERY GOOD": "ok", "GOOD": "ok", "POOR": "war
                 "BAD": "material", "VERY BAD": "critical", "NO DATA": "muted"}
 _BATCH_TONE = {"PASS": "ok", "WARN": "warn", "FAIL": "critical", "NONE": "muted"}
 _BATCH_FA = {"PASS": "قبول", "WARN": "هشدار", "FAIL": "رد", "NONE": "بدون کنترل"}
+
+
+def _latin_cell(c):
+    """R23: numbers in table cells in Latin digits."""
+    if isinstance(c, Cell):
+        return Cell(latin_digits(c.text), c.tone, c.ltr)
+    return latin_digits(c) if isinstance(c, str) else c
 
 
 def _n(v, d=None):
@@ -88,7 +97,8 @@ class _Ctx:
 
     def table(self, doc, header, rows, caption="", widths=None, compact=False):
         self.tab_n += 1
-        doc.add(Table(header, rows, caption, widths, fa_digits(str(self.tab_n)), compact))
+        doc.add(Table(header, [[_latin_cell(c) for c in r] for r in rows], caption, widths,
+                      fa_digits(str(self.tab_n)), compact))
 
 
 def _guard(ctx, doc, title, fn):
@@ -107,11 +117,56 @@ def detail_elements(project, meta):
     return list(project.elements[:MAX_DETAIL])
 
 
+def _range_text(vals):
+    vals = sorted(vals, key=lambda v: (fnum(v) is None, fnum(v) or 0, v))
+    if not vals:
+        return ""
+    if len(vals) <= 4:
+        return "، ".join(vals)
+    return f"{vals[0]} تا {vals[-1]} ({len(vals)} بچ)"
+
+
+def report_code(meta):
+    """'North Lar (NLR)' -> 'NLR'; else the capitals of the project name."""
+    m = re.search(r"\(([A-Z][A-Z0-9]{1,7})\)", meta.project or "")
+    if m:
+        return m.group(1)
+    caps = "".join(w[0] for w in re.findall(r"[A-Za-z]+", meta.project or "") if w[0].isupper())
+    return caps[:6] or "QAQC"
+
+
+def auto_meta(meta, project, RB=None):
+    """R22: metadata from the data where the settings leave it empty -- batch
+    numbers, laboratory, analysis date range, report number (e.g.
+    'NLR-QAQC-RPT-B16 Rev. 0') -- and the assessment mode (R21)."""
+    live = [s for s in project.samples if not s.dropped]
+    batches = sorted({str(s.batch) for s in live if s.batch})
+    if not meta.batches:
+        meta.batches = _range_text(batches)
+    if not meta.laboratory:
+        meta.laboratory = "، ".join(sorted({s.lab for s in live if s.lab}))
+    if not meta.analysis_dates:
+        ds = sorted({str(s.date).strip() for s in live if str(s.date or "").strip()})
+        meta.analysis_dates = (ds[0] if len(ds) == 1 else f"{ds[0]} تا {ds[-1]}") if ds else ""
+    if not meta.report_no:
+        b = ""
+        tag = [x if x[:1].isalpha() else f"B{x}" for x in (batches[0], batches[-1])] \
+            if batches else []
+        if len(batches) == 1:
+            b = f"-{tag[0]}"
+        elif batches:
+            b = f"-{tag[0]}-{tag[1]}"
+        meta.report_no = f"{report_code(meta)}-QAQC-RPT{b} Rev. {meta.revision or '0'}"
+    if RB is not None and not meta.mode:
+        meta.mode = RB["assessment_mode"]
+
+
 # ===========================================================================
 def build_report(project, R, diagnosis, meta, F, C, S, RB, log=print):
     meta = meta if isinstance(meta, ReportMeta) else ReportMeta.from_dict(meta)
     if not meta.standard and RB is not None:
         meta.standard = RB.el.preset            # R19: the standard the limits came from
+    auto_meta(meta, project, RB)
     ctx = _Ctx(project, R, diagnosis, meta, F, C, S, RB, log)
     doc = Document(meta)
     _guard(ctx, doc, "جلد", _cover)
@@ -174,6 +229,8 @@ def _summary(ctx, doc):
             f"{_n(codes.count('RESTRICTED'), 0)} عنصر قابل استفاده با محدودیت و "
             f"{_n(codes.count('REMEDIATE'), 0)} عنصر نیازمند اصلاح پیش از استفاده‌اند.")
     doc.add(Para(lead, "lead"))
+    if getattr(d, "mode", "") == "retrospective":
+        doc.add(Callout("warn", T.ASSESSMENT_MODE_FA["retrospective"], T.RETRO_NOTE))
     # (1) batch decision from the spec rules, apart from (2) cumulative adequacy
     ctx.sub(doc, T.DECISION_TITLE)
     if not (p.assay and p.assay.mapping.get("batch")):
@@ -182,7 +239,7 @@ def _summary(ctx, doc):
     for el in p.elements:
         code, reasons, ranges = d.decision(el)
         why = "؛ ".join(T.DECISION_REASON_FA.get(r, r.replace(
-            "CRM failure", "ردشدگی نمونهٔ استاندارد")) for r in reasons) or "—"
+            "CRM failure", "ردشدگی نمونه استاندارد")) for r in reasons) or "—"
         rows.append([_el(el), Cell(T.BATCH_DECISION_FA[code], T.BATCH_DECISION_TONE[code]),
                      why, T.ranges_text(ranges) or "—"])
     ctx.table(doc, ["عنصر", "تصمیم", "دلیل", "بازهٔ آنالیز مجدد"], rows,
@@ -209,19 +266,64 @@ def _summary(ctx, doc):
     ctx.figure(doc, "source_matrix", "منشأ خطا: شدیدترین یافته در هر مرحلهٔ زنجیرهٔ نمونه، "
                                      "به تفکیک عنصر")
     serious = [f for f in d.actions() if f.severity in ("CRITICAL", "MATERIAL")]
+    rest = len(serious) - min(len(serious), 5)
     if serious:
-        ctx.sub(doc, "یافته‌های بحرانی و مهم")
-        doc.add(Bullets([f"**{T.SEVERITY_FA[f.severity]}** — "
-                         f"{f.title_fa} ({T.STAGE_FA[f.stage]})" for f in serious]))
-    now = [f for f in d.actions() if f.timing == "IMMEDIATE"][:8]
-    if now:
-        ctx.sub(doc, "اقدامات فوری")
-        doc.add(Bullets([f"{f.actions_fa[0]} ({T.el_fa(f.element) if f.element else 'کل پروژه'})"
-                         for f in now], ordered=True))
+        # R22: at most five key findings, each with its required action and ranges
+        ctx.sub(doc, T.KEY_FINDINGS_TITLE)
+        items = []
+        for f in serious[:5]:
+            where = T.el_fa(f.element) if f.element else "کل پروژه"
+            act = f.actions_fa[0] if f.actions_fa else ""
+            rng = ""
+            if f.code in ("CRM_FAIL", "BLK_FAIL") and f.element:
+                rng = T.ranges_text(d.decision(f.element)[2])
+            items.append(f"**{T.SEVERITY_FA[f.severity]}** — {f.title_fa} ({where}): {act}"
+                         + (f" بازه‌ها: {rng}." if rng else ""))
+        doc.add(Bullets(items, ordered=True))
+        if rest:
+            doc.add(Para(T.MORE_FINDINGS.format(n=fa_digits(str(rest)))))
+    _compliance_table(ctx, doc)
     if R.get("budget"):
         ctx.figure(doc, "budget", "بودجهٔ خطا: سهم نمونه‌برداری، آماده‌سازی و آنالیز از "
                                   "واریانس کل")
     doc.add(Callout("info", "تذکر", T.DISCLAIMER))
+
+
+_COMP_RESULT = {"PASS": ("قبول", "ok"), "CONDITIONAL": ("مشروط", "warn"),
+                "FAIL": ("رد", "critical"), "INSUFFICIENT": ("داده ناکافی — بدون نتیجه‌گیری",
+                                                       "muted")}
+
+
+def _compliance_table(ctx, doc):
+    """R22: compliance against the spec instead of a composite score."""
+    rows = compliance(ctx.project, ctx.R, ctx.C, ctx.S, ctx.RB)
+    if not rows:
+        return
+    ctx.sub(doc, T.COMPLIANCE_TITLE)
+    doc.add(Para(T.COMPLIANCE_INTRO))
+    out = []
+    for r in rows:
+        crit = T.COMPLIANCE_CRITERION_FA.get(r["criterion"], r["criterion"])
+        lim = r["limit"]
+        if r["criterion"] == "rules":
+            lim_txt, obs = f"بدون نقض ({lim.replace('/', '، ')})", _n(r["observed"], 0) + " نقض"
+        elif r["criterion"] == "bias":
+            lim_txt = (f"تا {T.lim(ctx.RB['bias_cond'])} قبول، بیش از "
+                       f"{T.lim(ctx.RB['bias_fail'])} رد")
+            obs = _p(r["observed"], 2)
+        elif r["criterion"] == "blank":
+            lim_txt, obs = f"حداکثر {_n(lim)}", _n(r["observed"])
+        elif r["criterion"] == "insertion":
+            lim_txt, obs = f"حداقل {T.lim(lim)}", _p(r["observed"], 2)
+        else:
+            lim_txt, obs = f"حداکثر {T.lim(lim)}", _p(r["observed"], 1)
+        name = T.TYPE_FA.get(r["control"], r["control"])
+        text, tone = _COMP_RESULT[r["result"]]
+        out.append([_el(r["element"]) if r["element"] else "همه",
+                    name if r["control"] in T.TYPE_FA else _ltr(name), crit, lim_txt, obs,
+                    _n(r["n"], 0), Cell(text, tone)])
+    ctx.table(doc, ["عنصر", "کنترل", "معیار", "حد مشخصهٔ فنی", "مقدار مشاهده‌شده", "n",
+                    "نتیجه"], out, T.COMPLIANCE_CAPTION, compact=True)
 
 
 # ---- introduction ------------------------------------------------------------------
@@ -231,8 +333,8 @@ def _intro(ctx, doc):
     for para in T.INTRO:
         doc.add(Para(para))
     rows = []
-    for label, t in (("نتایج آنالیز", p.assay), ("گواهی شاهدها", p.crm),
-                     ("جفت‌های تکراری", p.pairs), ("آزمایشگاه دوم", p.umpire)):
+    for label, t in (("نتایج آنالیز", p.assay), ("گواهی نمونه‌های استاندارد", p.crm),
+                     ("جفت‌های تکراری", p.pairs), ("آزمایشگاه داور", p.umpire)):
         if t is not None:
             rows.append([label, _ltr(os.path.basename(t.path)), _n(len(t.rows), 0),
                          _n(len(t.header), 0)])
@@ -256,7 +358,7 @@ def _intro(ctx, doc):
     ump = {r.get("lab") for r in ctx.R.get("umpire", {}).values() if r.get("lab")}
     if labs or ump:
         doc.add(Para("آزمایشگاه اصلی: " + (" ، ".join(labs) or "—")
-                     + (f" — آزمایشگاه دوم: {' ، '.join(sorted(ump))}" if ump else "")))
+                     + (f" — آزمایشگاه داور: {' ، '.join(sorted(ump))}" if ump else "")))
 
 
 # ---- cleaning --------------------------------------------------------------------
@@ -298,7 +400,7 @@ def _programme(ctx, doc):
                   f"نرخ درج نمونه‌های کنترلی از {_n(ins['n_total'], 0)} نمونه")
         ctx.figure(doc, "insertion", "نرخ درج هر کلاس کنترلی در برابر هدف آن کلاس")
     if R.get("batches"):
-        ctx.figure(doc, "batches", "پذیرش بچ‌ها: وضعیت شاهدها و شاهدهای خالی در هر بچ")
+        ctx.figure(doc, "batches", "پذیرش بچ‌ها: وضعیت نمونه‌های استاندارد و شاهدها در هر بچ")
     for f in [f for f in ctx.d.project_findings() if f.stage == "PROGRAMME"]:
         doc.add(FindingCard(f))
 
@@ -383,21 +485,21 @@ def _el_accuracy(ctx, doc, el):
         doc.add(Para(T.DRIFT_INSUFFICIENT.format(n=fa_digits(str(dr["n"])),
                                                  m=fa_digits(str(ctx.RB["drift_min_pooled"])))))
     elif dr:
-        ctx.figure(doc, f"drift/{el}", f"بایاس همهٔ شاهدهای {T.el_fa(el)} به ترتیب آنالیز و "
+        ctx.figure(doc, f"drift/{el}", f"بایاس همهٔ نمونه‌های استاندارد {T.el_fa(el)} به ترتیب آنالیز و "
                                        f"روند برازش‌شده")
     ctx.figure(doc, f"accuracy/{el}", f"منحنی صحت {T.el_fa(el)}: میانگین اندازه‌گیری‌شده در "
                                       f"برابر مقدار گواهی")
     for lab, r in recs:
         if r.get("cert") is not None:
             ctx.figure(doc, f"crm/{lab}/{el}/control",
-                       f"نمودار کنترلی شاهد {lab} برای {T.el_fa(el)}")
+                       f"نمودار کنترلی نمونه استاندارد {lab} برای {T.el_fa(el)}")
     fails = [f for f in ctx.d.by_element(el) if f.code in ("CRM_FAIL", "CRM_CLUSTER")]
     if fails:
         worst = max((r for _, r in recs if r.get("fail_pct") is not None),
                     key=lambda r: r["fail_pct"], default=None)
         if worst:
             ctx.figure(doc, f"crm/{worst['crm']}/{el}/batch",
-                       f"بایاس شاهد {worst['crm']} در هر بچ")
+                       f"بایاس نمونه استاندارد {worst['crm']} در هر بچ")
     cov = R.get("coverage", {}).get(el)
     if cov and cov.get("certs"):
         def _yes(flag):
@@ -436,7 +538,7 @@ def _el_contamination(ctx, doc, el):
             for bt, r in recs]
     ctx.table(doc, ["نوع", "تعداد", "حد آلودگی", "ردشده", "نرخ ردشدگی",
                     "بدترین (برابر حد تشخیص)", "رتبه"], rows,
-              f"نتایج شاهدهای خالی برای {_el(el)}")
+              f"نتایج شاهدها برای {_el(el)}")
     for bt, r in recs:
         ctx.figure(doc, f"blank/{bt}/{el}", f"نمودار کنترلی {T.TYPE_FA[bt]} برای {T.el_fa(el)}")
         if r["n_fail"]:
@@ -463,13 +565,20 @@ def _el_precision(ctx, doc, el):
     if note:
         doc.add(Para(note))
     rows = []
+    cvlim = ctx.RB.el.profile(el).get("cv_avg_limit") or {}
     for dt, r in recs:
         crit = criteria_for(ctx.C, ctx.RB, el)[_DUP_CRIT[dt]]
+        enough = r["n"] >= ctx.S["min_pairs"]
+        lim = cvlim.get(dt)
         rows.append([T.TYPE_FA[dt], _n(r["n"], 0), _p(r["hard_p90"], 1),
-                     T.lim(crit["cuts"][2]), _p(100.0 - r["maxmin"]["fail_pct"], 0),
-                     _p(r["rd_mean"], 2), _rating(r["ratings"].get(_DUP_CRIT[dt], R_NA))])
-    ctx.table(doc, ["کلاس", "جفت", "صدک نودم HARD", "مرز پذیرش", "جفت‌های درون مرز",
-                    "میانگین اختلاف نسبی", "رتبه"], rows, f"دقت نمونه‌های تکراری {_el(el)}")
+                     T.lim(crit["cuts"][2]), _p(_within(r, criteria_for(ctx.C, ctx.RB, el), dt), 0),
+                     _p(_cv_avg(r), 1), T.lim(lim) if lim is not None else "—",
+                     _rating(r["ratings"].get(_DUP_CRIT[dt], R_NA)) if enough
+                     else Cell(T.INSUFFICIENT_DATA, "muted")])
+    ctx.table(doc, ["کلاس", "جفت", "صدک نودم HARD", "مرز HARD", "جفت‌های درون مرز",
+                    "CV_avg", "حد CV_avg", "رتبه"], rows,
+              f"دقت نمونه‌های تکراری {_el(el)} (CV_avg: جذر میانگین مربع ضریب تغییرات جفت‌ها، "
+              f"Stanley & Lawie 2007)")
     flagged = {f.subject for f in ctx.d.by_element(el) if f.code == "DUP_PRECISION"}
     for dt, r in recs:
         ctx.figure(doc, f"dup/{dt}/{el}/rank", f"منحنی رتبه‌ای HARD — {T.TYPE_FA[dt]} {T.el_fa(el)}")
@@ -533,7 +642,7 @@ def _el_interlab(ctx, doc, el):
               [[_n(u["n"], 0), _p(u["wbias"], 2), _p(u["pbias"], 2),
                 T.p_text(tt.get("p")), _p(u.get("worst_quartile"), 2),
                 _rating(u["rating"])]],
-              f"مقایسهٔ آزمایشگاه اصلی و آزمایشگاه دوم برای {_el(el)}")
+              f"مقایسهٔ آزمایشگاه اصلی و آزمایشگاه داور برای {_el(el)}")
     ctx.figure(doc, f"umpire/{el}/bias", f"بایاس بین‌آزمایشگاهی {T.el_fa(el)} در برابر عیار")
     ctx.figure(doc, f"umpire/{el}/quartile", f"بایاس بین‌آزمایشگاهی {T.el_fa(el)} در هر چارک عیار")
 
@@ -553,7 +662,7 @@ def _el_batches(ctx, doc, el):
         rows = [[_ltr(r["batch"]), _ltr(r["crm"]), _ltr(r["failed_sample"]), _ltr(r["rule"]),
                  _ltr(r["from_sample"]), _ltr(r["to_sample"]), _n(r["n_samples"], 0)]
                 for r in ra[:60]]
-        ctx.table(doc, ["بچ", "شاهد", "نمونهٔ شاهد ردشده", "قاعده", "از نمونه", "تا نمونه",
+        ctx.table(doc, ["بچ", "کنترل", "نمونهٔ کنترلی ردشده", "قاعده", "از نمونه", "تا نمونه",
                         "تعداد نمونه"], rows,
                   f"بازه‌های آنالیز مجدد {_el(el)}"
                   + (f" ({_n(len(ra), 0)} بازه؛ فهرست کامل در خروجی CSV)" if len(ra) > 60 else ""),
@@ -757,8 +866,8 @@ def _app_failed(ctx, doc):
             rows.append([_ltr(lab), _ltr(el), _ltr(p["sample"]), _ltr(p["batch"] or "-"),
                          _n(p["value"]), _n(r.get("cert")), _n(p["z"], 2)])
     if rows:
-        ctx.table(doc, ["شاهد", "عنصر", "نمونه", "بچ", "مقدار", "گواهی", "امتیاز Z"],
-                  rows[:MAX_ROWS], f"نتایج شاهد بیرون از {_n(S['k_fail'], 0)} انحراف معیار",
+        ctx.table(doc, ["نمونه استاندارد", "عنصر", "نمونه", "بچ", "مقدار", "گواهی", "امتیاز Z"],
+                  rows[:MAX_ROWS], f"نتایج نمونه استاندارد بیرون از {_n(S['k_fail'], 0)} انحراف معیار",
                   compact=True)
     rows = []
     for (bt, el), r in sorted(R.get("blank", {}).items()):
@@ -770,7 +879,7 @@ def _app_failed(ctx, doc):
     if rows:
         ctx.table(doc, ["نوع", "عنصر", "نمونه", "بچ", "مقدار", "برابر حد تشخیص",
                         "نمونهٔ قبلی", "مقدار نمونهٔ قبلی"], rows[:MAX_ROWS],
-                  "شاهدهای خالی ردشده", compact=True)
+                  "شاهدهای ردشده", compact=True)
     if not any(r.get("failures") for r in R.get("crm", {}).values()) and not rows:
         doc.add(Para("هیچ نمونهٔ کنترلی ردشده‌ای وجود ندارد."))
 

@@ -199,7 +199,9 @@ def run_project(project, F, C, S, RB, folder, base, meta, per_batch=True, pdf=Tr
     R = run_analysis(project, F, C, S, RB, log=lambda m: None)
     d = diagnose(project, R, C, S, RB)
     files = export_results(project, F, C, S, RB, d, folder, base, log=lambda m: None)
-    files += write_reports(project, R, d, meta, F, C, S, RB, folder, base, pdf, browser, log)
+    # the report fills empty metadata from the data: each report gets its own copy
+    files += write_reports(project, R, d, copy.copy(meta), F, C, S, RB, folder, base, pdf,
+                           browser, log)
     out = {"combined": (R, d, files), "batches": [], "matrix": d.batch_matrix()}
     if per_batch:
         for b, p in split_by_batch(project):

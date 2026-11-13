@@ -24,6 +24,10 @@ class ReportMeta:
     date: str = ""                  # ISO yyyy-mm-dd; today when empty
     location: str = ""
     standard: str = ""              # project QA/QC standard (preset name)
+    batches: str = ""               # R22: batch / job numbers (from the data when empty)
+    laboratory: str = ""            # R22: laboratory (from the data when empty)
+    analysis_dates: str = ""        # R22: analysis date range (from the data when empty)
+    mode: str = ""                  # R21: assessment mode
     logo_path: str = ""
     font_fa: str = "B Nazanin"      # Word only; the HTML embeds Vazirmatn
     font_latin: str = "Times New Roman"
@@ -36,6 +40,16 @@ class ReportMeta:
     def from_dict(cls, d):
         names = {f.name for f in dataclasses.fields(cls)}
         return cls(**{k: v for k, v in (d or {}).items() if k in names})
+
+    def control_rows(self, title, mode_fa=None):
+        """Rows of the document control table (R22), shared by the writers."""
+        from ..core import fa_digits
+        return [("عنوان", title), ("پروژه", self.project), ("شمارهٔ گزارش", self.report_no),
+                ("استاندارد کنترل کیفیت", self.standard),
+                ("بچ / شمارهٔ کار", self.batches), ("آزمایشگاه", self.laboratory),
+                ("تاریخ آنالیز", self.analysis_dates),
+                ("حالت ارزیابی", (mode_fa or {}).get(self.mode, self.mode)),
+                ("ویرایش", fa_digits(self.revision))]
 
     def the_date(self):
         try:
@@ -150,7 +164,7 @@ _BOLD = re.compile(r"\*\*(.+?)\*\*")
 # inside a Latin phrase ('Sungun Cu (Phase 2)') stays in, or the phrase would
 # be broken in two and its halves reversed.
 _WORD = r"[A-Za-z0-9][A-Za-z0-9_\-./+%']*"
-_LATIN = re.compile(rf"[A-Za-z][A-Za-z0-9_\-./+%']*(?:[ \t]+{_WORD}"
+_LATIN = re.compile(rf"(?:[0-9][0-9\-./]*[A-Za-z]|[A-Za-z])[A-Za-z0-9_\-./+%']*(?:[ \t]+{_WORD}"
                     rf"|[ \t]*\([ \t]*{_WORD}(?:[ \t]+{_WORD})*[ \t]*\))*")
 
 

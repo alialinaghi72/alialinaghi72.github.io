@@ -83,7 +83,7 @@ checks = [
  ("7", "Error budget", "not estimable (8 field pairs < 30)", "not estimable" if not R["budget"]["Cu_PPm"].get("estimable") else "estimable", not R["budget"]["Cu_PPm"].get("estimable")),
  ("8", "Thompson-Howarth Cu", "both variants; lower without mispairs", f"all {tha['precision_at_ref']:.0f} % / reviewed {thb['precision_at_ref']:.0f} % at {thb['c_ref']:.0f} ppm", thb["precision_at_ref"] < tha["precision_at_ref"]),
  ("9", "Limits print as entered", "7.5, not 8", "tested with pulp GOOD = 7.5 (test_9)", True),
- ("9", "R23 terminology", "spec terms", "P2 (R23) - not in P0", None),
+ ("9", "R23 terminology", "spec terms (CRM = نمونه استاندارد, blank = شاهد)", "no 'شاهد خالی' / 'تکراری خردایش' / 'آزمایشگاه دوم'" if not any(x in h_txt for x in ("شاهد خالی", "تکراری خردایش", "آزمایشگاه دوم")) else "old terms found", not any(x in h_txt for x in ("شاهد خالی", "تکراری خردایش", "آزمایشگاه دوم")) and "نمونه استاندارد" in h_txt),
  ("R24", "Review window: Cu outliers", "7 coarse + >= 2 pulp shown", f"{len([r for r in cand if r.get('pending') and r['dtype']=='COARSE DUP'])} coarse + {len([r for r in cand if r.get('pending') and r['dtype']=='PULP DUP'])} pulp", True),
  ("R24", "Review window: Au outliers", "'keep' pre-selected", f"{len(au_pend)} pairs, all keep" if au_pend and all(r['decision']=='keep' for r in au_pend) else f"{len(au_pend)}", bool(au_pend) and all(r["decision"] == "keep" for r in au_pend)),
 ]

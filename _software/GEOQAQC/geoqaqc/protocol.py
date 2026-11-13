@@ -727,6 +727,12 @@ _r("batch_blank_fail", "BATCH", "A failed blank fails its batch", "bool", True,
    "When off, a failed blank only puts the batch on warning.")
 
 # ---- severity and verdict ----
+_r("assessment_mode", "SEVERITY", "Assessment mode", "choice", "concurrent",
+   "R21: 'concurrent' while batches are still being assayed (recommendations "
+   "for the programme ahead); 'retrospective' for historical data, where the "
+   "batches are finished: programme recommendations become remedial actions "
+   "(umpire re-assay, CRM re-runs, re-assay ranges) with their impact on "
+   "resource classification.", choices=["concurrent", "retrospective"])
 _r("sev_POOR", "SEVERITY", "Severity of a POOR rating", "choice", "MINOR",
    "Findings take their severity from the rating of their criterion.",
    choices=SEVERITY_CHOICES)

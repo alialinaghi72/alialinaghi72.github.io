@@ -490,6 +490,15 @@ def fmt_num(v):
 _FA = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
 
 
+_LAT = str.maketrans("۰۱۲۳۴۵۶۷۸۹٫٬٪", "0123456789.,%")
+
+
+def latin_digits(s):
+    """Persian digits, decimal and thousands marks -> Latin, for table cells
+    (R23: Persian digits in prose, Latin digits in tables)."""
+    return str(s).translate(_LAT)
+
+
 def fa_digits(s):
     """Latin digits -> Persian digits; '.' between digits -> Persian decimal."""
     s = re.sub(r"(?<=\d)\.(?=\d)", "٫", str(s))

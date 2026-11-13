@@ -400,9 +400,8 @@ class _DW:
     def doccontrol(self, b):
         m = b.meta
         self.para(self.d, T.H["control"], style="Heading 2", before=0)
-        rows = [("عنوان", T.REPORT_TITLE), ("پروژه", m.project), ("شمارهٔ گزارش", m.report_no),
-            ("استاندارد کنترل کیفیت", m.standard),
-                ("ویرایش", fa_digits(m.revision)), ("تاریخ", jalali_str(m.the_date()))]
+        rows = m.control_rows(T.REPORT_TITLE, T.ASSESSMENT_MODE_FA) + \
+            [("تاریخ", jalali_str(m.the_date()))]
         t = self.table(len(rows), 2, [40, CONTENT_W - 40])
         _borders(t)
         for i, (k, v) in enumerate(rows):
@@ -548,6 +547,10 @@ class _DW:
             p = self.para(body, "", after=1)
             self.runs(p, f"{fa_digits(str(i))}. ", bold=True, size=10, color=GOLD)
             self.runs(p, a, size=10)
+        if getattr(f, "impact_fa", ""):
+            p = self.para(body, "", after=2)
+            self.runs(p, "اثر بر طبقه‌بندی منابع: ", bold=True, size=10, color=NAVY2)
+            self.runs(p, f.impact_fa, size=10)
         self.para(self.d, "", after=4)
 
     def verdicts(self, b):

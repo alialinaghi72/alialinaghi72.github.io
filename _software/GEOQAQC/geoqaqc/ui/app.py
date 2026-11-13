@@ -753,8 +753,11 @@ class App(tk.Tk):
         fields = [("project", "Project"), ("client", "Client"), ("consultant", "Consultant"),
                   ("author", "Prepared by"), ("author_title", "Title of the author"),
                   ("reviewer", "Reviewed by"), ("approver", "Approved by"),
-                  ("report_no", "Report number"), ("revision", "Revision"),
+                  ("report_no", "Report number (empty: auto)"), ("revision", "Revision"),
                   ("date", "Date (YYYY-MM-DD)"), ("location", "Location"),
+                  ("batches", "Batch / job numbers (empty: auto)"),
+                  ("laboratory", "Laboratory (empty: auto)"),
+                  ("analysis_dates", "Analysis dates (empty: auto)"),
                   ("logo_path", "Logo image (PNG/JPG)"),
                   ("font_fa", "Persian font for Word"), ("font_latin", "Latin font for Word")]
         defaults = ReportMeta()

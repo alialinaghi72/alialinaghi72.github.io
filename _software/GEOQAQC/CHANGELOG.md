@@ -1,5 +1,37 @@
 # Changelog
 
+## 2.1 (P2) — 2026-11-13
+
+- **R21** Assessment mode (rule `assessment_mode`, Rules page): *concurrent*
+  (default) or *retrospective*. In retrospective mode the recommendations
+  meant for the programme ahead (insertion rates, missing classes, CRM grade
+  coverage, uncertified CRMs, CRMs above the method limit) become remedial
+  actions for the finished batches: umpire re-assay of archived pulps with
+  CRMs, CRM re-runs, re-assay of the uncontrolled range. The report states
+  the mode, and every finding card states its **impact on resource
+  classification**.
+- **R22** Report structure:
+  - The summary opens with the batch decision per element, then at most
+    **five key findings** with the required action and the re-assay ranges.
+  - New **compliance table against the spec** (criterion, spec limit,
+    observed value, n, pass / conditional / fail): Westgard rules and
+    cumulative bias per CRM, blanks, HARD90 and CV_avg per duplicate class,
+    umpire bias, insertion per class. Exported as `compliance.csv`.
+  - Below the minimum n a criterion reads "insufficient data -- no
+    conclusion", in the compliance table and in the precision table.
+  - The precision table shows HARD90, % of pairs within the limit and
+    **CV_avg** (RMS of pair CVs, Stanley & Lawie 2007) against the element's
+    limits.
+  - Metadata: report number generated when empty (e.g.
+    `NLR-QAQC-RPT-B16 Rev. 0`), batch / job numbers, laboratory and analysis
+    date range taken from the data when not entered (Report page), assessment
+    mode; preparer title «کارشناس ارشد اکتشاف معدن».
+- **R23** Terminology of the spec throughout the report and the cleaning
+  log: CRM «نمونه استاندارد», blank «شاهد» («شاهد درشت»، «شاهد پالپ»), coarse
+  duplicate «تکراری درشت», umpire «آزمایشگاه داور». Numbers in tables are in
+  Latin digits (`7.5%`), in prose in Persian digits; Latin runs stay
+  isolated with direction marks as before.
+
 ## 2.1 (P1, second part) — 2026-11-13
 
 - **R15** Insertion rate per control class against its own target (rule
