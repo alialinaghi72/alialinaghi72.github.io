@@ -44,6 +44,7 @@ TITLE_EN = {
     "CRM_CLUSTER": "CRM failures clustered in batches",
     "CRM_RSD": "Poor repeatability on CRM", "CRM_SHIFT": "Step shift of a CRM", "CRM_NOCERT": "CRM without certificate",
     "CRM_COVERAGE": "CRMs do not cover the grade range",
+    "BUDGET_DISAGREE": "Classical and robust error budgets disagree",
     "CRM_GAP": "No CRM between P25 and P90", "CRM_CUTOFF": "No CRM near the cut-off grade",
     "CRM_ABOVE_UPPER": "CRM above the upper limit of the method",
     "BLK_FAIL": "Blank failures", "BLK_CARRY": "Carry-over contamination",
@@ -550,7 +551,17 @@ def _dups(d, el, R, C, S, RB, sev):
                   T.f_DUP_SPLIT(el, dt, rec["rd_mean"], sp["t"]["p"]),
                   _DUP_OWNER[dt], "ONGOING", figs, subject=dt)
 
-    b = R.get("budget", {}).get(el)
+    b0 = R.get("budget", {}).get(el)
+    b = b0
+    if b0 and b0.get("disagree"):
+        # a few outlier pairs drive the mean of squares: warn, and attribute
+        # the error by the robust (percentile) budget
+        r = b0["robust"]
+        d.add("BUDGET_DISAGREE", el, "PRECISION", "MINOR",
+              T.f_BUDGET_DISAGREE(el, b0["dominant"], b0["pct"].get(b0["dominant"]),
+                                  r["dominant"], r["pct"].get(r["dominant"]), b0["max_diff"]),
+              "GEOLOGY", "ONGOING", [f"budget/{el}"], root="DATA")
+        b = r
     if b and b.get("dominant") and (b["pct"].get(b["dominant"]) or 0) >= RB["budget_dominant"]:
         top = next((dup.get((dt, el)) for dt in DUP_TYPES if dup.get((dt, el))), None)
         crit = _DUP_CRIT[top["type"]] if top else None
@@ -559,7 +570,8 @@ def _dups(d, el, R, C, S, RB, sev):
             shares = [(k, v) for k, v in b["pct"].items() if v is not None]
             d.add("BUDGET_DOMINANT", el, _BUDGET_STAGE.get(b["dominant"], "SAMPLING"), s,
                   T.f_BUDGET_DOMINANT(el, b["dominant"], b["pct"][b["dominant"]],
-                                      b["total_cv_pct"], shares),
+                                      b["total_cv_pct"], shares,
+                                      robust=b is not b0),
                   "GEOLOGY", "ONGOING", [f"budget/{el}"])
 
     th = R.get("th", {}).get((T_PDUP, el))

@@ -713,6 +713,12 @@ _r("budget_min_pairs", "DUPLICATE", "Error budget: minimum pairs per class", "in
    30, "A duplicate class with fewer pairs does not enter the error budget. A "
    "negative variance difference is reported as 'not estimable', never as 0 %.",
    5, 500)
+_r("budget_disagree", "DUPLICATE", "Error budget: classical vs robust difference (points)",
+   "float", 25.0, "The budget is computed from the mean pair CV^2 and, beside it, "
+   "from the HARD percentile (robust to outlier pairs). A warning is raised, and "
+   "the findings use the robust budget, when the two name different dominant "
+   "stages or a stage share differs by more than this many percentage points.",
+   5.0, 100.0)
 _r("budget_dominant", "DUPLICATE", "Error budget: dominant stage share (%)",
    "float", 50.0, "A stage carrying more than this share of the total "
    "variance is named as the main source of error.", 30.0, 90.0)

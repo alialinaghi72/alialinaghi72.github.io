@@ -499,22 +499,55 @@ def fig_dup_rank_hard(rec, S, C=None):
     return f
 
 
-def fig_dup_mean_hrd(rec, S):
+_DUP_CRIT_KEY = {"FIELD DUP": "fdup_hard90", "COARSE DUP": "cdup_hard90",
+                 "PULP DUP": "pdup_hard90"}
+
+
+def fig_dup_rd_grade(rec, S, C=None):
+    """Signed relative difference of every pair against its mean grade: shows
+    at a glance a bias between original and duplicate (points not centred on
+    zero), how precision changes with grade (the funnel towards the detection
+    limit) and the single pairs outside the acceptance limit."""
     f = Figure(_dup_title("Relative difference vs grade", rec),
-               "Signed half relative difference against the pair mean",
-               "pair mean", "HRD % (signed)")
+               "Signed relative difference (original - duplicate) / pair mean, "
+               "against the pair mean", "pair mean grade", "relative difference %")
     f.xlog = bool(S["log_axis"])
-    xs = [r["mean"] for r in rec["rows"]]
-    ys = [r["hrd"] for r in rec["rows"]]
+    rows = [r for r in rec["rows"] if r.get("rd") is not None and r.get("mean") is not None]
+    xs = [r["mean"] for r in rows]
+    ys = [r["rd"] for r in rows]
     f.hline(0, "fg", 1.2)
-    for v, col in ((10, "good"), (-10, "good"), (20, "warn"), (-20, "warn")):
-        f.hline(v, col, 1.0, "dash", None, f"{v:+g} %")
+    key = _DUP_CRIT_KEY.get(rec.get("type"))
+    lim = 2.0 * _limits(C, key)[2] if key else 20.0     # RD = 2 x HARD
+    f.band(-lim, lim, "okband")
+    for v in (lim, -lim):
+        f.hline(v, "warn", 1.0, "dash", None, f"{v:+g} %")
     m = mean(ys)
     if m is not None:
-        f.hline(m, "s2", 1.8, None, "mean HRD", f"mean {m:+.2f} %")
-    f.points(xs, ys, "s1", label="pairs", ids=[r["dup"] for r in rec["rows"]])
-    _robust_y(f, ys, 25.0)
+        f.hline(m, "s2", 1.8, None, "mean difference", f"mean {m:+.2f} %")
+    ins = [(x, y, r["dup"]) for x, y, r in zip(xs, ys, rows) if abs(y) <= lim]
+    outs = [(x, y, r["dup"]) for x, y, r in zip(xs, ys, rows) if abs(y) > lim]
+    if ins:
+        f.points([a for a, _, _ in ins], [b for _, b, _ in ins], "s1",
+                 label="within the limit", ids=[c for _, _, c in ins])
+    if outs:
+        f.points([a for a, _, _ in outs], [b for _, b, _ in outs], "warn", 4.0,
+                 f"outside +/-{lim:g} %", ids=[c for _, _, c in outs])
+    cut = (rec.get("min_kdl") or 0) * (rec.get("kdl_dl") or 0)
+    if cut and xs and min(xs) < cut * 3:
+        f.vline(cut, "muted", 1.0, "dot", None, f"{rec['min_kdl']:g} x DL")
+    n = len(ys)
+    if n:
+        f.note(f"n = {n}   outside the limit: {len(outs)} ({100.0 * len(outs) / n:.0f} %)   "
+               f"limit = 2 x HARD acceptance limit")
+    _robust_y(f, ys, max(25.0, lim * 1.5))
+    pos = [x for x in xs if x > 0]
+    if pos and min(pos) == max(pos):           # one grade only: give the axis a width
+        f.set_range(xr=(pos[0] * 0.5, pos[0] * 2.0))
     return f
+
+
+def fig_dup_mean_hrd(rec, S, C=None):          # earlier name
+    return fig_dup_rd_grade(rec, S, C)
 
 
 def fig_dup_hist(rec, S):
@@ -782,9 +815,11 @@ _STAGE_SHORT = {"sampling": "Sampling", "preparation": "Preparation",
 
 def fig_error_budget(budget, elements):
     f = Figure("Error budget by stage of the sample chain",
-               "Share of the total relative variance carried by each stage", "",
+               "Share of the total relative variance per stage: classical (mean pair "
+               "CV^2, left) and robust (HARD percentile, right)", "",
                "% of total variance")
-    els = [el for el in elements if budget.get(el) and budget[el].get("estimable")]
+    els = [el for el in elements if budget.get(el) and (
+        budget[el].get("estimable") or (budget[el].get("robust") or {}).get("estimable"))]
     if not els:
         f.note("not estimable: needs two duplicate classes with enough pairs and "
                "a positive variance difference")
@@ -793,17 +828,29 @@ def fig_error_budget(budget, elements):
              "preparation+analytical", "analytical"]
     color = {"sampling": "s1", "sampling+preparation": "s1", "preparation": "s2",
              "preparation+analytical": "s2", "analytical": "s3"}
-    xs = list(range(1, len(els) + 1))
-    base = [0.0] * len(els)
+    cols, xs = [], []
+    for i, el in enumerate(els, start=1):
+        b = budget[el]
+        cols += [b if b.get("estimable") else {}, b.get("robust") or {}]
+        xs += [i - 0.2, i + 0.2]
+    base = [0.0] * len(cols)
     for st in order:
-        hs = [(budget[el]["pct"].get(st) or 0.0) for el in els]
+        hs = [((c.get("pct") or {}).get(st) or 0.0) if c.get("estimable") else 0.0
+              for c in cols]
         if not any(hs):
             continue
-        f.bars(xs, hs, color[st], 0.5, bottom=list(base), label=_STAGE_SHORT[st],
+        f.bars(xs, hs, color[st], 0.34, bottom=list(base), label=_STAGE_SHORT[st],
                texts=[f"{h:.0f} %" if h >= 8 else "" for h in hs])
         base = [b + h for b, h in zip(base, hs)]
-    f.set_xticks(xs, [f"{el}\nCV {budget[el]['total_cv_pct']:.0f} %" for el in els])
+    labels = []
+    for el in els:
+        b = budget[el]
+        cv = b.get("total_cv_pct") or (b.get("robust") or {}).get("total_cv_pct") or 0.0
+        labels.append(f"{el}\nCV {cv:.0f} %" + ("  (!)" if b.get("disagree") else ""))
+    f.set_xticks(list(range(1, len(els) + 1)), labels)
     f.set_range(yr=(0, 104))
+    if any(budget[el].get("disagree") for el in els):
+        f.note("(!) the two estimates disagree: outlier pairs drive the classical one")
     f.legend_loc = "outside"
     f.inside_text = True
     return f
@@ -935,7 +982,7 @@ def figure_catalog(project, R, diagnosis, S, C, RB=None):
         put(f"{base}/maxmin", fig_dup_maxmin, rec, S)
         put(f"{base}/quartile", fig_dup_quartile, rec, S, ce(el))
         put(f"{base}/qq", fig_dup_qq, rec, S)
-        put(f"{base}/hrd", fig_dup_mean_hrd, rec, S)
+        put(f"{base}/rd", fig_dup_rd_grade, rec, S, ce(el))
         put(f"{base}/hist", fig_dup_hist, rec, S)
     for (dt, el), rec in sorted(R.get("th", {}).items()):
         put(f"th/{dt}/{el}/curve", fig_th_curve, rec, S)

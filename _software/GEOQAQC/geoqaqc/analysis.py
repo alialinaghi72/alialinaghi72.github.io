@@ -1272,7 +1272,48 @@ def _dup_extras(rec, F, C, S, RB, crit_key):
 _STAGE_OF = {T_FDUP: "field", T_CDUP: "coarse", T_PDUP: "pulp"}
 
 
+def _robust_cv2(rec, S):
+    """Pair CV^2 from the HARD percentile instead of the mean of the pair
+    CV^2: for normally distributed pair differences HARD = |d| / 2 with
+    d ~ N(0, 2 CV^2), so CV = sqrt(2) * HARD_p / z, z the normal quantile of
+    the two-sided percentile (1.645 for P90). A few wild pairs move a
+    percentile far less than they move a mean of squares."""
+    h = rec.get("hard_p90")
+    if h is None:
+        return None
+    from statistics import NormalDist
+    q = min(99.9, max(50.1, rec.get("hard_pct_used") or S.get("hard_pct", 90.0)))
+    z = NormalDist().inv_cdf(0.5 + q / 200.0)
+    cv = math.sqrt(2.0) * (h / 100.0) / z
+    return cv * cv
+
+
 def analyse_error_budget(dup, S, RB=None):
+    """The error budget twice: from the mean pair CV^2 (classical) and from
+    the HARD percentile (robust to outlier pairs). When both are estimable
+    and name different dominant stages, or their shares differ by more than
+    budget_disagree points, 'disagree' is set and 'preferred' is the robust
+    one: a mean of squares driven by a few pairs is not a stage estimate."""
+    out = _error_budget(dup, S, RB, False)
+    rob = _error_budget(dup, S, RB, True)
+    lim = RB["budget_disagree"] if RB is not None else 25.0
+    for el, b in out.items():
+        r = rob.get(el) or {}
+        b["robust"] = r
+        b["disagree"], b["max_diff"] = False, None
+        if b.get("estimable") and r.get("estimable"):
+            diffs = [abs((b["pct"].get(k) or 0) - (r["pct"].get(k) or 0)) for k in b["pct"]]
+            b["max_diff"] = max(diffs) if diffs else 0.0
+            b["disagree"] = bool(b["dominant"] != r["dominant"] or b["max_diff"] > lim)
+        elif r.get("estimable") and len(b.get("cv2") or {}) >= 2:
+            # the classical budget collapsed (a finer class noisier than a
+            # coarser one) where the percentile budget stands: outlier pairs
+            b["disagree"] = True
+        b["preferred"] = "robust" if b["disagree"] else "classical"
+    return out
+
+
+def _error_budget(dup, S, RB=None, robust=False):
     """Relative variance of each stage from the mean pair CV^2 of each class:
     pulp duplicates carry the analytical variance, coarse duplicates add the
     preparation (sub-sampling) variance, field duplicates add the sampling
@@ -1287,8 +1328,9 @@ def analyse_error_budget(dup, S, RB=None):
         cv2, small = {}, []
         for dtype, name in _STAGE_OF.items():
             rec = dup.get((dtype, el))
-            if rec and rec["n"] >= need and rec.get("cv2_mean") is not None:
-                cv2[name] = rec["cv2_mean"]
+            val = (_robust_cv2(rec, S) if robust else rec.get("cv2_mean")) if rec else None
+            if rec and rec["n"] >= need and val is not None:
+                cv2[name] = val
             elif rec:
                 small.append(f"{name} {rec['n']}")
         if len(cv2) < 2:

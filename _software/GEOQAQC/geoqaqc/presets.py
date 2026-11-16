@@ -92,3 +92,118 @@ def apply_preset(name, RB, C, S):
         C[k]["cuts"] = [float(x) for x in cuts]
     RB.el.preset = name
     return name
+
+
+# ===========================================================================
+#  International good-practice defaults by element type
+# ===========================================================================
+# There is no single international standard for QA/QC acceptance limits: the
+# JORC Code, NI 43-101 and CIM guidance ask for a documented programme with
+# justified limits. The values below are the limits most often quoted in
+# practice and are a starting point to review against the project
+# specification:
+#   * duplicates -- the AMEC rule (Long 1998; Simon 2004): 90 % of pairs
+#     within 30 % relative difference for field (twin) samples, 20 % for
+#     coarse rejects, 10 % for pulps, i.e. HARD 15 / 10 / 5 %; relaxed for
+#     precious metals with a nugget effect and tightened for bulk commodities;
+#   * CV_avg -- "acceptable" levels of Abzalov (2008) by commodity;
+#   * blanks -- failure above 5 x DL (10 x DL for gold by fire assay);
+#   * umpire -- mean difference within 5 % (10 % gold, 2 % bulk commodities).
+INTERNATIONAL = "International good practice (by element type)"
+
+ELEMENT_TYPES = {
+    "precious": {
+        "label": "Precious metals (Au, PGE, Ag)",
+        "symbols": ("Au", "Pt", "Pd", "Rh", "Ir", "Os", "Ru", "Ag"),
+        "hard90": {T_FDUP: 30.0, T_CDUP: 20.0, T_PDUP: 10.0},
+        "cv": {T_FDUP: 30.0, T_CDUP: 20.0, T_PDUP: 10.0},
+        "th": 20.0, "umpire": 10.0, "crm_bias": 5.0,
+        "blank": (5.0, 10.0),
+        "outlier_hard": {T_FDUP: 67.0, T_CDUP: 67.0, T_PDUP: 67.0},
+        "outlier_preselect": "keep", "single_vote": False},
+    "base": {
+        "label": "Base metals (Cu, Pb, Zn, Ni, Co, Sn)",
+        "symbols": ("Cu", "Pb", "Zn", "Ni", "Co", "Sn", "Sb", "As", "Bi", "Cd"),
+        "hard90": {T_FDUP: 15.0, T_CDUP: 10.0, T_PDUP: 5.0},
+        "cv": {T_FDUP: 15.0, T_CDUP: 10.0, T_PDUP: 5.0},
+        "th": 10.0, "umpire": 5.0, "crm_bias": 5.0,
+        "blank": (3.0, 5.0),
+        "outlier_hard": {T_FDUP: 67.0, T_CDUP: 50.0, T_PDUP: 50.0},
+        "outlier_preselect": "exclude", "single_vote": True},
+    "minor": {
+        "label": "Minor and by-product metals (Mo, W, U, Re, Li, REE)",
+        "symbols": ("Mo", "W", "U", "Re", "Li", "Nb", "Ta", "La", "Ce", "Nd", "Y", "V"),
+        "hard90": {T_FDUP: 20.0, T_CDUP: 15.0, T_PDUP: 7.5},
+        "cv": {T_FDUP: 20.0, T_CDUP: 15.0, T_PDUP: 10.0},
+        "th": 15.0, "umpire": 5.0, "crm_bias": 5.0,
+        "blank": (3.0, 5.0),
+        "outlier_hard": {T_FDUP: 67.0, T_CDUP: 50.0, T_PDUP: 50.0},
+        "outlier_preselect": "exclude", "single_vote": True},
+    "bulk": {
+        "label": "Bulk commodities (Fe, Al, Si, Mn, Cr, Ti, P, S)",
+        "symbols": ("Fe", "Al", "Si", "Mn", "Cr", "Ti", "P", "S", "Ca", "Mg", "K", "Na"),
+        "hard90": {T_FDUP: 5.0, T_CDUP: 3.0, T_PDUP: 1.5},
+        "cv": {T_FDUP: 5.0, T_CDUP: 3.0, T_PDUP: 1.5},
+        "th": 5.0, "umpire": 2.0, "crm_bias": 2.0,
+        "blank": (3.0, 5.0),
+        "outlier_hard": {T_FDUP: 50.0, T_CDUP: 30.0, T_PDUP: 20.0},
+        "outlier_preselect": "exclude", "single_vote": True},
+}
+_TYPE_OF = {s: t for t, d in ELEMENT_TYPES.items() for s in d["symbols"]}
+
+
+def element_type(element):
+    """'Au_ppb' -> 'precious'; an element not listed is treated as a base metal."""
+    from .core import element_symbol
+    return _TYPE_OF.get(element_symbol(element), "base")
+
+
+def _five(good):
+    """Five rating boundaries around an acceptance limit (GOOD)."""
+    return [round(good * k, 4) for k in (0.5, 0.75, 1.0, 1.5, 2.0)]
+
+
+def element_type_defaults(element):
+    """(profile values, criteria) of the element's type."""
+    d = ELEMENT_TYPES[element_type(element)]
+    h = d["hard90"]
+    crit = {"fdup_hard90": _five(h[T_FDUP]), "cdup_hard90": _five(h[T_CDUP]),
+            "pdup_hard90": _five(h[T_PDUP]), "th_precision": _five(d["th"]),
+            "ump_wbias": _five(d["umpire"]), "ump_pbias": _five(d["umpire"]),
+            "crm_bias": _five(d["crm_bias"])}
+    lo = round(1.0 - d["umpire"] / 100.0, 3)
+    prof = {"low_kdl": {T_FDUP: None, T_CDUP: None, T_PDUP: None}, "low_action": "exclude",
+            "outlier_hard": dict(d["outlier_hard"]), "outlier_action": "ask",
+            "outlier_preselect": d["outlier_preselect"], "single_vote": d["single_vote"],
+            "blank_warn": d["blank"][0], "blank_warn_unit": "x DL",
+            "blank_fail": d["blank"][1], "blank_fail_unit": "x DL",
+            "high_grade": None, "high_grade_unit": "",
+            "cv_avg_limit": dict(d["cv"]),
+            "umpire_limit": {"mean_diff": d["umpire"], "rma": (lo, round(2.0 - lo, 3))},
+            "criteria": crit}
+    return prof, crit
+
+
+def apply_element_defaults(RB, elements, what="all"):
+    """Set the international good-practice defaults of each element's type.
+    what: 'all' (profile and criteria), 'criteria' or 'profile'. The values
+    that belong to the laboratory and the deposit -- analytical method, QC
+    detection limit, upper limit, cut-off grade -- are left as they are.
+    Returns {element: type label}."""
+    from .core import element_symbol
+    done = {}
+    for el in elements:
+        sym = element_symbol(el)
+        prof, crit = element_type_defaults(el)
+        cur = RB.el.overrides.setdefault(sym, {})
+        if what in ("all", "profile"):
+            for k, v in prof.items():
+                if k == "criteria":
+                    continue
+                cur[k] = dict(v) if isinstance(v, dict) else v
+        if what in ("all", "criteria"):
+            cur["criteria"] = {k: list(v) for k, v in crit.items()}
+        done[el] = ELEMENT_TYPES[element_type(el)]["label"]
+    if done and not RB.el.preset:
+        RB.el.preset = INTERNATIONAL
+    return done

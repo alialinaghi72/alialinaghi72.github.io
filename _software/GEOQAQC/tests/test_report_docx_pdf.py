@@ -133,3 +133,19 @@ def test_docx_survives_control_characters(tmp_path):
     path = write_docx(d, str(tmp_path / "c.docx"))
     body = _xml(path, "word/document.xml")
     assert "\x0b" not in body and "IS" in body
+
+
+def test_word_has_no_combining_hamza(tmp_path):
+    """Heh + combining hamza shows a dotted circle in Word with fonts such as
+    B Nazanin; the Word file carries the precomposed letter instead."""
+    import re
+    import zipfile
+    from geoqaqc.report.docx_writer import write_docx
+    from test_demo_detection import demo
+    from test_report_html import _run
+    p, R = demo()
+    f = write_docx(_run(p, R), str(tmp_path / "d.docx"))
+    with zipfile.ZipFile(f) as z:
+        xml = "".join(z.read(n).decode("utf-8", "ignore")
+                      for n in z.namelist() if n.endswith(".xml"))
+    assert "ٔ" not in xml and "ۀ" in xml

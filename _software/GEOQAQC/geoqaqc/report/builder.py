@@ -582,6 +582,8 @@ def _el_precision(ctx, doc, el):
     flagged = {f.subject for f in ctx.d.by_element(el) if f.code == "DUP_PRECISION"}
     for dt, r in recs:
         ctx.figure(doc, f"dup/{dt}/{el}/rank", f"منحنی رتبه‌ای HARD — {T.TYPE_FA[dt]} {T.el_fa(el)}")
+        ctx.figure(doc, f"dup/{dt}/{el}/rd",
+                   f"اختلاف نسبی در برابر عیار — {T.TYPE_FA[dt]} {T.el_fa(el)}")
         if dt in flagged:
             ctx.figure(doc, f"dup/{dt}/{el}/maxmin",
                        f"نمودار بیشینه-کمینه — {T.TYPE_FA[dt]} {T.el_fa(el)}")
@@ -611,15 +613,26 @@ def _el_budget(ctx, doc, el):
     if not b:
         doc.add(Para(T.MISSING["budget"]))
         return
-    if not b.get("estimable"):
+    r = b.get("robust") or {}
+    if not b.get("estimable") and not r.get("estimable"):
         doc.add(Para(T.BUDGET_NOT_ESTIMABLE.format(
             n=fa_digits(str(ctx.RB["budget_min_pairs"])))))
         return
     doc.add(Para(T.SECTION_INTRO["budget"]))
-    rows = [[T.BUDGET_STAGE_FA.get(k, k), _p(v, 1) if v is not None else "قابل برآورد نیست"]
-            for k, v in b["pct"].items()]
-    ctx.table(doc, ["مرحله", "سهم از واریانس کل"], rows,
-              f"بودجهٔ خطای {_el(el)} (ضریب تغییرات کل {_p(b['total_cv_pct'], 1)})")
+    doc.add(Para(T.BUDGET_TWO_WAYS))
+    ne = "قابل برآورد نیست"
+    keys = list(b.get("pct") or {}) or list(r.get("pct") or {})
+    rows = [[T.BUDGET_STAGE_FA.get(k, k),
+             _p(b["pct"].get(k), 1) if (b.get("pct") or {}).get(k) is not None else ne,
+             _p(r["pct"].get(k), 1) if (r.get("pct") or {}).get(k) is not None else ne]
+            for k in keys]
+    rows.append(["ضریب تغییرات کل", _p(b.get("total_cv_pct"), 1), _p(r.get("total_cv_pct"), 1)])
+    ctx.table(doc, ["مرحله", "کلاسیک (میانگین مربع CV)", "مقاوم (صدک نودم HARD)"], rows,
+              f"بودجهٔ خطای {_el(el)}: سهم هر مرحله از واریانس کل به دو روش")
+    if b.get("disagree"):
+        doc.add(Callout("warn", "ناسازگاری دو برآورد",
+                        T.BUDGET_DISAGREE_NOTE.format(d=_n(b["max_diff"], 0))
+                        if b.get("max_diff") is not None else T.BUDGET_COLLAPSED_NOTE))
     if b.get("unmeasured"):
         doc.add(Para("تکراری صحرایی وجود ندارد؛ خطای نمونه‌برداری در این بودجه سنجیده "
                      "نشده است.", "note"))

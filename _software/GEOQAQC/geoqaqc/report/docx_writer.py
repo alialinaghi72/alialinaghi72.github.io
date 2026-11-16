@@ -34,6 +34,16 @@ from .document import (Bullets, Callout, Cell, Cover, DocControl, FigureBlock,
 # characters XML 1.0 does not allow
 _XML_BAD = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uffff]")
 
+
+def _word_safe(text):
+    """Heh with a combining hamza above (U+0647 U+0654) drawn by a font that
+    lacks the combining mark -- B Nazanin and most legacy Persian fonts --
+    shows a dotted circle in Word. The precomposed letter U+06C0 reads the
+    same and exists in those fonts; a font without it is substituted for
+    that one letter, which never happens for a combining mark."""
+    return text.replace("\u0647\u0654", "\u06c0").replace("\u06cc\u0654", "\u0626")
+
+
 NAVY, NAVY2, GOLD, GOLD2 = "0F2742", "1D3D63", "C8902F", "E7C27D"
 INK, INK2, MUTED, LINE, ZEBRA, HEAD = "16202B", "4B5563", "8A94A3", "E3E7ED", "F7F9FB", "EEF2F7"
 TINT = {"ok": ("E5F4E5", "0B8A0B"), "warn": ("FFF3D1", "8A5E00"),
@@ -291,7 +301,7 @@ class _DW:
     def add_run(self, p, text):
         # control characters (a vertical tab pasted into a cell, say) are not
         # allowed in XML and would stop the whole Word file
-        return p.add_run(_XML_BAD.sub("", text) if text else text)
+        return p.add_run(_word_safe(_XML_BAD.sub("", text)) if text else text)
 
     def fmt(self, run, latin, bold=False, size=None, color=None):
         _set_rpr(run, latin, bold, size, color, self.font_fa, self.font_latin)

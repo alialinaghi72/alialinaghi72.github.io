@@ -1,5 +1,39 @@
 # Changelog
 
+## 2.1 (review round) — 2026-11-16
+
+- **Robust error budget.** The budget is computed twice: classical (mean of
+  the pair CV^2) and robust (from the HARD percentile of each class; for
+  normal pair differences CV = sqrt(2) x HARD_P90 / 1.645). A few outlier
+  pairs drive a mean of squares and could hand most of the error to the
+  wrong stage, contradicting the finding of the same report. When the two
+  estimates name different dominant stages, differ by more than
+  `budget_disagree` points (default 25), or the classical one collapses
+  where the robust one stands, a warning is shown (new finding "Classical
+  and robust error budgets disagree"), and the error-source finding uses
+  the robust budget. Both are shown in the report table, the chart (two
+  columns per element), the Error Budget page and `error_budget.csv`.
+- **Dotted circles in the Word report.** Heh with a combining hamza above
+  («هٔ») was drawn as a dotted circle by fonts without the combining mark
+  (B Nazanin and most legacy Persian fonts). The Word file now carries the
+  precomposed letter («ۀ»), which those fonts have.
+- **Relative difference vs grade.** New chart per duplicate class and
+  element: signed relative difference of every pair against its mean grade,
+  with the acceptance band (2 x the HARD limit of the element), the mean
+  difference, the low-grade cut and the pairs outside the limit marked. In
+  the Duplicates page and, for every class, in the report.
+- **International defaults by element type.** Criteria page: "International
+  defaults for the element type" sets the rating boundaries of the chosen
+  element (or of every element). Elements page: "International defaults for
+  [column / all] -> Set defaults" also sets the exclusion thresholds, blank
+  limits, CV_avg and umpire limits. Types: precious metals (Au, PGE, Ag),
+  base metals (Cu, Pb, Zn, Ni ...), minor metals (Mo, W, U ...), bulk
+  commodities (Fe, Al, Si, Mn ...). Method, detection limit, upper limit and
+  cut-off grade are kept. Settings page: new "Restore defaults". There is no
+  single international standard for these limits; the values are the ones
+  most quoted in practice (AMEC duplicate rule, Abzalov 2008 CV levels) and
+  remain editable.
+
 ## 2.1 (P2) — 2026-11-13
 
 - **R21** Assessment mode (rule `assessment_mode`, Rules page): *concurrent*

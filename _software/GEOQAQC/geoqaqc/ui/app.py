@@ -20,7 +20,8 @@ from ..core import (GROUP_CHOICES, GROUP_KEYS, R_NA, RATING_ORDER, T_CDUP, T_FDU
                     T_PDUP, element_symbol, fmt_num, linreg, mean, pctile, rma)
 from ..diagnosis import STAGE_EN, diagnose
 from ..elements import ACTIONS, METHOD_CHOICES, criteria_for
-from ..presets import NLR, apply_preset
+from ..presets import (ELEMENT_TYPES, NLR, apply_element_defaults,
+                       apply_preset, element_type)
 from ..export_csv import export_results
 from ..figures import (fig_accuracy_curve, fig_batch_matrix, fig_blank,
                        fig_blank_prev, fig_coverage, fig_crm_batch, fig_crm_bias,
@@ -451,6 +452,12 @@ class App(tk.Tk):
                    command=self.apply_criteria).pack(side="left")
         ttk.Button(bb, text="Restore defaults", command=self.reset_criteria).pack(
             side="left", padx=6)
+        ttk.Button(bb, text="International defaults for the element type",
+                   command=self.intl_criteria).pack(side="left", padx=(18, 6))
+        ttk.Label(f, text="'International defaults' sets the limits usual for the element's "
+                          "type (precious, base, minor, bulk) for the element chosen, or for "
+                          "every element when 'All elements' is chosen.",
+                  style="Dim.TLabel").pack(anchor="w")
         hdr = ttk.Frame(f, style="Panel.TFrame")
         hdr.pack(fill="x", pady=(4, 2))
         ttk.Label(hdr, text="criterion", style="Sec.TLabel", width=44, anchor="w").pack(
@@ -498,6 +505,17 @@ class App(tk.Tk):
             side="left", padx=6)
         ttk.Button(bb, text=f"Load preset {NLR}", command=self.load_preset).pack(
             side="left", padx=(24, 6))
+        bi = self._bar(f)
+        ttk.Label(bi, text="International defaults for", style="Sec.TLabel").pack(
+            side="left", padx=(0, 6))
+        self.intl_el = tk.StringVar(value=self._ALL_COLUMNS)
+        self.intl_el_cb = ttk.Combobox(bi, textvariable=self.intl_el, state="readonly",
+                                       width=22, values=[self._ALL_COLUMNS])
+        self.intl_el_cb.pack(side="left", padx=(0, 8))
+        self.intl_el_cb.bind("<<ComboboxSelected>>", lambda e: self._show_intl_type())
+        ttk.Button(bi, text="Set defaults", command=self.intl_elements).pack(side="left")
+        self.intl_type_lbl = ttk.Label(bi, text="", style="Dim.TLabel")
+        self.intl_type_lbl.pack(side="left", padx=10)
         self.preset_lbl = ttk.Label(bb, text="", style="Dim.TLabel")
         self.preset_lbl.pack(side="left")
         sf = ScrollFrame(f)
@@ -608,6 +626,11 @@ class App(tk.Tk):
             row=len(cols) + 1, column=0, columnspan=16, sticky="w", pady=(10, 0))
         if hasattr(self, "preset_lbl"):
             self.preset_lbl.configure(text=f"loaded: {EB.preset}" if EB.preset else "")
+        if hasattr(self, "intl_el_cb"):
+            self.intl_el_cb.configure(values=[self._ALL_COLUMNS] + list(cols))
+            if self.intl_el.get() not in [self._ALL_COLUMNS] + list(cols):
+                self.intl_el.set(self._ALL_COLUMNS)
+            self._show_intl_type()
 
     def apply_elements(self, quiet=False):
         """Validate and store the Elements page. Returns the rejected entries."""
@@ -661,6 +684,52 @@ class App(tk.Tk):
             self._load_criteria_scope()
         self.log(f"Preset loaded: {name}. Press RUN QA/QC to apply it.")
         return name
+
+    _ALL_COLUMNS = "All columns"
+
+    def _intl_targets(self, choice):
+        cols = self._element_columns()
+        if choice in (self._ALL_COLUMNS, self._ALL_ELEMENTS, ""):
+            return cols
+        return [c for c in cols if c == choice or element_symbol(c) == choice] or [choice]
+
+    def _show_intl_type(self):
+        c = self.intl_el.get()
+        self.intl_type_lbl.configure(
+            text="each column by its element type" if c == self._ALL_COLUMNS
+            else ELEMENT_TYPES[element_type(c)]["label"])
+
+    def intl_elements(self, choice=None):
+        """Element-type defaults (international good practice) on the Elements
+        page: exclusion thresholds, blank limits, CV_avg and umpire limits and
+        the rating boundaries. Method, detection limit, upper limit and cut-off
+        grade stay as entered."""
+        self.apply_elements(quiet=True)
+        done = apply_element_defaults(self.RB, self._intl_targets(choice or self.intl_el.get()))
+        self.refresh_elements()
+        if hasattr(self, "crit_scope"):
+            self._load_criteria_scope()
+        for el, label in done.items():
+            self.log(f"International defaults set for {el}: {label}.")
+        return done
+
+    def intl_criteria(self):
+        """The same for the rating boundaries only (Criteria page)."""
+        scope = self.crit_scope.get()
+        done = apply_element_defaults(self.RB, self._intl_targets(scope), what="criteria")
+        self._load_criteria_scope()
+        for el, label in done.items():
+            self.log(f"International criteria set for {el}: {label}.")
+        if scope == self._ALL_ELEMENTS and done:
+            self.log("Choose an element in the selector to see its boundaries.")
+        return done
+
+    def reset_settings(self):
+        self.S = dict(DEFAULT_SETTINGS)
+        for key, v in self._svars.items():
+            if key in self.S:
+                v.set(self.S[key] if isinstance(v, tk.BooleanVar) else str(self.S[key]))
+        self.log("Settings restored to defaults.")
 
     def reset_elements(self):
         self.RB.el.reset()
@@ -732,8 +801,12 @@ class App(tk.Tk):
             v = tk.BooleanVar(value=self.S[key])
             self._svars[key] = v
             ttk.Checkbutton(box2, text=lbl, variable=v).pack(anchor="w", pady=2)
-        ttk.Button(f, text="Apply settings", style="Accent.TButton",
-                   command=self.apply_settings).pack(anchor="w")
+        bs = ttk.Frame(f, style="Panel.TFrame")
+        bs.pack(anchor="w")
+        ttk.Button(bs, text="Apply settings", style="Accent.TButton",
+                   command=self.apply_settings).pack(side="left")
+        ttk.Button(bs, text="Restore defaults", command=self.reset_settings).pack(
+            side="left", padx=6)
 
     # =====================================================================
     #  pages -- output
@@ -1395,7 +1468,7 @@ class App(tk.Tk):
         elif mode.startswith("Q-Q"):
             fig = fig_dup_qq(view, self.S)
         elif mode.startswith("Relative"):
-            fig = fig_dup_mean_hrd(view, self.S)
+            fig = fig_dup_mean_hrd(view, self.S, Ce)
         elif mode.startswith("HARD dist"):
             fig = fig_dup_hist(view, self.S)
         else:
@@ -1455,12 +1528,17 @@ class App(tk.Tk):
             b = B.get(el)
             if not b:
                 continue
-            pct = b.get("pct", {})
-            rows.append((el, _f(b.get("total_cv_pct"), 1),
-                         _f(pct.get("sampling", pct.get("sampling+preparation")), 1),
-                         _f(pct.get("preparation", pct.get("preparation+analytical")), 1),
-                         _f(pct.get("analytical"), 1), b.get("dominant") or "",
-                         " | ".join(b.get("notes", []))))
+            for name, x in (("classical", b), ("robust P90", b.get("robust") or {})):
+                pct = x.get("pct", {})
+                notes = list(x.get("notes", []))
+                if name == "classical" and b.get("disagree"):
+                    notes.insert(0, "WARNING: disagrees with the robust budget "
+                                    "(outlier pairs); findings use the robust one")
+                rows.append((f"{el}  [{name}]", _f(x.get("total_cv_pct"), 1),
+                             _f(pct.get("sampling", pct.get("sampling+preparation")), 1),
+                             _f(pct.get("preparation", pct.get("preparation+analytical")), 1),
+                             _f(pct.get("analytical"), 1), x.get("dominant") or "",
+                             " | ".join(notes)))
         fill(self.budtree, rows)
 
     # -- umpire -----------------------------------------------------------------

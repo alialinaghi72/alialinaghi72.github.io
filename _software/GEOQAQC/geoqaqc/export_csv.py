@@ -321,6 +321,12 @@ def _export_v2(project, R, F, C, S, RB, diagnosis, out):
             row[f"CV2 {k}"] = _r(b["cv2"].get(k), 6)
         for k, v in b.get("pct", {}).items():
             row[f"% {k}"] = _r(v, 2)
+        rb_ = b.get("robust") or {}
+        for k, v in (rb_.get("pct") or {}).items():
+            row[f"robust % {k}"] = _r(v, 2)
+        row["Robust dominant stage"] = rb_.get("dominant") or ""
+        row["Robust total CV %"] = _r(rb_.get("total_cv_pct"), 2)
+        row["Disagree"] = "yes" if b.get("disagree") else "no"
         eb.append(row)
     if eb:
         keys = []
