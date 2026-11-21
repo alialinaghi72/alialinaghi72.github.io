@@ -78,6 +78,7 @@ L = {
    nf_t='Page not found', nf_p='The address you were looking for does not exist or has moved.',
    illustrative='Charts and figures on this page are illustrative unless a source is given.'),
 }
+
 SEG = {'svc': 'services', 'art': 'articles', 'atlas': 'atlas', 'gloss': 'glossary', 'tools': 'tools'}
 
 TOPICS = {'fa': topics_fa.TOPICS, 'en': topics_en.TOPICS}
@@ -440,7 +441,9 @@ def build_article(lang, a):
           "datePublished": a['published'], "dateModified": a['updated'], "author": {"@id": SITE + "/#person"}, "publisher": {"@id": SITE + "/#person"},
           "mainEntityOfPage": u, "image": img, "articleSection": a['cat'], "keywords": a['keywords'], "wordCount": words(' '.join(b for _, b in a['sections'])),
           "isPartOf": {"@id": SITE + "/#website"}},
-         crumbs_ld(lang, trail))
+         crumbs_ld(lang, trail),
+         {"@type": "FAQPage", "@id": u + "#faq", "mainEntity": [
+             {"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": a}} for q, a in a['faq']]} if a.get('faq') else None)
     meta = (f'<div class="art-meta"><span class="av" aria-hidden="true">A.A</span><span>{l["by"]} <a href="{l["home"]}">{l["name"]}</a></span>'
             f'<span><time datetime="{a["published"]}">{fdate(a["published"], lang)}</time></span>'
             + (f'<span>{l["updated"]}: <time datetime="{a["updated"]}">{fdate(a["updated"], lang)}</time></span>' if a['updated'] != a['published'] else '')
@@ -482,7 +485,9 @@ def build_tool(lang, t):
          {"@type": "WebApplication", "@id": u + "#app", "name": c['h1'], "description": c['desc'], "url": u, "inLanguage": lang,
           "applicationCategory": "EducationalApplication", "operatingSystem": "Any", "browserRequirements": "Requires JavaScript",
           "isAccessibleForFree": True, "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"}, "author": {"@id": SITE + "/#person"}},
-         crumbs_ld(lang, trail))
+         crumbs_ld(lang, trail),
+         {"@type": "FAQPage", "@id": u + "#faq", "mainEntity": [
+             {"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": a}} for q, a in c['faq']]} if c.get('faq') else None)
     ui = tools_ui.UI[t['slug']](lang)
     tail = share_html(lang, u, c['h1']) + feedback_html(lang, 'tool-' + t['slug'], c['h1']) + author_html(lang)
     main = page_hero(trail, t['icon'], c['h1'], c['lede']) + f'<section class="tool-sec"><div class="wrap">{ui}</div></section>' + \
