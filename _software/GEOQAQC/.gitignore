@@ -1,7 +1,0 @@
-__pycache__/
-.pytest_cache/
-build/
-dist/
-release/
-selftest_out/
-exe_selftest/
